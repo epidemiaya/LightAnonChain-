@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.env
+venv/
+.venv/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# LAC data (blockchain state — never commit!)
+data/
+chain.json
+wallets.json
+usernames.json
+persistent_msgs.json
+groups.json
+key_images.json
+stash_pool.json
+timelock_*.json
+zero_history_*.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+lac-mobile/dist/

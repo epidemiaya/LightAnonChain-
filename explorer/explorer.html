@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LAC Explorer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050505;--bg2:#0c0c0c;--bg3:#141414;--a:#0ee68a;--t:#d0d0d0;--m:#555;--bd:#1c1c1c;--blue:#3b82f6;--purple:#a855f7;--orange:#f97316;--red:#ef4444;--amber:#f59e0b}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--t);font-size:14px;line-height:1.5}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#222;border-radius:3px}
+a{color:var(--a);text-decoration:none}
+.mono{font-family:'Courier New',monospace}
+
+.hdr{background:var(--bg2);border-bottom:1px solid var(--bd);padding:12px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:99}
+.hdr .logo{font-size:20px;font-weight:800;color:var(--a)}
+.hdr .logo span{font-weight:400;color:var(--m);font-size:13px;margin-left:6px}
+.hdr-r{display:flex;align-items:center;gap:10px}
+.hdr-r input{background:var(--bg3);border:1px solid var(--bd);color:var(--t);padding:6px 10px;border-radius:5px;font-size:12px;width:160px;font-family:monospace}
+.hdr-r input:focus{outline:none;border-color:var(--a)}
+.hdr-r button{background:var(--a);color:#000;border:none;padding:6px 12px;border-radius:5px;font-weight:700;cursor:pointer;font-size:12px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--a);animation:blink 2s infinite}
+@keyframes blink{50%{opacity:.3}}
+.nurl{font-size:10px;color:var(--m);font-family:monospace}
+
+.wrap{max-width:1360px;margin:0 auto;padding:20px}
+
+.bnr{background:rgba(14,230,138,.04);border:1px solid rgba(14,230,138,.1);border-radius:8px;padding:12px 18px;margin-bottom:20px;display:flex;gap:10px;align-items:center}
+.bnr b{color:var(--a);font-size:13px}
+.bnr p{font-size:11px;color:var(--m)}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:20px}
+.st{background:var(--bg2);border:1px solid var(--bd);border-radius:6px;padding:12px 14px}
+.st .lab{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--m);font-weight:600;margin-bottom:4px}
+.st .val{font-size:22px;font-weight:800}
+.st .sub{font-size:10px;color:var(--m);margin-top:2px}
+.grn{color:var(--a)}.prp{color:var(--purple)}.org{color:var(--orange)}.rd{color:var(--red)}.amb{color:var(--amber)}.blu{color:var(--blue)}
+
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--bd);margin-bottom:16px}
+.tab{padding:8px 16px;font-size:12px;font-weight:600;color:var(--m);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent}
+.tab:hover{color:var(--t)}.tab.on{color:var(--a);border-bottom-color:var(--a)}
+.pan{display:none}.pan.on{display:block}
+
+.cols{display:grid;grid-template-columns:300px 1fr;gap:14px}
+@media(max-width:800px){.cols{grid-template-columns:1fr}}
+
+.blist{display:flex;flex-direction:column;gap:4px;max-height:560px;overflow-y:auto}
+.bitem{background:var(--bg2);border:1px solid var(--bd);border-radius:5px;padding:8px 12px;cursor:pointer}
+.bitem:hover,.bitem.on{border-color:var(--a);background:rgba(14,230,138,.03)}
+.bitem .num{font-weight:700;color:var(--a);font-size:12px;font-family:monospace}
+.bitem .meta{font-size:10px;color:var(--m);margin-top:2px}
+
+.bdet{background:var(--bg2);border:1px solid var(--bd);border-radius:6px;padding:16px}
+.bdet h2{font-size:15px;font-weight:700;color:var(--a);margin-bottom:2px}
+.bdet .bhash{font-size:9px;color:var(--m);font-family:monospace;word-break:break-all;margin-bottom:12px}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px}
+.ditem{background:var(--bg3);border-radius:4px;padding:8px 10px}
+.ditem .dl{font-size:8px;text-transform:uppercase;letter-spacing:.8px;color:var(--m);margin-bottom:2px}
+.ditem .dv{font-size:11px;font-weight:600;font-family:monospace}
+
+.sec{font-size:12px;font-weight:700;margin:12px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--bd)}
+
+.rew{background:rgba(14,230,138,.03);border:1px solid rgba(14,230,138,.08);border-radius:5px;padding:10px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.rew .amt{font-size:16px;font-weight:800;color:var(--a);font-family:monospace}
+
+.txc{background:var(--bg3);border:1px solid var(--bd);border-radius:5px;padding:10px 12px;margin-bottom:5px}
+.txc:hover{border-color:rgba(255,255,255,.06)}
+.txh{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.txh .tname{font-weight:700;font-size:12px}
+.badge{font-size:8px;padding:2px 7px;border-radius:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.badge.pub{background:rgba(59,130,246,.1);color:var(--blue)}
+.badge.pri{background:rgba(168,85,247,.1);color:var(--purple)}
+.badge.stsh{background:rgba(249,115,22,.1);color:var(--orange)}
+.badge.burn{background:rgba(239,68,68,.1);color:var(--red)}
+.badge.sys{background:rgba(14,230,138,.06);color:var(--a)}
+.badge.dms{background:rgba(239,68,68,.08);color:var(--red)}
+.badge.dice{background:rgba(245,158,11,.1);color:var(--amber)}
+.badge.tmr{background:rgba(59,130,246,.08);color:var(--blue)}
+.txf{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:4px}
+.txf .fl{font-size:8px;text-transform:uppercase;letter-spacing:.6px;color:var(--m)}
+.txf .fv{font-size:10px;font-family:monospace;word-break:break-all}
+.txf .fv.h{color:var(--purple);font-style:italic;font-family:sans-serif}
+.txf .fv.a{color:var(--a);font-weight:700}
+
+.pag{display:flex;justify-content:center;gap:3px;margin-top:10px}
+.pag button{background:var(--bg3);border:1px solid var(--bd);color:var(--t);padding:4px 8px;border-radius:3px;cursor:pointer;font-size:10px;font-family:monospace}
+.pag button.on{background:var(--a);color:#000;font-weight:700}
+.pag button:disabled{opacity:.2;cursor:default}
+
+.empty{text-align:center;padding:24px;color:var(--m);font-size:11px}
+.err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:12px;color:var(--red);font-size:12px;margin:10px 0}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="logo">⛓️ LAC<span>Explorer</span></div>
+  <div class="hdr-r">
+    <input id="searchIn" placeholder="Block #..." onkeydown="if(event.key==='Enter')search()"/>
+    <button onclick="search()">Go</button>
+    <div class="dot" id="dot"></div>
+    <span class="nurl" id="nurl"></span>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="bnr">
+    <div style="font-size:22px">🛡️</div>
+    <div><b>Zero-History Privacy Blockchain</b><p>Normal = public. VEIL = anonymous. L2 messages = encrypted auto-delete. Zero-History erases all.</p></div>
+  </div>
+
+  <div class="stats" id="topStats">
+    <div class="st"><div class="lab">Blocks</div><div class="val grn" id="xB">—</div><div class="sub" id="xBs"></div></div>
+    <div class="st"><div class="lab">Transactions</div><div class="val" id="xE">—</div><div class="sub">all time</div></div>
+    <div class="st"><div class="lab">Block Time</div><div class="val" id="xT">—</div><div class="sub" id="xTs"></div></div>
+    <div class="st"><div class="lab">Wallets</div><div class="val" id="xW">—</div></div>
+    <div class="st"><div class="lab">STASH Pool</div><div class="val grn" id="xP">—</div><div class="sub" id="xPs"></div></div>
+    <div class="st"><div class="lab">DMS Active</div><div class="val rd" id="xD">—</div><div class="sub">💀 Dead Man's Switch</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" onclick="tab('blocks',this)">🧱 Blocks</button>
+    <button class="tab" onclick="tab('events',this)">📋 Events</button>
+    <button class="tab" onclick="tab('stash',this)">🎒 STASH</button>
+    <button class="tab" onclick="tab('stats',this)">📊 Stats</button>
+  </div>
+
+  <div id="errBox"></div>
+
+  <div class="pan on" id="p-blocks">
+    <div class="cols">
+      <div><div class="blist" id="bList"></div><div class="pag" id="bPag"></div></div>
+      <div class="bdet" id="bDet"><div class="empty">← Select a block</div></div>
+    </div>
+  </div>
+  <div class="pan" id="p-events"><div id="eList"></div><div class="pag" id="ePag"></div></div>
+  <div class="pan" id="p-stash"><div id="sBox"></div></div>
+  <div class="pan" id="p-stats"><div id="statsBox"><div class="empty">Loading stats...</div></div></div>
+</div>
+
+<script>
+const API = location.origin;
+let BLK=[], EVT=[], SEL=null, bP=0, eP=0, HEIGHT=0;
+
+document.getElementById('nurl').textContent = API.replace(/https?:\/\//,'');
+
+// ===== STATS =====
+async function loadStats() {
+  try {
+    const r = await (await fetch(API+'/api/stats')).json();
+    if (!r.ok) return;
+    window._cs = r;
+    if (document.querySelector('.pan.on')?.id === 'p-stats') rStats();
+  } catch(e) {}
+}
+
+function rStats() {
+  const s = window._cs;
+  if (!s) { document.getElementById('statsBox').innerHTML='<div class="empty">Stats loading...</div>'; return; }
+  
+  const lvl = Object.entries(s.level_distribution||{}).sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([k,v])=>'<div class="st"><div class="lab">'+k+'</div><div class="val">'+v+'</div><div class="sub">wallets</div></div>').join('');
+  
+  const top = (s.top_balances||[]).map((b,i)=>'<div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--bg3);border-radius:4px;margin-bottom:3px;font-size:12px"><span style="color:var(--m)">#'+(i+1)+' 👤 Anonymous</span><span style="color:var(--a);font-family:monospace;font-weight:700">'+b.toLocaleString()+' LAC</span></div>').join('');
+  
+  document.getElementById('statsBox').innerHTML = ''
+    +'<div class="sec">📊 All-Time Chain Statistics</div>'
+    +'<div class="stats">'
+    +'<div class="st"><div class="lab">Total Wallets</div><div class="val grn">'+s.total_wallets+'</div></div>'
+    +'<div class="st"><div class="lab">Total Blocks</div><div class="val">'+s.total_blocks.toLocaleString()+'</div></div>'
+    +'<div class="st"><div class="lab">Total Supply</div><div class="val grn">'+Math.round(s.total_supply).toLocaleString()+'</div><div class="sub">LAC</div></div>'
+    +'<div class="st"><div class="lab">All Transactions</div><div class="val">'+(s.all_tx_count||0).toLocaleString()+'</div></div>'
+    +'</div>'
+    +'<div class="sec">🔒 Privacy Metrics (All Time)</div>'
+    +'<div class="stats">'
+    +'<div class="st"><div class="lab">VEIL TX</div><div class="val prp">'+(s.all_veil||0)+'</div><div class="sub">confidential</div></div>'
+    +'<div class="st"><div class="lab">Normal TX</div><div class="val blu">'+(s.all_normal||0)+'</div><div class="sub">public</div></div>'
+    +'<div class="st"><div class="lab">STASH TX</div><div class="val org">'+(s.all_stash||0)+'</div><div class="sub">anonymous pool</div></div>'
+    +'<div class="st"><div class="lab">Dice TX</div><div class="val amb">'+(s.all_dice||0)+'</div><div class="sub">anonymous game</div></div>'
+    +'<div class="st"><div class="lab">DMS TX</div><div class="val rd">'+(s.all_dms||0)+'</div><div class="sub">dead man switch</div></div>'
+    +'<div class="st"><div class="lab">TimeLock TX</div><div class="val blu">'+(s.all_timelock||0)+'</div><div class="sub">scheduled</div></div>'
+    +'<div class="st"><div class="lab">Burn TX</div><div class="val rd">'+(s.all_burn||0)+'</div><div class="sub">level ups</div></div>'
+    +'<div class="st"><div class="lab">Usernames</div><div class="val">'+(s.all_username||0)+'</div></div>'
+    +'<div class="st"><div class="lab">Faucet TX</div><div class="val">'+(s.all_faucet||0)+'</div></div>'
+    +'<div class="st"><div class="lab">L2 Messages</div><div class="val">'+(s.all_l2_messages||0)+'</div><div class="sub">encrypted</div></div>'
+    +'<div class="st"><div class="lab">STASH Pool</div><div class="val org">'+s.stash_pool_balance.toLocaleString()+'</div><div class="sub">LAC locked</div></div>'
+    +'<div class="st"><div class="lab">STASH Redeemed</div><div class="val">'+s.stash_keys_redeemed+'</div><div class="sub">keys used</div></div>'
+    +'</div>'
+    +'<div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px">'
+    +'<div><div class="sec">🏆 Top Balances (anonymous)</div>'+top+'</div>'
+    +'<div><div class="sec">📊 Level Distribution</div><div class="stats">'+lvl+'</div></div>'
+    +'</div>';
+}
+
+async function init() {
+  await load();
+  await loadStats();
+  setInterval(load, 12000);
+  setInterval(loadStats, 30000);
+}
+
+async function load() {
+  const err = document.getElementById('errBox');
+  try {
+    const h = await (await fetch(API+'/api/chain/height')).json();
+    HEIGHT = h.height || 0;
+
+    // Last 1000 blocks
+    const s = Math.max(0, HEIGHT - 1000);
+    const r = await (await fetch(API+'/api/blocks/range?start='+s+'&end='+HEIGHT)).json();
+    BLK = (r.blocks || []).sort((a,b) => b.index - a.index);
+
+    EVT = [];
+    BLK.forEach(b => (b.transactions||[]).forEach(tx => EVT.push({...tx, _bh:b.index, _bt:b.timestamp})));
+
+    let vc = 0;
+    try { const v = await (await fetch(API+'/api/validator/list')).json(); vc = (v.validators||[]).length; } catch(e){}
+
+    let stash = {total_balance:0,spent_count:0,active_keys:0};
+    try { stash = await (await fetch(API+'/api/stash/info')).json(); } catch(e){}
+    window._vc = vc;
+    window._stash = stash;
+
+    upStats();
+    render();
+    document.getElementById('dot').style.background = 'var(--a)';
+    err.innerHTML = '';
+  } catch(e) {
+    document.getElementById('dot').style.background = 'var(--red)';
+    err.innerHTML = '<div class="err">⚠️ Connection error: '+e.message+'<br>Check that node is running on '+API+'</div>';
+  }
+}
+
+function upStats() {
+  let avg = 0;
+  if (BLK.length >= 2) {
+    let sum = 0;
+    for (let i=0; i<Math.min(BLK.length-1,50); i++) sum += Math.abs(BLK[i].timestamp - BLK[i+1].timestamp);
+    avg = Math.round(sum / Math.min(BLK.length-1, 50));
+  }
+  const today = BLK.filter(b => new Date(b.timestamp*1000).toDateString() === new Date().toDateString()).length;
+  const st = window._stash || {};
+  const cs = window._cs || {};
+
+  document.getElementById('xB').textContent = HEIGHT.toLocaleString();
+  document.getElementById('xBs').textContent = '+'+today+' today';
+  document.getElementById('xE').textContent = (cs.all_tx_count||EVT.length).toLocaleString();
+  document.getElementById('xT').textContent = avg > 0 ? avg+'s' : '—';
+  document.getElementById('xTs').textContent = avg < 30 ? 'Fast' : avg > 0 ? 'Stable' : '';
+  document.getElementById('xW').textContent = cs.total_wallets || '—';
+  document.getElementById('xP').textContent = (st.total_balance||0).toLocaleString()+' LAC';
+  document.getElementById('xPs').textContent = (st.active_keys||0)+' active / '+(st.spent_count||0)+' redeemed';
+  document.getElementById('xD').textContent = cs.dms_active || 0;
+}
+
+// ===== TABS =====
+function tab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.pan').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('p-'+name).classList.add('on');
+  render();
+}
+
+function render() {
+  const a = document.querySelector('.pan.on');
+  if (a.id==='p-blocks') rBlocks();
+  else if (a.id==='p-events') rEvents();
+  else if (a.id==='p-stats') rStats();
+  else rStash();
+}
+
+// ===== BLOCKS =====
+function rBlocks() {
+  const PP=20, s=bP*PP, pg=BLK.slice(s,s+PP);
+  const el = document.getElementById('bList');
+  if (!pg.length) { el.innerHTML='<div class="empty">No blocks loaded</div>'; return; }
+
+  el.innerHTML = pg.map(b => {
+    const tx = (b.transactions||[]).length;
+    const mg = (b.ephemeral_msgs||[]).length;
+    return '<div class="bitem'+(SEL&&SEL.index===b.index?' on':'')+'" onclick="selB('+b.index+')"><div class="num">Block #'+b.index+'</div><div class="meta">'+ftime(b.timestamp)+' · '+tx+' tx · '+mg+' msg</div></div>';
+  }).join('');
+
+  paginate('bPag', bP, Math.ceil(BLK.length/PP), p => { bP=p; rBlocks(); });
+  if (!SEL && pg.length) selB(pg[0].index);
+}
+
+function selB(idx) {
+  const b = BLK.find(x => x.index===idx);
+  if (!b) return;
+  SEL = b;
+
+  const items = document.querySelectorAll('.bitem');
+  items.forEach(el => el.classList.toggle('on', el.textContent.includes('#'+idx)));
+
+  const d = document.getElementById('bDet');
+  const txs = b.transactions || [];
+  const msgs = b.ephemeral_msgs || [];
+
+  const rws = b.mining_rewards || [];
+  const totR = b.total_reward || rws.reduce((s,r) => s+(r.reward||0), 0);
+  const mc = b.mining_winners_count || rws.length;
+
+  let rwH = '';
+  if (totR > 0) {
+    rwH = '<div class="rew"><div><b>⛏️ '+mc+' miner'+(mc>1?'s':'')+'</b><br><span style="font-size:10px;color:var(--m)">🔒 PoET Anonymous</span></div><div class="amt">'+totR.toFixed(2)+' LAC</div></div>';
+  }
+
+  const ptx = txs.filter(t => t.type!=='mining_reward' && t.type!=='poet_reward');
+
+  d.innerHTML = '<h2>Block #'+b.index+'</h2>'
+    +'<div class="bhash">'+(b.hash||'—')+'</div>'
+    +'<div class="dgrid">'
+    +'<div class="ditem"><div class="dl">Miner</div><div class="dv">'+(b.miner==='poet_anonymous'?'🔒 PoET Anonymous':sA(b.miner))+'</div></div>'
+    +'<div class="ditem"><div class="dl">Previous</div><div class="dv">'+(b.previous_hash||'—').substring(0,20)+'…</div></div>'
+    +'<div class="ditem"><div class="dl">Time</div><div class="dv">'+new Date(b.timestamp*1000).toLocaleString()+'</div></div>'
+    +'<div class="ditem"><div class="dl">Difficulty</div><div class="dv">'+(b.difficulty||0)+'</div></div>'
+    +'</div>'
+    +rwH
+    +'<div class="sec">📋 Layer 1: Transactions ('+ptx.length+')</div>'
+    +(ptx.length ? ptx.map(txCard).join('') : '<div class="empty">No transactions</div>')
+    +'<div class="sec">💬 Layer 2: Ephemeral ('+msgs.length+')</div>'
+    +(msgs.length ? '<div class="empty">🔒 '+msgs.length+' encrypted messages — auto-delete after 5 min<br><span style="font-size:9px">Content never stored on-chain. Only hash exists temporarily.</span></div>' : '<div class="empty">None</div>');
+}
+
+// ===== TX CARD =====
+function txCard(tx) {
+  const t = tx.type || '';
+  let nm,ic,bc,f;
+
+  switch(t) {
+    case 'normal': case 'transfer':
+      nm='Transfer'; ic='💸'; bc='pub';
+      f=[['From',sA(tx.from),''],['To',sA(tx.to),''],['Amount',(tx.amount||0)+' LAC','a'],['Fee',(tx.fee||0.1)+' LAC','']];
+      break;
+    case 'veil_transfer':
+      nm='VEIL Transfer'; ic='👻'; bc='pri';
+      f=[['From','🔒 Anonymous','h'],['To','🔒 Hidden (OTA)','h'],['Amount','🔒 Confidential','h'],['Ring',(tx.ring_signature?.ring_size||'?')+' keys','']];
+      break;
+    case 'ring_transfer':
+      nm='Ring Transfer'; ic='🔐'; bc='pri';
+      f=[['From','🔒 Anonymous','h'],['To','🔒 Hidden','h'],['Amount','🔒 Confidential','h']];
+      break;
+    case 'stealth_transfer':
+      nm='Stealth Transfer'; ic='🔒'; bc='pri';
+      f=[['From','🔒 Anonymous','h'],['To','🔒 Stealth Address','h'],['Amount','🔒 Confidential','h']];
+      break;
+    case 'stash_deposit':
+      nm='STASH Deposit'; ic='🎒'; bc='stsh';
+      f=[['From','🔒 Anonymous','h'],['To','STASH Pool',''],['Amount',(tx.amount||0)+' LAC','a']];
+      break;
+    case 'stash_withdraw':
+      nm='STASH Withdraw'; ic='💰'; bc='stsh';
+      f=[['From','🔒 STASH Pool','h'],['To','🔒 Anonymous','h'],['Amount',(tx.amount||0)+' LAC','a'],['Link','🔒 Unlinkable','h']];
+      break;
+    case 'dice_burn':
+      nm='Dice Burn'; ic='🎲'; bc='dice';
+      f=[['From','🔒 Anonymous','h'],['To','🔥 Burned',''],['Amount',(tx.amount||0)+' LAC','a'],['Game','Provably fair','']];
+      break;
+    case 'dice_mint':
+      nm='Dice Mint'; ic='🎲'; bc='dice';
+      f=[['From','dice_contract',''],['To','🔒 Anonymous','h'],['Amount',(tx.amount||0)+' LAC','a'],['Game','Winner payout','']];
+      break;
+    case 'dms_transfer': case 'dms_transfer_all':
+      nm='DMS Transfer'; ic='💀'; bc='dms';
+      f=[['From','🔒 Anonymous','h'],['To','🔒 Anonymous','h'],['Amount',(tx.amount||0)+' LAC','a'],['Trigger','Dead Man\'s Switch','']];
+      break;
+    case 'dms_message':
+      nm='DMS Message'; ic='💀'; bc='dms';
+      f=[['From','🔒 Anonymous','h'],['To','🔒 Anonymous','h'],['Event','Auto-message sent',''],['Trigger','Dead Man\'s Switch','']];
+      break;
+    case 'dms_wipe':
+      nm='DMS Wipe'; ic='💀'; bc='dms';
+      f=[['From','🔒 Anonymous','h'],['To','🔥 Burned',''],['Amount',(tx.amount||0)+' LAC','a'],['Event','Wallet destroyed','']];
+      break;
+    case 'dms_burn_stash':
+      nm='DMS Burn STASH'; ic='💀'; bc='dms';
+      f=[['From','🔒 Anonymous','h'],['Event','STASH keys destroyed',''],['Trigger','Dead Man\'s Switch','']];
+      break;
+    case 'timelock_create':
+      nm='TimeLock'; ic='⏰'; bc='tmr';
+      f=[['From',sA(tx.from),''],['To',sA(tx.to),''],['Amount',(tx.amount||0)+' LAC','a'],['Unlock','Block #'+(tx.unlock_block||'?'),'']];
+      break;
+    case 'timelock_release':
+      nm='TimeLock Release'; ic='⏰'; bc='tmr';
+      f=[['From','TimeLock',''],['To',sA(tx.to),''],['Amount',(tx.amount||0)+' LAC','a']];
+      break;
+    case 'burn_level_upgrade':
+      nm='Level Up'; ic='⬆️'; bc='burn';
+      f=[['User',sA(tx.from),''],['Level','L'+(tx.level_from||'?')+' → L'+(tx.level_to||'?'),'a'],['Burned',(tx.amount||0)+' LAC','']];
+      break;
+    case 'burn_nickname_change':
+      nm='Nickname Change'; ic='✏️'; bc='burn';
+      f=[['User',sA(tx.from),''],['New',tx.new_nickname||'—','a'],['Burned',(tx.amount||0)+' LAC','']];
+      break;
+    case 'username_register':
+      nm='Username'; ic='👤'; bc='sys';
+      f=[['User',sA(tx.from),''],['Name','@'+(tx.username||'—'),'a'],['Cost',(tx.amount||0)+' LAC','']];
+      break;
+    case 'faucet':
+      nm='Faucet'; ic='🚰'; bc='sys';
+      f=[['To',sA(tx.to),''],['Amount',(tx.amount||0)+' LAC','a']];
+      break;
+    default:
+      nm=t.replace(/_/g,' ')||'Event'; ic='📄'; bc='sys';
+      f=[['Type',t,''],['From',sA(tx.from),''],['To',sA(tx.to),'']];
+      if (tx.amount>0) f.push(['Amount',tx.amount+' LAC','a']);
+  }
+
+  const bg = {pub:'PUBLIC',pri:'CONFIDENTIAL',stsh:'STASH',burn:'BURN',sys:'SYSTEM',dms:'DMS',dice:'DICE',tmr:'TIMELOCK'}[bc]||'EVENT';
+  return '<div class="txc"><div class="txh"><div class="tname">'+ic+' '+nm+'</div><span class="badge '+bc+'">'+bg+'</span></div>'
+    +'<div class="txf">'+f.map(x => '<div><div class="fl">'+x[0]+'</div><div class="fv '+x[2]+'">'+x[1]+'</div></div>').join('')+'</div></div>';
+}
+
+// ===== EVENTS =====
+function rEvents() {
+  const PP=15, s=eP*PP, pg=EVT.slice(s,s+PP);
+  const el = document.getElementById('eList');
+  if (!pg.length) { el.innerHTML='<div class="empty">No events</div>'; return; }
+
+  el.innerHTML = pg.map(tx => {
+    const time = ftime(tx._bt||0);
+    if (tx.type==='mining_reward'||tx.type==='poet_reward') {
+      return '<div class="txc"><div class="txh"><div class="tname">⛏️ Mining Reward</div><span class="badge sys">Block #'+tx._bh+'</span></div>'
+        +'<div class="txf"><div><div class="fl">Miner</div><div class="fv h">🔒 Anonymous</div></div><div><div class="fl">Reward</div><div class="fv a">'+(tx.amount||tx.reward||0)+' LAC</div></div><div><div class="fl">Time</div><div class="fv">'+time+'</div></div></div></div>';
+    }
+    return '<div style="margin-bottom:3px"><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--m);margin-bottom:3px"><span class="badge sys">Block #'+tx._bh+'</span><span>'+time+'</span></div>'+txCard(tx)+'</div>';
+  }).join('');
+
+  paginate('ePag', eP, Math.ceil(EVT.length/PP), p => { eP=p; rEvents(); });
+}
+
+// ===== STASH =====
+function rStash() {
+  const st = window._stash || {};
+  let deps=0,wds=0,tD=0,tW=0;
+  EVT.forEach(tx => {
+    if (tx.type==='stash_deposit'){deps++;tD+=tx.amount||0}
+    if (tx.type==='stash_withdraw'){wds++;tW+=tx.amount||0}
+  });
+  document.getElementById('sBox').innerHTML = '<div class="stats">'
+    +'<div class="st"><div class="lab">Pool Balance</div><div class="val grn">'+(st.total_balance||0).toLocaleString()+'</div><div class="sub">LAC locked</div></div>'
+    +'<div class="st"><div class="lab">Active Keys</div><div class="val amb">'+(st.active_keys||0)+'</div><div class="sub">unredeemed</div></div>'
+    +'<div class="st"><div class="lab">Redeemed</div><div class="val">'+(st.spent_count||0)+'</div><div class="sub">keys used</div></div>'
+    +'<div class="st"><div class="lab">Deposits (1K)</div><div class="val">'+deps+'</div><div class="sub">'+tD.toLocaleString()+' LAC</div></div>'
+    +'<div class="st"><div class="lab">Withdrawals (1K)</div><div class="val">'+wds+'</div><div class="sub">'+tW.toLocaleString()+' LAC</div></div>'
+    +'<div class="st"><div class="lab">Nominals</div><div class="val" style="font-size:13px">100 · 1K · 10K · 100K</div><div class="sub">LAC</div></div>'
+    +'</div>'
+    +'<div class="sec" style="margin-top:12px">🔒 STASH Privacy</div>'
+    +'<div class="bnr"><div style="font-size:18px">🔗‍💥</div><div><b>Zero Link Between Deposit & Withdrawal</b><p>Deposits and withdrawals use different anonymous addresses. No on-chain connection possible.</p></div></div>';
+}
+
+// ===== HELPERS =====
+function sA(a) {
+  if (!a) return '—';
+  if (a==='anonymous') return '🔒 Anonymous';
+  if (a==='stash_pool') return '🎒 STASH';
+  if (a==='dice_contract') return '🎲 Dice Contract';
+  if (a.startsWith('veil_')) return '🔒 '+a.substring(0,12)+'…';
+  if (a.startsWith('lac_0000')) return '🔥 Burn Address';
+  return a.length>20 ? a.substring(0,8)+'…'+a.slice(-6) : a;
+}
+
+function ftime(ts) {
+  if (!ts) return '—';
+  const d = Math.floor(Date.now()/1000 - ts);
+  if (d<60) return d+'s ago';
+  if (d<3600) return Math.floor(d/60)+'m ago';
+  if (d<86400) return Math.floor(d/3600)+'h ago';
+  return new Date(ts*1000).toLocaleDateString();
+}
+
+function paginate(id, cur, tot, fn) {
+  const el = document.getElementById(id);
+  if (tot<=1) { el.innerHTML=''; return; }
+  let h = '<button'+(cur===0?' disabled':'')+' class="pb" data-p="'+(cur-1)+'">←</button>';
+  for (let i=0;i<tot;i++) {
+    if (i===0||i===tot-1||(i>=cur-2&&i<=cur+2)) h+='<button class="pb'+(i===cur?' on':'')+'" data-p="'+i+'">'+(i+1)+'</button>';
+    else if (i===cur-3||i===cur+3) h+='<button disabled>…</button>';
+  }
+  h+='<button'+(cur>=tot-1?' disabled':'')+' class="pb" data-p="'+(cur+1)+'">→</button>';
+  el.innerHTML = h;
+  el.querySelectorAll('.pb').forEach(b => b.onclick=()=>fn(+b.dataset.p));
+}
+
+async function search() {
+  const q = document.getElementById('searchIn').value.trim();
+  if (!q) return;
+  const n = parseInt(q);
+  if (isNaN(n)||n<0) { alert('Enter a block number'); return; }
+  try {
+    const r = await (await fetch(API+'/api/blocks/range?start='+n+'&end='+(n+1))).json();
+    const b = (r.blocks||[])[0];
+    if (b) {
+      if (!BLK.find(x=>x.index===n)) { BLK.push(b); BLK.sort((a,b)=>b.index-a.index); }
+      SEL = b;
+      document.querySelectorAll('.tab')[0].click();
+      rBlocks(); selB(n);
+    } else { alert('Block #'+n+' not found'); }
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+init();
+</script>
+</body>
+</html>
