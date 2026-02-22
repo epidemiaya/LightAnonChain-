@@ -4915,7 +4915,7 @@ def stash_deposit():
             secret = secrets.token_bytes(32)
             nullifier = hashlib.sha256(b"STASH_NULL" + secret).hexdigest()
             nullifier_hash = hashlib.sha256(nullifier.encode()).hexdigest()
-            stash_key = f'stash_{{"v":1,"n":{nominal_code},"s":"{secret.hex()}"}}'
+            stash_key = f'STASH-{amount}-{secret.hex()}'
             
             # Blockchain TX — sender hidden
             tx = {
@@ -4982,25 +4982,39 @@ def stash_withdraw():
         data = request.get_json() or {}
         stash_key = data.get('stash_key', '').strip()
         
-        if not stash_key.startswith('stash_{'):
+        secret_hex = None
+        amount = None
+        
+        # New format: STASH-{amount}-{hex}
+        if stash_key.startswith('STASH-'):
+            parts = stash_key.split('-', 2)
+            if len(parts) == 3:
+                try:
+                    amount = int(parts[1])
+                    secret_hex = parts[2]
+                except:
+                    return jsonify({'error': 'Invalid STASH key format', 'ok': False}), 400
+            else:
+                return jsonify({'error': 'Invalid STASH key format', 'ok': False}), 400
+            # Verify amount is valid nominal
+            if amount not in STASH_NOMINALS.values():
+                return jsonify({'error': 'Invalid STASH amount', 'ok': False}), 400
+        # Old format: stash_{"v":1,"n":0,"s":"hex"}
+        elif stash_key.startswith('stash_{'):
+            try:
+                key_json = stash_key[6:]
+                key_data = json.loads(key_json)
+                nominal_code = key_data.get('n')
+                secret_hex = key_data.get('s')
+                if nominal_code in STASH_NOMINALS:
+                    amount = STASH_NOMINALS[nominal_code]
+            except:
+                return jsonify({'error': 'Malformed STASH key', 'ok': False}), 400
+        else:
             return jsonify({'error': 'Invalid STASH key format', 'ok': False}), 400
         
-        try:
-            key_json = stash_key[6:]
-            key_data = json.loads(key_json)
-        except Exception:
-            return jsonify({'error': 'Malformed STASH key', 'ok': False}), 400
-        
-        if key_data.get('v') != 1:
-            return jsonify({'error': 'Unsupported key version', 'ok': False}), 400
-        
-        nominal_code = key_data.get('n')
-        secret_hex = key_data.get('s')
-        
-        if nominal_code not in STASH_NOMINALS or not secret_hex:
+        if not secret_hex or not amount:
             return jsonify({'error': 'Invalid STASH key', 'ok': False}), 400
-        
-        amount = STASH_NOMINALS[nominal_code]
         
         try:
             secret = bytes.fromhex(secret_hex)
