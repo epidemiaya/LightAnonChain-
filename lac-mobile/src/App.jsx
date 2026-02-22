@@ -156,10 +156,30 @@ const LoginScreen = ({ onAuth }) => {
   };
 
   const login = async () => {
-    if(!imp.trim()||imp.length<16){ toast.error('Invalid seed'); return; }
+    if(!imp.trim()||imp.length<16){ toast.error('Seed too short (min 16 chars)'); return; }
     setLoading(true);
-    try { const r = await post('/api/login', { seed: imp.trim() }); if(r.ok){ localStorage.setItem('lac_address',r.address); onAuth(imp.trim()); } }
-    catch(e){ toast.error(e.message); } finally { setLoading(false); }
+    try {
+      let r;
+      try {
+        r = await post('/api/login', { seed: imp.trim() });
+      } catch(loginErr) {
+        // Wallet not found — auto-register with this seed
+        if (loginErr.message?.includes('not found') || loginErr.message?.includes('404')) {
+          try {
+            r = await post('/api/register', { seed: imp.trim() });
+            toast.success('Wallet restored!');
+          } catch(regErr) {
+            toast.error('Register failed: ' + regErr.message, {duration: 4000});
+            return;
+          }
+        } else {
+          toast.error('Login failed: ' + loginErr.message, {duration: 4000});
+          return;
+        }
+      }
+      if(r && r.ok){ localStorage.setItem('lac_address', r.address); onAuth(imp.trim()); }
+      else { toast.error('Login failed — unexpected response', {duration: 4000}); }
+    } catch(e){ toast.error('Error: ' + e.message, {duration: 4000}); } finally { setLoading(false); }
   };
 
   if (mode === 'welcome') return (
@@ -226,8 +246,10 @@ const MainApp = ({ onLogout }) => {
     if (panicTimer.current) clearTimeout(panicTimer.current);
     if (panicClicks.current >= 3) {
       panicClicks.current = 0;
-      if (confirm('⚠️ PANIC MODE\n\nThis will DESTROY all wallet data!\nAre you absolutely sure?')) {
-        post('/api/panic').then(() => { toast('🔥 Wallet wiped!'); onLogout(); }).catch(() => { localStorage.clear(); onLogout(); });
+      if (confirm('⚠️ PANIC MODE\n\nThis will erase ALL local data from this device.\nYour wallet stays on the network — you can login again with your seed.\n\nContinue?')) {
+        localStorage.clear();
+        toast('🔥 Local data erased!');
+        onLogout();
       }
     } else {
       toast(`⚠️ PANIC: tap ${3-panicClicks.current} more`, {duration:1500, icon:'🚨'});
@@ -432,13 +454,19 @@ const ChatView = ({ peer, onBack, profile }) => {
   // Merge server data into local store without losing optimistic messages
   const mergeServer = (serverMsgs) => {
     const local = localMsgs.current;
-    // Build a set of server message keys
-    const serverKeys = new Set(serverMsgs.map(m => m.text + '|' + (m.timestamp||0)));
-    // Keep unconfirmed optimistic messages
-    const surviving = local.filter(m => m._opt && !serverKeys.has(m.text + '|' + m.timestamp));
-    // Merge and sort
-    const merged = [...serverMsgs, ...surviving].sort((a,b) => (a.timestamp||0) - (b.timestamp||0));
-    // Only update React state if data actually changed
+    // Build a dedup index: text + rough timestamp (10sec window)
+    const serverIndex = new Set(serverMsgs.map(m => m.text + '|' + Math.floor((m.timestamp||0)/10)));
+    // Keep unconfirmed optimistic messages ONLY if server doesn't have a match
+    const surviving = local.filter(m => m._opt && !serverIndex.has(m.text + '|' + Math.floor((m.timestamp||0)/10)));
+    // Merge, dedup server msgs by text+timestamp, and sort
+    const seen = new Set();
+    const deduped = serverMsgs.filter(m => {
+      const k = m.text + '|' + (m.timestamp||0) + '|' + (m.direction||'');
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    const merged = [...deduped, ...surviving].sort((a,b) => (a.timestamp||0) - (b.timestamp||0));
     const json = JSON.stringify(merged.map(m => m.text + (m._opt?'_p':'') + m.timestamp));
     if (json !== lastJson.current) {
       lastJson.current = json;
@@ -636,7 +664,16 @@ const NewChat = ({ onBack, onGo }) => {
 
 const NewGroup = ({ onBack, onDone }) => {
   const [name, setName] = useState(''); const [type, setType] = useState('public'); const [ld, setLd] = useState(false);
-  const go = async () => { setLd(true); try { await post('/api/group.create',{name:name.trim(),type}); toast.success('Created!'); onDone(); } catch(e){ toast.error(e.message); } finally { setLd(false); } };
+  const go = async () => {
+    if (!name.trim()) { toast.error('Enter group name'); return; }
+    setLd(true);
+    try {
+      const r = await post('/api/group.create',{name:name.trim(),type});
+      if (r.ok) { toast.success('Group "'+name.trim()+'" created!'); onDone(); }
+      else { toast.error(r.error || 'Failed to create group', {duration:4000}); }
+    } catch(e){ toast.error('Error: ' + (e.message||'Unknown'), {duration:4000}); }
+    finally { setLd(false); }
+  };
   const types = [
     ['public','🌍 Public','Anyone can see and write. Data on server.'],
     ['private','🔒 Private','By invite only. Encrypted.'],
@@ -905,12 +942,16 @@ const STASHView = ({ onBack, onDone }) => {
       {/* Result feedback */}
       {res?.t==='dep' && res.key && (
         <Card gradient="bg-emerald-900/15 border-emerald-700/30" className="mb-3">
-          <p className="text-emerald-400 text-sm font-bold">✅ Deposit successful! Key auto-copied & saved.</p>
-          <p className="text-emerald-300 font-mono text-[10px] break-all select-all bg-[#060f0c] p-2 rounded-lg mt-2">{res.key}</p>
-          <div className="flex gap-2 mt-2">
-            <button onClick={() => cp(res.key)} className="text-emerald-400 text-xs flex items-center gap-1 bg-emerald-900/20 px-2 py-1 rounded-lg"><Copy className="w-3 h-3"/> Copy again</button>
+          <p className="text-emerald-400 text-sm font-bold mb-2">✅ Deposit successful!</p>
+          <div className="bg-[#060f0c] p-3 rounded-lg border border-emerald-900/20">
+            <p className="text-[9px] text-gray-600 mb-1 uppercase tracking-wider">STASH Key (tap to copy)</p>
+            <p onClick={() => cp(res.key)} className="text-emerald-300 font-mono text-[12px] break-all select-all cursor-pointer leading-5">{res.key}</p>
           </div>
-          <p className="text-gray-600 text-[10px] mt-2">⚠️ Anyone with this key can withdraw. Keep it safe!</p>
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => cp(res.key)} className="flex-1 text-emerald-400 text-xs flex items-center justify-center gap-1 bg-emerald-900/20 px-3 py-2 rounded-lg active:bg-emerald-900/40"><Copy className="w-3 h-3"/> Copy</button>
+            <button onClick={() => { if(navigator.share) navigator.share({text:res.key}).catch(()=>{}); else cp(res.key); }} className="flex-1 text-blue-400 text-xs flex items-center justify-center gap-1 bg-blue-900/20 px-3 py-2 rounded-lg active:bg-blue-900/40">↗ Share</button>
+          </div>
+          <p className="text-red-400/70 text-[10px] mt-2 text-center">⚠️ Anyone with this key can withdraw {fmt(res.a)} LAC. Keep it safe!</p>
         </Card>
       )}
       {res?.t==='wdr' && (
