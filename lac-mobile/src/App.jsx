@@ -781,23 +781,17 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
 
 const MiningMini = () => {
   const [d, setD] = useState(null);
-  useEffect(() => { get('/api/wallet/mining?limit=100').then(setD).catch(() => {}); }, []);
+  useEffect(() => { get('/api/wallet/mining?limit=500').then(setD).catch(() => {}); }, []);
   if (!d) return <p className="text-gray-600 text-xs">Loading…</p>;
   const earned = d.total_mined || 0;
   const mined = d.count || 0;
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <p className="text-2xl font-bold text-emerald-400">{earned > 0 ? fmt(earned) : '0'} <span className="text-sm text-gray-500">LAC earned</span></p>
-        </div>
-        <div className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${mined>0?'bg-emerald-900/40 text-emerald-400':'bg-amber-900/30 text-amber-400'}`}>
-          {mined>0?'⛏ Active':'⏳ Waiting'}
-        </div>
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-2xl font-bold text-emerald-400">{earned > 0 ? fmt(earned) : '0'} <span className="text-sm text-gray-500">LAC earned</span></p>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <StatBox label="Blocks Mined" value={mined} small />
-        <StatBox label="Per Block" value="~10 LAC" color="text-gray-400" small />
+      <div className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${mined>0?'bg-emerald-900/40 text-emerald-400':'bg-amber-900/30 text-amber-400'}`}>
+        {mined>0?'⛏ Active':'⏳ Waiting'}
       </div>
     </div>
   );
@@ -820,12 +814,36 @@ const RecentTxs = () => {
   useEffect(() => {
     get('/api/wallet/transactions').then(d => {
       const t=d.transactions||{};
-      setTxs([...(t.sent||[]).map(x=>({...x,dir:'sent'})),...(t.received||[]).map(x=>({...x,dir:'received'})),...(t.mining||[]).map(x=>({...x,dir:'mined'})),...(t.burned||[]).map(x=>({...x,dir:'burned'}))].sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,5));
+      const all = [
+        ...(t.sent||[]).map(x=>({...x,dir:'sent'})),
+        ...(t.received||[]).map(x=>({...x,dir:'received'})),
+        ...(t.mining||[]).map(x=>({...x,dir:'mined'})),
+        ...(t.burned||[]).map(x=>({...x,dir:'burned'})),
+        ...(t.timelock_sent||[]).map(x=>({...x,dir:'sent',type:x.type||'timelock'})),
+        ...(t.timelock_received||[]).map(x=>({...x,dir:'received',type:x.type||'timelock'})),
+      ];
+      setTxs(all.sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,8));
     }).catch(() => setTxs([]));
   }, []);
   if (!txs) return null;
   if (txs.length===0) return <p className="text-gray-700 text-sm text-center py-4">No transactions</p>;
   return <div>{txs.map((tx,i) => <TxRow key={i} tx={tx} />)}</div>;
+};
+
+const txLabel = (tx) => {
+  const t = tx.type || tx.dir;
+  const labels = {
+    'mining':'⛏️ Mining Reward', 'mining_reward':'⛏️ Mining Reward',
+    'transfer':'💸 Transfer', 'normal':'💸 Transfer',
+    'veil_transfer':'👻 VEIL Transfer', 'ring_transfer':'🔐 Ring Transfer', 'stealth_transfer':'🔒 Stealth',
+    'stash_deposit':'🎒 STASH Deposit', 'stash_withdraw':'💰 STASH Withdraw',
+    'dice_burn':'🎲 Dice Loss', 'dice_mint':'🎲 Dice Win',
+    'burn_level_upgrade':'⬆️ Level Up', 'burn_nickname_change':'✏️ Nickname Change',
+    'username_register':'👤 Username', 'faucet':'🚰 Faucet',
+    'timelock_create':'⏰ TimeLock Send', 'timelock_activated':'⏰ TimeLock Received',
+    'dms_transfer':'💀 DMS Transfer', 'dms_wipe':'💀 DMS Wipe',
+  };
+  return labels[t] || t?.replace(/_/g,' ') || tx.dir;
 };
 
 const TxRow = ({ tx }) => {
@@ -836,7 +854,7 @@ const TxRow = ({ tx }) => {
     <div className="flex items-center gap-3 py-2.5 border-b border-gray-800/20">
       <div className={`w-9 h-9 rounded-full flex items-center justify-center ${bgs[tx.dir]||'bg-gray-800'}`}>{icons[tx.dir]}</div>
       <div className="flex-1 min-w-0">
-        <p className="text-white text-sm">{tx.dir==='mined'?'Mining Reward':tx.type||tx.dir}</p>
+        <p className="text-white text-sm">{txLabel(tx)}</p>
         <p className="text-gray-600 text-[11px]">{ago(tx.timestamp)}{tx.block?` · #${tx.block}`:''}</p>
       </div>
       <span className={`text-sm font-semibold ${isIn?'text-emerald-400':'text-gray-400'}`}>{isIn?'+':'−'}{fmt(tx.amount)}</span>
@@ -1189,7 +1207,15 @@ const TxsView = ({ onBack }) => {
   const [txs, setTxs] = useState([]); const [ld, setLd] = useState(true); const [f, setF] = useState('all');
   useEffect(() => {
     get('/api/wallet/transactions').then(d => { const t=d.transactions||{};
-      setTxs([...(t.sent||[]).map(x=>({...x,dir:'sent'})),...(t.received||[]).map(x=>({...x,dir:'received'})),...(t.mining||[]).map(x=>({...x,dir:'mined'})),...(t.burned||[]).map(x=>({...x,dir:'burned'}))].sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)));
+      const all = [
+        ...(t.sent||[]).map(x=>({...x,dir:'sent'})),
+        ...(t.received||[]).map(x=>({...x,dir:'received'})),
+        ...(t.mining||[]).map(x=>({...x,dir:'mined'})),
+        ...(t.burned||[]).map(x=>({...x,dir:'burned'})),
+        ...(t.timelock_sent||[]).map(x=>({...x,dir:'sent',type:x.type||'timelock'})),
+        ...(t.timelock_received||[]).map(x=>({...x,dir:'received',type:x.type||'timelock'})),
+      ];
+      setTxs(all.sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)));
     }).catch(()=>{}).finally(()=>setLd(false));
   }, []);
   const show = f==='all'?txs:txs.filter(t=>t.dir===f);
@@ -1506,23 +1532,42 @@ const DashboardView = ({ onBack }) => {
   return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="📊 Dashboard" onBack={onBack} />
     <div className="flex-1 overflow-y-auto p-4">
       {!s?<p className="text-gray-600 text-center py-8">Loading…</p>:<>
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          <StatBox icon="⛓" label="Total Blocks" value={fmt(s.total_blocks)} />
-          <StatBox icon="👛" label="Wallets" value={fmt(s.total_wallets)} />
-          <StatBox icon="💰" label="Total Supply" value={fmt(s.total_supply)} />
-          <StatBox icon="🎒" label="STASH Pool" value={fmt(s.stash_pool_balance)} color="text-amber-400" />
-        </div>
-        <Card className="mb-3"><p className="text-white text-sm font-semibold mb-2">Recent (100 blocks)</p>
-          <div className="grid grid-cols-3 gap-2">
-            <StatBox label="Transactions" value={s.recent_tx_count||0} small />
-            <StatBox label="VEIL" value={s.recent_veil||0} color="text-purple-400" small />
-            <StatBox label="Normal" value={s.recent_normal||0} small />
+        {/* Supply */}
+        <Card gradient="bg-gradient-to-br from-emerald-900/20 to-[#0f1f18] border-emerald-800/15" className="mb-3">
+          <p className="text-white text-sm font-semibold mb-2">💰 Supply</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div><p className="text-[9px] text-gray-600 uppercase">Circulating</p><p className="text-emerald-400 text-lg font-bold">{fmt(s.circulating_supply||s.total_supply)} LAC</p></div>
+            <div><p className="text-[9px] text-gray-600 uppercase">Total Mined</p><p className="text-blue-400 text-lg font-bold">{fmt(s.total_mined_emission||0)} LAC</p></div>
+            <div><p className="text-[9px] text-gray-600 uppercase">🔥 Burned</p><p className="text-red-400 text-sm font-bold">{fmt(s.total_burned||0)} LAC</p></div>
+            <div><p className="text-[9px] text-gray-600 uppercase">Fees Burned</p><p className="text-orange-400 text-sm font-bold">{fmt(s.total_fees_burned||0)} LAC</p></div>
           </div>
         </Card>
-        {s.top_balances && <Card><p className="text-white text-sm font-semibold mb-2">🏆 Top Balances</p>
+        {/* Network */}
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <StatBox icon="⛓" label="Total Blocks" value={fmt(s.total_blocks)} />
+          <StatBox icon="👛" label="Wallets" value={fmt(s.total_wallets)} />
+          <StatBox icon="📝" label="Transactions" value={fmt(s.all_tx_count||0)} />
+          <StatBox icon="🎒" label="STASH Pool" value={fmt(s.stash_pool_balance)} color="text-amber-400" />
+        </div>
+        {/* Transaction breakdown */}
+        <Card className="mb-3"><p className="text-white text-sm font-semibold mb-2">All-Time Transactions</p>
+          <div className="grid grid-cols-3 gap-2">
+            <StatBox label="💸 Normal" value={s.all_normal||0} small />
+            <StatBox label="👻 VEIL" value={s.all_veil||0} color="text-purple-400" small />
+            <StatBox label="🎒 STASH" value={s.all_stash||0} color="text-amber-400" small />
+            <StatBox label="🎲 Dice" value={s.all_dice||0} color="text-yellow-400" small />
+            <StatBox label="⏰ TimeLock" value={s.all_timelock||0} color="text-blue-400" small />
+            <StatBox label="💀 DMS" value={s.all_dms||0} color="text-red-400" small />
+            <StatBox label="🔥 Burns" value={s.all_burn||0} color="text-red-400" small />
+            <StatBox label="👤 Usernames" value={s.all_username||0} small />
+            <StatBox label="🚰 Faucet" value={s.all_faucet||0} small />
+          </div>
+          {s.all_l2_messages > 0 && <p className="text-purple-400/50 text-[10px] mt-2 text-center">+ {s.all_l2_messages} L2 encrypted messages (auto-deleted)</p>}
+        </Card>
+        {s.top_balances && <Card className="mb-3"><p className="text-white text-sm font-semibold mb-2">🏆 Top Balances</p>
           {s.top_balances.slice(0,5).map((b,i) => <div key={i} className="flex justify-between py-1 border-b border-gray-800/20"><span className="text-gray-500 text-xs">#{i+1}</span><span className="text-emerald-400 text-xs">{fmt(b)} LAC</span></div>)}
         </Card>}
-        {s.level_distribution && <Card className="mt-3"><p className="text-white text-sm font-semibold mb-2">📊 Level Distribution</p>
+        {s.level_distribution && <Card><p className="text-white text-sm font-semibold mb-2">📊 Level Distribution</p>
           {Object.entries(s.level_distribution).sort().map(([k,v]) => <div key={k} className="flex justify-between py-1 border-b border-gray-800/20"><span className="text-gray-500 text-xs">{k}</span><span className="text-white text-xs">{v} wallets</span></div>)}
         </Card>}
       </>}
@@ -1549,9 +1594,20 @@ const txMeta = (t) => {
 const isAnon = (t) => ['veil_transfer','ring_transfer','stealth_transfer','stash_deposit','stash_withdraw','dice_burn','dice_mint','dms_transfer','dms_transfer_all','dms_message','dms_wipe','dms_burn_stash'].includes(t);
 
 const ExplorerView = ({ onBack }) => {
-  const [blocks, setBlocks] = useState([]); const [h, setH] = useState(0); const [sel, setSel] = useState(null);
+  const [blocks, setBlocks] = useState([]); const [h, setH] = useState(0); const [sel, setSel] = useState(null); const [loading, setLoading] = useState(true);
   useEffect(() => {
-    (async () => { try { const hd=await get('/api/chain/height'); setH(hd.height||0); const s=Math.max(0,(hd.height||0)-30); const bd=await get(`/api/blocks/range?start=${s}&end=${hd.height}`); setBlocks((bd.blocks||[]).reverse()); } catch {} })();
+    (async () => {
+      try {
+        const hd = await get('/api/chain/height');
+        setH(hd.height||0);
+        const height = hd.height||0;
+        // Load last 1000 blocks (or all if chain < 1000)
+        const start = Math.max(0, height - 1000);
+        const bd = await get(`/api/blocks/range?start=${start}&end=${height}`);
+        setBlocks((bd.blocks||[]).reverse());
+      } catch {}
+      setLoading(false);
+    })();
   }, []);
 
   if (sel) {
@@ -1594,9 +1650,10 @@ const ExplorerView = ({ onBack }) => {
       </div></div>);
   }
 
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="⛓ Explorer" onBack={onBack} right={<Badge>#{h}</Badge>} />
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="⛓ Explorer" onBack={onBack} right={<Badge>#{h} · {blocks.length} blocks</Badge>} />
     <div className="flex-1 overflow-y-auto p-4">
-      {blocks.length===0?<p className="text-gray-600 text-center py-8">Loading…</p>:
+      {loading?<p className="text-gray-600 text-center py-8">Loading 1000 blocks…</p>:
+        blocks.length===0?<p className="text-gray-600 text-center py-8">No blocks</p>:
         blocks.map(b => {
           const txs = (b.transactions||[]).filter(t => t.type!=='mining_reward' && t.type!=='poet_reward');
           const msgs = (b.ephemeral_msgs||[]).length;

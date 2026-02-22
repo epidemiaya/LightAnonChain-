@@ -1702,6 +1702,32 @@ def send_message():
         to_username = get_username_by_key_id(to_key_id)
         to_display = to_username if to_username else to_address
         
+        # Dedup: reject same text to same recipient within 5 seconds
+        for existing in reversed(S.persistent_msgs[-50:]):
+            if (existing.get('from_address') == from_addr and
+                existing.get('to') == to_address and
+                existing.get('text') == text and
+                abs(existing.get('timestamp', 0) - int(time.time())) < 5):
+                return jsonify({
+                    'ok': True,
+                    'message_id': 'dedup',
+                    'balance': from_wallet.get('balance', 0),
+                    'to_address': to_address,
+                    'to_display': to_display
+                })
+        for existing in reversed(S.ephemeral_msgs[-50:]):
+            if (existing.get('from_address') == from_addr and
+                existing.get('to') == to_address and
+                existing.get('text') == text and
+                abs(existing.get('timestamp', 0) - int(time.time())) < 5):
+                return jsonify({
+                    'ok': True,
+                    'message_id': 'dedup',
+                    'balance': from_wallet.get('balance', 0),
+                    'to_address': to_address,
+                    'to_display': to_display
+                })
+        
         # Create message
         msg = {
             'from': from_display,
@@ -5121,21 +5147,38 @@ def chain_stats():
             all_tx = 0; all_veil = 0; all_normal = 0; all_stash = 0
             all_dice = 0; all_burn = 0; all_timelock = 0; all_dms = 0
             all_username = 0; all_faucet = 0; all_msg_count = 0
+            total_mined_emission = 0  # all mining rewards ever created
+            total_burned = 0  # all LAC permanently destroyed
+            total_fees_burned = 0  # fees that go nowhere
             for b in S.chain:
                 txs = b.get('transactions', [])
                 all_tx += len(txs)
                 all_msg_count += len(b.get('ephemeral_msgs', []))
+                # Count mining emission
+                if 'mining_rewards' in b:
+                    for r in b['mining_rewards']:
+                        total_mined_emission += r.get('reward', 0)
                 for tx in txs:
                     t = tx.get('type', '')
                     if t == 'veil_transfer': all_veil += 1
                     elif t in ['normal', 'transfer']: all_normal += 1
                     elif t.startswith('stash_'): all_stash += 1
                     elif t.startswith('dice_'): all_dice += 1
-                    elif t.startswith('burn_'): all_burn += 1
+                    elif t.startswith('burn_'): 
+                        all_burn += 1
+                        total_burned += tx.get('amount', 0)
                     elif t == 'timelock_create': all_timelock += 1
                     elif t.startswith('dms_'): all_dms += 1
-                    elif t == 'username_register': all_username += 1
+                    elif t == 'username_register': 
+                        all_username += 1
+                        total_burned += tx.get('amount', 0)
                     elif t == 'faucet': all_faucet += 1
+                    # Count dice burns
+                    if t == 'dice_burn':
+                        total_burned += tx.get('amount', 0)
+                    # Count fees
+                    fee = tx.get('fee', 0) or tx.get('ring_fee', 0) or tx.get('stealth_fee', 0) or tx.get('veil_fee', 0)
+                    total_fees_burned += fee
             
             # Recent stats (last 100 blocks)
             recent = S.chain[-100:] if len(S.chain) > 100 else S.chain
@@ -5171,7 +5214,12 @@ def chain_stats():
                 'recent_veil': recent_veil,
                 'recent_normal': recent_normal,
                 'stash_pool_balance': S.stash_pool.get('total_balance', 0),
-                'stash_keys_redeemed': len(S.stash_pool.get('spent_nullifiers', []))
+                'stash_keys_redeemed': len(S.stash_pool.get('spent_nullifiers', [])),
+                # SUPPLY
+                'total_mined_emission': round(total_mined_emission, 2),
+                'total_burned': round(total_burned, 2),
+                'total_fees_burned': round(total_fees_burned, 2),
+                'circulating_supply': round(total_supply, 2),
             })
     except Exception as e:
         return jsonify({'error': str(e), 'ok': False}), 500
