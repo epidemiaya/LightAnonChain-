@@ -1331,19 +1331,37 @@ def get_wallet_mining():
         
         wallet = S.wallets[addr]
         
-        # Use wallet's mining_history (stored per-wallet during block creation)
-        history = wallet.get('mining_history', [])
+        # Primary: scan blockchain for mining rewards (most reliable)
         mining_rewards = []
         total_mined = 0
         
-        for entry in reversed(history[-limit:]):
-            mining_rewards.append({
-                'block': entry.get('block'),
-                'timestamp': entry.get('timestamp'),
-                'reward': entry.get('reward', 0),
-                'confirmed': True
-            })
-            total_mined += entry.get('reward', 0)
+        for block in S.chain:
+            if 'mining_rewards' in block:
+                for reward in block['mining_rewards']:
+                    if reward.get('address') == addr:
+                        mining_rewards.append({
+                            'block': block.get('index', 0),
+                            'timestamp': block.get('timestamp', 0),
+                            'reward': reward.get('reward', 0),
+                            'confirmed': True
+                        })
+                        total_mined += reward.get('reward', 0)
+        
+        # Fallback: if chain scan found nothing, use wallet history
+        if not mining_rewards:
+            history = wallet.get('mining_history', [])
+            for entry in history:
+                mining_rewards.append({
+                    'block': entry.get('block'),
+                    'timestamp': entry.get('timestamp'),
+                    'reward': entry.get('reward', 0),
+                    'confirmed': True
+                })
+                total_mined += entry.get('reward', 0)
+        
+        # Sort by block descending, limit
+        mining_rewards.sort(key=lambda x: x.get('block', 0), reverse=True)
+        mining_rewards = mining_rewards[:limit]
         
         return jsonify({
             'ok': True,
@@ -1377,9 +1395,11 @@ def get_contacts():
                 wallet = S.wallets[contact_addr]
                 key_id = wallet.get('key_id')
                 username = get_username_by_key_id(key_id) or 'Anonymous'
+                now = int(time.time())
                 enriched.append({
                     'address': contact_addr,
-                    'username': username
+                    'username': username,
+                    'online': (now - wallet.get('last_activity', 0)) < 300
                 })
         
         return jsonify({
@@ -1671,6 +1691,7 @@ def send_message():
     verified = data.get('verified', False)
     ephemeral = data.get('ephemeral', False)  # False = regular, True = 5-min L2
     burn = data.get('burn', False)  # Burn after read
+    reply_to = data.get('reply_to', None)  # {text, from} of message being replied to
     
     if not to or not text:
         return jsonify({'error': 'Recipient and text required'}), 400
@@ -1739,6 +1760,7 @@ def send_message():
             'verified': verified,
             'ephemeral': ephemeral,
             'burn': burn,
+            'reply_to': reply_to if reply_to else None,
             'ttl': 300 if ephemeral else 0
         }
         
@@ -1905,7 +1927,8 @@ def get_chat():
                     'direction': direction,
                     'ephemeral': msg.get('ephemeral', msg_type == 'ephemeral'),
                     'msg_type': msg_type,
-                    'burn': msg.get('burn', False)
+                    'burn': msg.get('burn', False),
+                    'reply_to': msg.get('reply_to', None)
                 }
                 
                 # Burn after read: if recipient reads a burn message, mark it
@@ -1944,7 +1967,8 @@ def get_chat():
             'messages': messages,
             'count': len(messages),
             'peer': peer,
-            'peer_addr': peer_addr
+            'peer_addr': peer_addr,
+            'peer_online': bool(peer_addr and peer_addr in S.wallets and (int(time.time()) - S.wallets[peer_addr].get('last_activity', 0)) < 300)
         })
 
 # ==================== DICE GAME ====================
@@ -3525,6 +3549,27 @@ def get_wallet_transactions():
                                     'timestamp': block_time,
                                     'timelock': True
                                 })
+        
+        # Dice game history (from wallet, not blockchain - anonymous on chain)
+        dice_history = wallet.get('dice_history', [])
+        for game in dice_history:
+            if game.get('won'):
+                transactions['received'].append({
+                    'type': 'dice_win',
+                    'from': 'dice_contract',
+                    'amount': game.get('payout', 0) - game.get('bet', 0),
+                    'timestamp': game.get('timestamp', 0),
+                    'anonymous': True
+                })
+                total_received += game.get('payout', 0) - game.get('bet', 0)
+            else:
+                transactions['burned'].append({
+                    'type': 'dice_loss',
+                    'amount': game.get('bet', 0),
+                    'timestamp': game.get('timestamp', 0),
+                    'anonymous': True
+                })
+                total_burned += game.get('bet', 0)
         
         return jsonify({
             'ok': True,
@@ -5154,10 +5199,16 @@ def chain_stats():
                 txs = b.get('transactions', [])
                 all_tx += len(txs)
                 all_msg_count += len(b.get('ephemeral_msgs', []))
-                # Count mining emission
+                # Count mining emission - check multiple formats
                 if 'mining_rewards' in b:
                     for r in b['mining_rewards']:
-                        total_mined_emission += r.get('reward', 0)
+                        total_mined_emission += r.get('reward', 0) or r.get('amount', 0)
+                elif 'total_reward' in b:
+                    total_mined_emission += b.get('total_reward', 0)
+                # Also check for reward transactions
+                for tx in txs:
+                    if tx.get('type') in ('mining_reward', 'poet_reward'):
+                        total_mined_emission += tx.get('amount', 0) or tx.get('reward', 0)
                 for tx in txs:
                     t = tx.get('type', '')
                     if t == 'veil_transfer': all_veil += 1
@@ -5216,7 +5267,7 @@ def chain_stats():
                 'stash_pool_balance': S.stash_pool.get('total_balance', 0),
                 'stash_keys_redeemed': len(S.stash_pool.get('spent_nullifiers', [])),
                 # SUPPLY
-                'total_mined_emission': round(total_mined_emission, 2),
+                'total_mined_emission': round(total_mined_emission if total_mined_emission > 0 else (total_supply + total_burned + total_fees_burned + S.stash_pool.get('total_balance', 0)), 2),
                 'total_burned': round(total_burned, 2),
                 'total_fees_burned': round(total_fees_burned, 2),
                 'circulating_supply': round(total_supply, 2),

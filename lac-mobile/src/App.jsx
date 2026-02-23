@@ -441,15 +441,32 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
 };
 
 // ━━━ CHAT VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const notifSound = (() => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    return () => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = 880; o.type = 'sine';
+      g.gain.setValueAtTime(0.15, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.3);
+    };
+  } catch { return () => {}; }
+})();
+
 const ChatView = ({ peer, onBack, profile }) => {
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [mode, setMode] = useState('regular'); // regular | ephemeral | burn
+  const [replyTo, setReplyTo] = useState(null); // {text, from} for reply
+  const [peerOnline, setPeerOnline] = useState(false);
   const end = useRef(null);
   const resolvedAddr = useRef(peer.address);
   const localMsgs = useRef([]); // client-side message store (source of truth)
   const lastJson = useRef(''); // prevent unnecessary re-renders
+  const lastCount = useRef(0); // track message count for notification sound
 
   // Merge server data into local store without losing optimistic messages
   const mergeServer = (serverMsgs) => {
@@ -479,6 +496,11 @@ const ChatView = ({ peer, onBack, profile }) => {
     try {
       const r = await get('/api/chat?peer='+encodeURIComponent(resolvedAddr.current));
       if (r.peer_addr && r.peer_addr.startsWith('lac')) resolvedAddr.current = r.peer_addr;
+      if (r.peer_online !== undefined) setPeerOnline(r.peer_online);
+      // Play sound if new incoming messages
+      const incoming = (r.messages||[]).filter(m => m.direction === 'received').length;
+      if (incoming > lastCount.current && lastCount.current > 0) { try { notifSound(); } catch {} }
+      lastCount.current = incoming;
       mergeServer(r.messages || []);
     } catch {}
   };
@@ -488,8 +510,10 @@ const ChatView = ({ peer, onBack, profile }) => {
   const send = async () => {
     if(!text.trim()||sending) return;
     const txt = text.trim();
+    const reply = replyTo ? { text: replyTo.text?.slice(0,100), from: replyTo.from } : null;
     setSending(true);
     setText('');
+    setReplyTo(null);
     // INSTANT optimistic
     const ts = ~~(Date.now()/1000);
     const isEph = mode === 'ephemeral';
@@ -497,7 +521,8 @@ const ChatView = ({ peer, onBack, profile }) => {
     const opt = {
       from: profile?.username||profile?.address, from_address: profile?.address,
       to: peer.address, text: txt, timestamp: ts,
-      direction: 'sent', ephemeral: isEph, burn: isBurn, msg_type: isEph?'ephemeral':'regular', _opt: true
+      direction: 'sent', ephemeral: isEph, burn: isBurn, msg_type: isEph?'ephemeral':'regular', _opt: true,
+      reply_to: reply
     };
     localMsgs.current = [...localMsgs.current, opt];
     setMsgs([...localMsgs.current]);
@@ -505,7 +530,7 @@ const ChatView = ({ peer, onBack, profile }) => {
     setSending(false); // unblock immediately
     // Fire and forget — poll will confirm
     try {
-      const res = await post('/api/message.send',{to:peer.address,text:txt,ephemeral:isEph,burn:isBurn});
+      const res = await post('/api/message.send',{to:peer.address,text:txt,ephemeral:isEph,burn:isBurn,reply_to:reply});
       if (res.to_address) resolvedAddr.current = res.to_address;
     } catch(e) {
       toast.error(e.message);
@@ -519,7 +544,7 @@ const ChatView = ({ peer, onBack, profile }) => {
 
   return (
     <div className="h-full bg-[#060f0c] flex flex-col">
-      <Header title={peerName} onBack={onBack}
+      <Header title={<span className="flex items-center gap-2">{peerName}{peerOnline && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />}</span>} onBack={onBack}
         right={<div className="flex gap-1">
           {[['regular','💬','gray'],['ephemeral','⏱','amber'],['burn','🔥','red']].map(([m,ic,c]) => 
             <button key={m} onClick={() => setMode(m)} className={`px-2 py-1 rounded-lg text-[10px] font-medium transition ${mode===m?`bg-${c}-600/20 text-${c}-400 border border-${c}-600/30`:'bg-gray-800/50 text-gray-600 border border-transparent'}`}>{ic}</button>
@@ -534,8 +559,10 @@ const ChatView = ({ peer, onBack, profile }) => {
           const burned = m.burned;
           return (
             <div key={i} className={`flex ${mine?'justify-end':'justify-start'}`}>
-              <div className={`max-w-[78%] px-3.5 py-2 rounded-2xl ${burned?'bg-gray-900/50 border border-gray-800':mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
+              <div onClick={() => { if(!burned) setReplyTo({text:m.text||m.message,from:m.from||sAddr(m.from_address)}); }}
+                className={`max-w-[78%] px-3.5 py-2 rounded-2xl cursor-pointer active:opacity-80 ${burned?'bg-gray-900/50 border border-gray-800':mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
                 {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{m.from||sAddr(m.from_address)}</p>}
+                {m.reply_to && <div className={`text-[11px] px-2 py-1 rounded-lg mb-1.5 border-l-2 ${mine?'bg-emerald-800/30 border-emerald-400/40':'bg-gray-800/50 border-purple-400/40'}`}><p className={`font-medium text-[10px] ${mine?'text-emerald-300/70':'text-purple-400/70'}`}>{m.reply_to.from}</p><p className={`truncate ${mine?'text-emerald-200/50':'text-gray-400'}`}>{m.reply_to.text}</p></div>}
                 <p className={`text-[14px] leading-snug ${burned?'text-gray-600 italic':''}`}>{m.text||m.message}</p>
                 <div className={`flex items-center gap-1.5 mt-0.5 ${mine?'justify-end':''}`}>
                   {isEph && <span className="text-[9px] opacity-50">⏱</span>}
@@ -552,6 +579,11 @@ const ChatView = ({ peer, onBack, profile }) => {
       {/* Message mode indicator */}
       {mode === 'ephemeral' && <div className="text-center py-1 bg-amber-900/10"><span className="text-amber-400/70 text-[10px]">⏱ Ephemeral L2 — self-destruct 5 min</span></div>}
       {mode === 'burn' && <div className="text-center py-1 bg-red-900/10"><span className="text-red-400/70 text-[10px]">🔥 Burn after read — destroyed when opened</span></div>}
+      {/* Reply bar */}
+      {replyTo && <div className="flex items-center gap-2 px-3 py-2 bg-[#0a1a15] border-t border-emerald-900/30">
+        <div className="flex-1 border-l-2 border-emerald-500 pl-2 min-w-0"><p className="text-emerald-400 text-[10px] font-medium">{replyTo.from}</p><p className="text-gray-400 text-[11px] truncate">{replyTo.text}</p></div>
+        <button onClick={() => setReplyTo(null)} className="text-gray-600 hover:text-gray-400 shrink-0"><X className="w-4 h-4" /></button>
+      </div>}
       <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
         <div className="flex gap-2 items-end">
           <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key==='Enter'&&!e.shiftKey&&send()}
@@ -837,7 +869,7 @@ const txLabel = (tx) => {
     'transfer':'💸 Transfer', 'normal':'💸 Transfer',
     'veil_transfer':'👻 VEIL Transfer', 'ring_transfer':'🔐 Ring Transfer', 'stealth_transfer':'🔒 Stealth',
     'stash_deposit':'🎒 STASH Deposit', 'stash_withdraw':'💰 STASH Withdraw',
-    'dice_burn':'🎲 Dice Loss', 'dice_mint':'🎲 Dice Win',
+    'dice_burn':'🎲 Dice Loss', 'dice_mint':'🎲 Dice Win', 'dice_win':'🎲 Dice Win', 'dice_loss':'🎲 Dice Loss',
     'burn_level_upgrade':'⬆️ Level Up', 'burn_nickname_change':'✏️ Nickname Change',
     'username_register':'👤 Username', 'faucet':'🚰 Faucet',
     'timelock_create':'⏰ TimeLock Send', 'timelock_activated':'⏰ TimeLock Received',
@@ -1519,7 +1551,7 @@ const ContactsView = ({ onBack, onChat }) => {
     <div className="p-4">
       <div className="flex gap-2 mb-4"><Input value={addr} onChange={setAddr} placeholder="Add address or @user" mono /><Btn onClick={add} color="emerald" small><UserPlus className="w-4 h-4"/></Btn></div>
       {contacts.length===0?<Empty emoji="👥" text="No contacts yet"/>:contacts.map((c,i) => (
-        <ListItem key={i} icon={<User className="w-5 h-5 text-emerald-500"/>} title={c.username||sAddr(c.address)} sub={c.address?sAddr(c.address):''}
+        <ListItem key={i} icon={<div className="relative"><User className="w-5 h-5 text-emerald-500"/>{c.online && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-[#060f0c]" />}</div>} title={c.username||sAddr(c.address)} sub={c.address?sAddr(c.address):''}
           onClick={() => onChat({address:c.address,name:c.username||c.address})} />
       ))}
     </div></div>);
@@ -1535,19 +1567,18 @@ const DashboardView = ({ onBack }) => {
         {/* Supply */}
         <Card gradient="bg-gradient-to-br from-emerald-900/20 to-[#0f1f18] border-emerald-800/15" className="mb-3">
           <p className="text-white text-sm font-semibold mb-2">💰 Supply</p>
-          <div className="grid grid-cols-2 gap-2">
-            <div><p className="text-[9px] text-gray-600 uppercase">Circulating</p><p className="text-emerald-400 text-lg font-bold">{fmt(s.circulating_supply||s.total_supply)} LAC</p></div>
-            <div><p className="text-[9px] text-gray-600 uppercase">Total Mined</p><p className="text-blue-400 text-lg font-bold">{fmt(s.total_mined_emission||0)} LAC</p></div>
-            <div><p className="text-[9px] text-gray-600 uppercase">🔥 Burned</p><p className="text-red-400 text-sm font-bold">{fmt(s.total_burned||0)} LAC</p></div>
-            <div><p className="text-[9px] text-gray-600 uppercase">Fees Burned</p><p className="text-orange-400 text-sm font-bold">{fmt(s.total_fees_burned||0)} LAC</p></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><p className="text-[9px] text-gray-600 uppercase">On wallets now</p><p className="text-emerald-400 text-lg font-bold">{fmt(s.circulating_supply||s.total_supply)}</p><p className="text-gray-600 text-[9px]">LAC</p></div>
+            <div><p className="text-[9px] text-gray-600 uppercase">Total Mined</p><p className="text-blue-400 text-lg font-bold">{fmt(s.total_mined_emission||0)}</p><p className="text-gray-600 text-[9px]">LAC</p></div>
+            <div><p className="text-[9px] text-gray-600 uppercase">🔥 Burned forever</p><p className="text-red-400 text-sm font-bold">{fmt((s.total_burned||0)+(s.total_fees_burned||0))} LAC</p></div>
+            <div><p className="text-[9px] text-gray-600 uppercase">🎒 In STASH Pool</p><p className="text-amber-400 text-sm font-bold">{fmt(s.stash_pool_balance||0)} LAC</p></div>
           </div>
         </Card>
         {/* Network */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <StatBox icon="⛓" label="Total Blocks" value={fmt(s.total_blocks)} />
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <StatBox icon="⛓" label="Blocks" value={fmt(s.total_blocks)} />
           <StatBox icon="👛" label="Wallets" value={fmt(s.total_wallets)} />
-          <StatBox icon="📝" label="Transactions" value={fmt(s.all_tx_count||0)} />
-          <StatBox icon="🎒" label="STASH Pool" value={fmt(s.stash_pool_balance)} color="text-amber-400" />
+          <StatBox icon="📝" label="TX" value={fmt(s.all_tx_count||0)} />
         </div>
         {/* Transaction breakdown */}
         <Card className="mb-3"><p className="text-white text-sm font-semibold mb-2">All-Time Transactions</p>
