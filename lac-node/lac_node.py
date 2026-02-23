@@ -256,6 +256,7 @@ class State:
         self.pending_txs = []  # Pending transactions for next block (dice, etc.)
         self.groups = {}  # gid → {name, posts: [{from, text, ts}]}
         self.contacts = {}  # address → [contact_addresses]
+        self.reactions = {}  # msg_key → {emoji: [addr1, addr2]}
         self.spent_key_images = set()  # Ring signature key images
         self.mempool = []
         
@@ -1783,6 +1784,49 @@ def send_message():
             'to_display': to_display
         })
 
+@app.route('/api/message.react', methods=['POST'])
+def message_react():
+    """Add or remove emoji reaction to a message"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    msg_key = data.get('msg_key', '').strip()  # text|timestamp identifier
+    emoji = data.get('emoji', '').strip()
+    
+    if not msg_key or not emoji:
+        return jsonify({'error': 'msg_key and emoji required'}), 400
+    
+    ALLOWED_EMOJIS = ['👍', '❤️', '🔥', '😂', '😮', '👎']
+    if emoji not in ALLOWED_EMOJIS:
+        return jsonify({'error': f'Emoji must be one of: {", ".join(ALLOWED_EMOJIS)}'}), 400
+    
+    with S.lock:
+        if msg_key not in S.reactions:
+            S.reactions[msg_key] = {}
+        
+        rxn = S.reactions[msg_key]
+        if emoji not in rxn:
+            rxn[emoji] = []
+        
+        # Toggle: if already reacted, remove; else add
+        if addr in rxn[emoji]:
+            rxn[emoji].remove(addr)
+            if not rxn[emoji]:
+                del rxn[emoji]
+            action = 'removed'
+        else:
+            rxn[emoji].append(addr)
+            action = 'added'
+        
+        # Clean empty
+        if not S.reactions[msg_key]:
+            del S.reactions[msg_key]
+        
+        return jsonify({'ok': True, 'action': action, 'emoji': emoji})
+
 @app.route('/api/inbox', methods=['GET'])
 def inbox():
     """Get inbox messages (received AND sent)"""
@@ -1928,7 +1972,9 @@ def get_chat():
                     'ephemeral': msg.get('ephemeral', msg_type == 'ephemeral'),
                     'msg_type': msg_type,
                     'burn': msg.get('burn', False),
-                    'reply_to': msg.get('reply_to', None)
+                    'reply_to': msg.get('reply_to', None),
+                    'msg_key': f"{(msg.get('text',''))[:30]}|{msg.get('timestamp',0)}",
+                    'reactions': S.reactions.get(f"{(msg.get('text',''))[:30]}|{msg.get('timestamp',0)}", {})
                 }
                 
                 # Burn after read: if recipient reads a burn message, mark it
@@ -3551,25 +3597,31 @@ def get_wallet_transactions():
                                 })
         
         # Dice game history (from wallet, not blockchain - anonymous on chain)
-        dice_history = wallet.get('dice_history', [])
-        for game in dice_history:
-            if game.get('won'):
-                transactions['received'].append({
-                    'type': 'dice_win',
-                    'from': 'dice_contract',
-                    'amount': game.get('payout', 0) - game.get('bet', 0),
-                    'timestamp': game.get('timestamp', 0),
-                    'anonymous': True
-                })
-                total_received += game.get('payout', 0) - game.get('bet', 0)
-            else:
-                transactions['burned'].append({
-                    'type': 'dice_loss',
-                    'amount': game.get('bet', 0),
-                    'timestamp': game.get('timestamp', 0),
-                    'anonymous': True
-                })
-                total_burned += game.get('bet', 0)
+        try:
+            dice_history = wallet.get('dice_history', [])
+            for game in dice_history:
+                if game.get('won'):
+                    net_win = game.get('payout', 0) - game.get('amount', 0)
+                    if net_win > 0:
+                        transactions['received'].append({
+                            'type': 'dice_win',
+                            'from': 'dice_contract',
+                            'amount': net_win,
+                            'timestamp': game.get('timestamp', 0),
+                            'anonymous': True
+                        })
+                        total_received += net_win
+                else:
+                    bet_amt = game.get('amount', 0)
+                    transactions['burned'].append({
+                        'type': 'dice_loss',
+                        'amount': bet_amt,
+                        'timestamp': game.get('timestamp', 0),
+                        'anonymous': True
+                    })
+                    total_burned += bet_amt
+        except Exception:
+            pass  # Don't crash if dice history is malformed
         
         return jsonify({
             'ok': True,
@@ -3825,7 +3877,7 @@ def username_check():
     
     with S.lock:
         available = username not in S.usernames
-        price = {3: 1000, 4: 100}.get(len(username), 10)
+        price = {3: 10000, 4: 1000, 5: 100}.get(len(username), 10)
         
         return jsonify({
             'ok': True,
@@ -3882,7 +3934,7 @@ def username_register():
                 break
         
         # Price: 3 chars=1000, 4 chars=100, 5+=10 LAC
-        price = {3: 1000, 4: 100}.get(len(username), 10)
+        price = {3: 10000, 4: 1000, 5: 100}.get(len(username), 10)
         
         if wallet.get('balance', 0) < price:
             return jsonify({'error': f'Need {price} LAC', 'ok': False}), 400

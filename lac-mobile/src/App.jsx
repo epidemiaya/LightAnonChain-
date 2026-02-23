@@ -44,6 +44,83 @@ const cpFallback = (t) => {
   document.body.removeChild(ta);
 };
 
+// ─── i18n ─────────────────────────────────────────────
+const i18n = {
+  en: {
+    chats:'Chats', wallet:'Wallet', explore:'Explore', profile:'Profile',
+    messages:'Messages', groups:'Groups', send:'Send', faucet:'Faucet',
+    mining:'Mining', contacts:'Contacts', settings:'Settings',
+    totalBalance:'Total Balance', lacEarned:'LAC earned',
+    active:'Active', waiting:'Waiting', levelProgress:'Level Progress',
+    recentTx:'Recent Transactions', viewAll:'View All', noTx:'No transactions',
+    noMessages:'No messages', startConvo:'Start a conversation',
+    noContacts:'No contacts yet', noGroups:'No groups',
+    createGroup:'Create a group', newMessage:'New Message',
+    recipient:'Recipient', amount:'Amount', message:'Message',
+    deposit:'Deposit', withdraw:'Withdraw', saved:'Saved',
+    copy:'Copy', share:'Share', refresh:'Refresh',
+    logout:'Logout', panic:'PANIC', panicMsg:'This will erase ALL local data from this device. Your wallet stays on the network — you can login again with your seed.',
+    dashboard:'Dashboard', supply:'Supply', onWallets:'On wallets now',
+    totalMined:'Total Mined', burnedForever:'Burned forever', inStash:'In STASH Pool',
+    blocks:'Blocks', wallets:'Wallets', allTimeTx:'All-Time Transactions',
+    topBalances:'Top Balances', levelDist:'Level Distribution',
+    miningDetails:'Details', miningActive:'Mining Active', miningWaiting:'Mining Waiting',
+    yourLevel:'Your Level', miningChance:'Mining Chance', blocksMined:'Blocks Mined',
+    totalEarned:'Total Earned', miningInfo:'Mining Info', blockReward:'Block Reward',
+    winnersBlock:'Winners/Block', minBalance:'Min Balance', yourBalance:'Your Balance',
+    recentRewards:'Recent Rewards', transactions:'Transactions',
+    explorer:'Explorer', loadingBlocks:'Loading blocks…',
+    stashTitle:'STASH Pool', anonSafe:'Anonymous Money Safe',
+    stashDesc:'Deposit → secret key → withdraw to ANY wallet. Zero link.',
+    poolLac:'Pool LAC', activeKeys:'Active Keys', redeemed:'Redeemed',
+    depositSuccess:'Deposit successful!', stashKey:'STASH KEY (TAP TO COPY)',
+    stashWarn:'Anyone with this key can withdraw. Keep it safe!',
+    withdrawKey:'Enter STASH key', language:'Language',
+    dice:'Dice', diceGame:'Dice Game', placeBet:'Place Bet',
+    veil:'VEIL', stash:'STASH',
+    ephemeral:'Ephemeral', burnAfterRead:'Burn after read',
+    replyTo:'Reply', online:'online',
+  },
+  uk: {
+    chats:'Чати', wallet:'Гаманець', explore:'Блоки', profile:'Профіль',
+    messages:'Повідомлення', groups:'Групи', send:'Надіслати', faucet:'Кран',
+    mining:'Майнінг', contacts:'Контакти', settings:'Налаштування',
+    totalBalance:'Загальний баланс', lacEarned:'LAC зароблено',
+    active:'Активний', waiting:'Очікування', levelProgress:'Прогрес рівня',
+    recentTx:'Останні транзакції', viewAll:'Всі', noTx:'Немає транзакцій',
+    noMessages:'Немає повідомлень', startConvo:'Почніть розмову',
+    noContacts:'Контактів поки немає', noGroups:'Немає груп',
+    createGroup:'Створити групу', newMessage:'Нове повідомлення',
+    recipient:'Отримувач', amount:'Сума', message:'Повідомлення',
+    deposit:'Депозит', withdraw:'Вивести', saved:'Збережені',
+    copy:'Копіювати', share:'Поділитися', refresh:'Оновити',
+    logout:'Вийти', panic:'ПАНІК', panicMsg:'Це видалить ВСІ локальні дані з цього пристрою. Гаманець залишається в мережі — ви зможете увійти знову за допомогою seed.',
+    dashboard:'Статистика', supply:'Емісія', onWallets:'На гаманцях зараз',
+    totalMined:'Всього намайнено', burnedForever:'Спалено назавжди', inStash:'В пулі STASH',
+    blocks:'Блоки', wallets:'Гаманці', allTimeTx:'Всі транзакції',
+    topBalances:'Топ балансів', levelDist:'Розподіл рівнів',
+    miningDetails:'Деталі', miningActive:'Майнінг активний', miningWaiting:'Майнінг очікує',
+    yourLevel:'Ваш рівень', miningChance:'Шанс майнінгу', blocksMined:'Блоків намайнено',
+    totalEarned:'Всього зароблено', miningInfo:'Інфо майнінгу', blockReward:'Нагорода за блок',
+    winnersBlock:'Переможців/блок', minBalance:'Мін. баланс', yourBalance:'Ваш баланс',
+    recentRewards:'Останні нагороди', transactions:'Транзакції',
+    explorer:'Провідник', loadingBlocks:'Завантаження блоків…',
+    stashTitle:'STASH Пул', anonSafe:'Анонімний сейф',
+    stashDesc:'Депозит → секретний ключ → вивести на БУДЬ-ЯКИЙ гаманець. Нуль зв\'язку.',
+    poolLac:'Пул LAC', activeKeys:'Активні ключі', redeemed:'Використано',
+    depositSuccess:'Депозит успішний!', stashKey:'STASH КЛЮЧ (НАТИСНІТЬ ДЛЯ КОПІЮВАННЯ)',
+    stashWarn:'Будь-хто з цим ключем може вивести кошти. Зберігайте його!',
+    withdrawKey:'Введіть STASH ключ', language:'Мова',
+    dice:'Кості', diceGame:'Гра в кості', placeBet:'Зробити ставку',
+    veil:'VEIL', stash:'STASH',
+    ephemeral:'Тимчасове', burnAfterRead:'Знищити після прочитання',
+    replyTo:'Відповідь', online:'онлайн',
+  }
+};
+const getLang = () => localStorage.getItem('lac_lang') || 'en';
+const LangCtx = React.createContext({ lang: 'en', setLang: () => {}, t: (k) => k });
+const useT = () => React.useContext(LangCtx);
+
 // ─── Shared Components ────────────────────────────────
 const Header = ({ title, onBack, right }) => (
   <header className="flex items-center gap-3 px-4 py-3.5 bg-[#0a1f18]/90 backdrop-blur-lg border-b border-emerald-900/30 sticky top-0 z-10">
@@ -135,8 +212,11 @@ const LevelBadge = ({ level }) => {
 // ━━━ APP ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function App() {
   const [seed, setSeed] = useState(localStorage.getItem('lac_seed'));
-  if (!seed) return <LoginScreen onAuth={s => { localStorage.setItem('lac_seed', s); setSeed(s); }} />;
-  return <MainApp onLogout={() => { localStorage.clear(); setSeed(null); }} />;
+  const [lang, setLangState] = useState(getLang());
+  const setLang = (l) => { localStorage.setItem('lac_lang', l); setLangState(l); };
+  const t = (k) => (i18n[lang] || i18n.en)[k] || (i18n.en)[k] || k;
+  if (!seed) return <LangCtx.Provider value={{lang,setLang,t}}><LoginScreen onAuth={s => { localStorage.setItem('lac_seed', s); setSeed(s); }} /></LangCtx.Provider>;
+  return <LangCtx.Provider value={{lang,setLang,t}}><MainApp onLogout={() => { localStorage.clear(); setSeed(null); }} /></LangCtx.Provider>;
 }
 
 // ━━━ LOGIN ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -231,6 +311,7 @@ const LoginScreen = ({ onAuth }) => {
 
 // ━━━ MAIN SHELL ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const MainApp = ({ onLogout }) => {
+  const { t } = useT();
   const [tab, setTab] = useState('wallet');
   const [profile, setProfile] = useState(null);
   const [sub, setSub] = useState(null);
@@ -359,11 +440,11 @@ const MainApp = ({ onLogout }) => {
         {/* Bottom Navigation */}
         <nav className="bg-[#0a1510] border-t border-emerald-900/20 flex shrink-0">
           {[
-            { id: 'chats', icon: MessageCircle, label: 'Chats' },
-            { id: 'wallet', icon: Wallet, label: 'Wallet' },
-            { id: 'panic', icon: AlertTriangle, label: 'PANIC', isPanic: true },
-            { id: 'explore', icon: Activity, label: 'Explore' },
-            { id: 'profile', icon: User, label: 'Profile' },
+            { id: 'chats', icon: MessageCircle, label: t('chats') },
+            { id: 'wallet', icon: Wallet, label: t('wallet') },
+            { id: 'panic', icon: AlertTriangle, label: t('panic'), isPanic: true },
+            { id: 'explore', icon: Activity, label: t('explore') },
+            { id: 'profile', icon: User, label: t('profile') },
           ].map(n => (
             <button key={n.id} onClick={n.isPanic ? handlePanic : () => setTab(n.id)}
               className={`flex-1 py-3 flex flex-col items-center gap-0.5 transition ${n.isPanic ? 'text-red-500 hover:text-red-400' : tab===n.id?'text-emerald-400':'text-gray-600'}`}>
@@ -379,6 +460,7 @@ const MainApp = ({ onLogout }) => {
 
 // ━━━ CHATS TAB ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const ChatsTab = ({ profile, onNav, onMenu }) => {
+  const { t } = useT();
   const [sec, setSec] = useState('dm');
   const [msgs, setMsgs] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -403,18 +485,18 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <button onClick={onMenu} className="text-gray-400 hover:text-white"><Menu className="w-5 h-5" /></button>
-            <h1 className="text-xl font-bold text-white">Chats</h1>
+            <h1 className="text-xl font-bold text-white">{t('chats')}</h1>
           </div>
           <button onClick={() => onNav({type: sec==='dm'?'newchat':'newgroup'})}
             className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg shadow-emerald-600/25">
             <Plus className="w-4 h-4 text-white" />
           </button>
         </div>
-        <TabBar tabs={[['dm','💬 Messages'],['groups','👥 Groups']]} active={sec} onChange={setSec} />
+        <TabBar tabs={[['dm','💬 '+t('messages')],['groups','👥 '+t('groups')]]} active={sec} onChange={setSec} />
       </div>
       <div className="flex-1 overflow-y-auto">
         {sec === 'dm' ? (
-          sorted.length === 0 ? <Empty emoji="💬" text="No messages" sub="Start a conversation" /> :
+          sorted.length === 0 ? <Empty emoji="💬" text={t('noMessages')} sub={t('startConvo')} /> :
           sorted.map(c => (
             <ListItem key={c.peer}
               icon={<User className="w-5 h-5 text-emerald-500" />}
@@ -461,6 +543,7 @@ const ChatView = ({ peer, onBack, profile }) => {
   const [sending, setSending] = useState(false);
   const [mode, setMode] = useState('regular'); // regular | ephemeral | burn
   const [replyTo, setReplyTo] = useState(null); // {text, from} for reply
+  const [reactTo, setReactTo] = useState(null); // msg index for emoji picker
   const [peerOnline, setPeerOnline] = useState(false);
   const end = useRef(null);
   const resolvedAddr = useRef(peer.address);
@@ -557,9 +640,16 @@ const ChatView = ({ peer, onBack, profile }) => {
           const isEph = m.ephemeral || m.msg_type==='ephemeral';
           const isBurn = m.burn;
           const burned = m.burned;
+          const rxn = m.reactions || {};
+          const hasRxn = Object.keys(rxn).length > 0;
+          const doReact = async (emoji) => {
+            setReactTo(null);
+            try { await post('/api/message.react', { msg_key: m.msg_key, emoji }); load(); } catch {}
+          };
           return (
-            <div key={i} className={`flex ${mine?'justify-end':'justify-start'}`}>
+            <div key={i} className={`flex flex-col ${mine?'items-end':'items-start'}`}>
               <div onClick={() => { if(!burned) setReplyTo({text:m.text||m.message,from:m.from||sAddr(m.from_address)}); }}
+                onContextMenu={(e) => { e.preventDefault(); if(!burned) setReactTo(reactTo===i?null:i); }}
                 className={`max-w-[78%] px-3.5 py-2 rounded-2xl cursor-pointer active:opacity-80 ${burned?'bg-gray-900/50 border border-gray-800':mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
                 {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{m.from||sAddr(m.from_address)}</p>}
                 {m.reply_to && <div className={`text-[11px] px-2 py-1 rounded-lg mb-1.5 border-l-2 ${mine?'bg-emerald-800/30 border-emerald-400/40':'bg-gray-800/50 border-purple-400/40'}`}><p className={`font-medium text-[10px] ${mine?'text-emerald-300/70':'text-purple-400/70'}`}>{m.reply_to.from}</p><p className={`truncate ${mine?'text-emerald-200/50':'text-gray-400'}`}>{m.reply_to.text}</p></div>}
@@ -571,6 +661,16 @@ const ChatView = ({ peer, onBack, profile }) => {
                   {mine && <span className="text-[10px] text-emerald-300/60">{m._opt ? '⏳' : '✓'}</span>}
                 </div>
               </div>
+              {/* Reactions display */}
+              {hasRxn && <div className="flex gap-1 mt-0.5 px-1">{Object.entries(rxn).map(([em,addrs]) =>
+                <button key={em} onClick={() => doReact(em)} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gray-800/60 border border-gray-700/30 text-[11px] hover:bg-gray-700/60">
+                  <span>{em}</span>{addrs.length > 1 && <span className="text-gray-400 text-[9px]">{addrs.length}</span>}
+                </button>
+              )}</div>}
+              {/* Emoji picker */}
+              {reactTo === i && <div className="flex gap-1 mt-1 px-1 py-1 rounded-xl bg-gray-800/90 border border-gray-700/40 shadow-lg">
+                {['👍','❤️','🔥','😂','😮','👎'].map(em => <button key={em} onClick={() => doReact(em)} className="text-lg px-1 hover:scale-125 transition-transform active:scale-90">{em}</button>)}
+              </div>}
             </div>
           );
         })}
@@ -730,22 +830,23 @@ const NewGroup = ({ onBack, onDone }) => {
 // ━━━ WALLET TAB ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
   const p = profile || {};
+  const { t } = useT();
   return (
     <div className="h-full overflow-y-auto pb-4">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-3">
           <button onClick={onMenu} className="text-gray-400 hover:text-white"><Menu className="w-5 h-5" /></button>
-          <h1 className="text-xl font-bold text-white">Wallet</h1>
+          <h1 className="text-xl font-bold text-white">{t('wallet')}</h1>
         </div>
-        <button onClick={onRefresh} className="text-emerald-500 text-xs font-medium">✓ Refresh</button>
+        <button onClick={onRefresh} className="text-emerald-500 text-xs font-medium">✓ {t('refresh')}</button>
       </div>
       {/* Balance Card */}
       <div className="mx-4 mt-4">
         <Card gradient="bg-gradient-to-br from-purple-600 via-blue-600 to-emerald-600 border-purple-500/30">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-xs">Total Balance</p>
+              <p className="text-purple-100 text-xs">{t('totalBalance')}</p>
               <p className="text-4xl font-bold text-white mt-1">{fmt(p.balance)}</p>
               <p className="text-purple-200 text-lg">LAC</p>
             </div>
@@ -756,8 +857,8 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
             <button onClick={() => cp(p.address)} className="text-purple-200/40 hover:text-white"><Copy className="w-3 h-3" /></button>
           </div>
           <div className="grid grid-cols-2 gap-2 mt-4">
-            <Btn onClick={() => onNav({type:'send'})} color="emerald" small>↗ Send</Btn>
-            <Btn onClick={async () => { try { const r=await post('/api/faucet'); toast.success(`+${r.added||30} LAC`); onRefresh(); } catch(e){ toast.error(e.message); } }} color="gray" small>🚰 Faucet</Btn>
+            <Btn onClick={() => onNav({type:'send'})} color="emerald" small>↗ {t('send')}</Btn>
+            <Btn onClick={async () => { try { const r=await post('/api/faucet'); toast.success(`+${r.added||30} LAC`); onRefresh(); } catch(e){ toast.error(e.message); } }} color="gray" small>🚰 {t('faucet')}</Btn>
           </div>
         </Card>
       </div>
@@ -765,10 +866,10 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
       {/* Quick Grid */}
       <div className="grid grid-cols-4 gap-2 px-4 mt-3">
         {[
-          {icon:'👻',label:'VEIL',act:()=>onNav({type:'send'})},
-          {icon:'🎒',label:'STASH',act:()=>onNav({type:'stash'})},
-          {icon:'🎲',label:'Dice',act:()=>onNav({type:'dice'})},
-          {icon:'👥',label:'Contacts',act:()=>onNav({type:'contacts'})},
+          {icon:'👻',label:t('veil'),act:()=>onNav({type:'send'})},
+          {icon:'🎒',label:t('stash'),act:()=>onNav({type:'stash'})},
+          {icon:'🎲',label:t('dice'),act:()=>onNav({type:'dice'})},
+          {icon:'👥',label:t('contacts'),act:()=>onNav({type:'contacts'})},
         ].map((a,i) => (
           <button key={i} onClick={a.act} className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-[#0a1a15] border border-emerald-900/15 active:bg-emerald-900/20">
             <span className="text-xl">{a.icon}</span>
@@ -781,8 +882,8 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
       <div className="mx-4 mt-3">
         <Card>
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2"><Zap className="w-4 h-4 text-emerald-400" /><span className="text-white text-sm font-semibold">Mining</span></div>
-            <button onClick={() => onNav({type:'mining'})} className="text-emerald-500 text-xs">Details →</button>
+            <div className="flex items-center gap-2"><Zap className="w-4 h-4 text-emerald-400" /><span className="text-white text-sm font-semibold">{t('mining')}</span></div>
+            <button onClick={() => onNav({type:'mining'})} className="text-emerald-500 text-xs">{t('miningDetails')} →</button>
           </div>
           <MiningMini />
         </Card>
@@ -792,7 +893,7 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
       <div className="mx-4 mt-3">
         <Card>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-white text-sm font-semibold">Level Progress</span>
+            <span className="text-white text-sm font-semibold">{t('levelProgress')}</span>
             <Badge>L{p.level??0}</Badge>
           </div>
           <LevelBar level={p.level??0} balance={p.balance||0} />
@@ -802,8 +903,8 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
       {/* Recent TXs */}
       <div className="mx-4 mt-3">
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-gray-500 text-xs font-medium">Recent Transactions</span>
-          <button onClick={() => onNav({type:'txs'})} className="text-emerald-500 text-[11px]">View All</button>
+          <span className="text-gray-500 text-xs font-medium">{t('recentTx')}</span>
+          <button onClick={() => onNav({type:'txs'})} className="text-emerald-500 text-[11px]">{t('viewAll')}</button>
         </div>
         <RecentTxs />
       </div>
@@ -1743,6 +1844,7 @@ const ExploreTab = ({ onNav, onMenu }) => (
 const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
   const p = profile||{};
   const [upg, setUpg] = useState(false);
+  const { t, lang, setLang } = useT();
   const uname = p.username && p.username!=='Anonymous' && p.username!=='None' ? p.username : null;
 
   const upgrade = async () => { setUpg(true); try { const r=await post('/api/upgrade_level'); toast.success(`Upgraded to L${r.new_level}!`); onRefresh(); } catch(e){ toast.error(e.message); } finally { setUpg(false); } };
@@ -1751,7 +1853,7 @@ const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
     <div className="h-full overflow-y-auto pb-4">
       <div className="flex items-center gap-3 px-4 pt-4 pb-2">
         <button onClick={onMenu} className="text-gray-400 hover:text-white"><Menu className="w-5 h-5" /></button>
-        <h1 className="text-xl font-bold text-white">Profile</h1>
+        <h1 className="text-xl font-bold text-white">{t('profile')}</h1>
       </div>
       <div className="mx-4">
         <Card gradient="bg-gradient-to-br from-[#0a2a1f] to-[#0f1f18] border-emerald-800/30" className="text-center">
@@ -1761,7 +1863,7 @@ const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
           <div className="flex justify-center gap-4 mt-3">
             <div className="text-center"><p className="text-white font-bold">{fmt(p.balance)}</p><p className="text-gray-600 text-[10px]">LAC</p></div>
             <div className="text-center"><p className="text-white font-bold">{p.tx_count||0}</p><p className="text-gray-600 text-[10px]">TXs</p></div>
-            <div className="text-center"><p className="text-white font-bold">{p.msg_count||0}</p><p className="text-gray-600 text-[10px]">Messages</p></div>
+            <div className="text-center"><p className="text-white font-bold">{p.msg_count||0}</p><p className="text-gray-600 text-[10px]">{t('messages')}</p></div>
           </div>
         </Card>
       </div>
@@ -1777,8 +1879,10 @@ const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
             if(show){ cp(s); prompt('Your seed (copied to clipboard):', s); }
           } else { toast.error('No seed found'); }
         }} />
+        <ListItem icon={<Globe className="w-5 h-5 text-cyan-400"/>} title={t('language')} sub={lang==='uk'?'🇺🇦 Українська':'🇬🇧 English'}
+          onClick={() => setLang(lang==='uk'?'en':'uk')} />
         <div className="h-px bg-gray-800/30 my-2" />
-        <ListItem icon={<LogOut className="w-5 h-5 text-red-400"/>} title="Logout" sub="Save seed first!" onClick={() => { if(confirm('Make sure seed is saved!')) onLogout(); }} />
+        <ListItem icon={<LogOut className="w-5 h-5 text-red-400"/>} title={t('logout')} sub="Save seed first!" onClick={() => { if(confirm('Make sure seed is saved!')) onLogout(); }} />
       </div>
       <p className="text-center text-gray-800 text-[10px] mt-6">LAC v8 · Zero-History Blockchain · PoET Consensus</p>
     </div>
