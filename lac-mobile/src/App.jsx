@@ -47,74 +47,154 @@ const cpFallback = (t) => {
 // ─── i18n ─────────────────────────────────────────────
 const i18n = {
   en: {
-    chats:'Chats', wallet:'Wallet', explore:'Explore', profile:'Profile',
-    messages:'Messages', groups:'Groups', send:'Send', faucet:'Faucet',
-    mining:'Mining', contacts:'Contacts', settings:'Settings',
-    totalBalance:'Total Balance', lacEarned:'LAC earned',
-    active:'Active', waiting:'Waiting', levelProgress:'Level Progress',
+    // Navigation
+    chats:'Chats', wallet:'Wallet', explore:'Explore', profile:'Profile', panic:'PANIC',
+    // Chat
+    messages:'Messages', groups:'Groups', noMessages:'No messages', startConvo:'Start a conversation',
+    noGroups:'No groups', createGroup:'Create a group', newMessage:'New Message',
+    ephemeral:'Ephemeral', burnAfterRead:'Burn after read', replyTo:'Reply', online:'online',
+    noMsgYet:'No messages yet', sendFirst:'Send the first message', writeFirst:'Write the first message',
+    ephAutoDelete:'Messages self-destruct after 5 min', onChainZH:'On-chain · Zero-History cleans L3→L2→L1',
+    privateGroup:'Private group · Invite only', groupCopied:'Group link copied!',
+    enterAddr:'Enter @username or lac1… address', startChat:'Start Chat',
+    groupName:'Group name', groupType:'Group type', create:'Create',
+    public:'Public', private:'Private', l1:'L1 Blockchain', l2:'L2 Ephemeral',
+    // Wallet
+    totalBalance:'Total Balance', send:'Send', faucet:'Faucet',
+    veil:'VEIL', stash:'STASH', dice:'Dice', contacts:'Contacts',
+    mining:'Mining', miningDetails:'Details', levelProgress:'Level Progress',
     recentTx:'Recent Transactions', viewAll:'View All', noTx:'No transactions',
-    noMessages:'No messages', startConvo:'Start a conversation',
-    noContacts:'No contacts yet', noGroups:'No groups',
-    createGroup:'Create a group', newMessage:'New Message',
+    lacEarned:'LAC earned', active:'Active', waiting:'Waiting',
+    refresh:'Refresh', copied:'Copied!', copy:'Copy', share:'Share',
+    // Send
     recipient:'Recipient', amount:'Amount', message:'Message',
-    deposit:'Deposit', withdraw:'Withdraw', saved:'Saved',
-    copy:'Copy', share:'Share', refresh:'Refresh',
-    logout:'Logout', panic:'PANIC', panicMsg:'This will erase ALL local data from this device. Your wallet stays on the network — you can login again with your seed.',
-    dashboard:'Dashboard', supply:'Supply', onWallets:'On wallets now',
-    totalMined:'Total Mined', burnedForever:'Burned forever', inStash:'In STASH Pool',
-    blocks:'Blocks', wallets:'Wallets', allTimeTx:'All-Time Transactions',
-    topBalances:'Top Balances', levelDist:'Level Distribution',
-    miningDetails:'Details', miningActive:'Mining Active', miningWaiting:'Mining Waiting',
-    yourLevel:'Your Level', miningChance:'Mining Chance', blocksMined:'Blocks Mined',
-    totalEarned:'Total Earned', miningInfo:'Mining Info', blockReward:'Block Reward',
-    winnersBlock:'Winners/Block', minBalance:'Min Balance', yourBalance:'Your Balance',
-    recentRewards:'Recent Rewards', transactions:'Transactions',
-    explorer:'Explorer', loadingBlocks:'Loading blocks…',
+    sendNormal:'Normal Transfer', sendVeil:'VEIL Transfer (Anonymous)',
+    fee:'Fee', sendBtn:'Send', sending:'Sending…',
+    // STASH
     stashTitle:'STASH Pool', anonSafe:'Anonymous Money Safe',
     stashDesc:'Deposit → secret key → withdraw to ANY wallet. Zero link.',
-    poolLac:'Pool LAC', activeKeys:'Active Keys', redeemed:'Redeemed',
+    deposit:'Deposit', withdraw:'Withdraw', savedKeys:'Saved Keys',
+    poolLac:'Pool', activeKeys:'Active Keys', redeemed:'Redeemed',
     depositSuccess:'Deposit successful!', stashKey:'STASH KEY (TAP TO COPY)',
     stashWarn:'Anyone with this key can withdraw. Keep it safe!',
-    withdrawKey:'Enter STASH key', language:'Language',
-    dice:'Dice', diceGame:'Dice Game', placeBet:'Place Bet',
-    veil:'VEIL', stash:'STASH',
-    ephemeral:'Ephemeral', burnAfterRead:'Burn after read',
-    replyTo:'Reply', online:'online',
+    withdrawKey:'Enter STASH key', noKeys:'No saved keys',
+    tapCopy:'Tap to copy', deleteKey:'Delete', markUsed:'Used',
+    // Mining
+    miningInfo:'Mining Info', blockReward:'Block Reward',
+    winnersBlock:'Winners/Block', minBalance:'Min Balance', yourBalance:'Your Balance',
+    yourLevel:'Your Level', miningChance:'Mining Chance',
+    totalEarned:'Total Earned', recentRewards:'Recent Rewards', noRewards:'No rewards yet',
+    miningExplain:'PoET (Proof of Elapsed Time) — fair mining without energy waste',
+    // Dice
+    diceGame:'Dice Game', placeBet:'Place Bet', betAmount:'Bet Amount',
+    redBlack:'Red/Black', overUnder:'Over/Under', roll:'Roll!',
+    youWon:'You won!', youLost:'You lost', gameHistory:'History',
+    // Profile
+    settings:'Settings', registerUsername:'Register Username', getYourName:'Get your @name',
+    upgradeLevel:'Upgrade Level', copyAddress:'Copy Address', exportSeed:'Export Seed',
+    backupKey:'Backup your secret key', logout:'Logout', saveSeedFirst:'Save seed first!',
+    language:'Language', seedWarning:'Your seed will be shown.\nMake sure nobody is watching!\nShow seed?',
+    makeSureSaved:'Make sure seed is saved!',
+    panicMsg:'This will erase ALL local data from this device. Your wallet stays on the network — you can login again with your seed.',
+    // Dashboard
+    dashboard:'Dashboard', supply:'Supply', onWallets:'On wallets now', totalMined:'Total Mined',
+    burnedForever:'Burned forever', inStash:'In STASH Pool', totalEmitted:'Total Emitted', blocks:'Blocks', wallets:'Wallets',
+    txCount:'TX', allTimeTx:'All-Time Transactions', normal:'Normal',
+    burns:'Burns', usernames:'Usernames', topBalances:'Top Balances', levelDist:'Level Distribution',
+    walletsCount:'wallets', l2encrypted:'L2 encrypted messages (auto-deleted)',
+    diceLost:'Dice lost', diceWon:'Dice won',
+    // Explorer
+    explorer:'Explorer', loadingBlocks:'Loading blocks…', time:'Time', miner:'Miner',
+    transactions:'Transactions', noTxInBlock:'No transactions in this block',
+    anonymous:'Anonymous', from:'From', to:'To',
+    // Contacts
+    noContacts:'No contacts yet', addContact:'Add Contact', enterContact:'Enter @username or lac1… address',
+    add:'Add',
+    // TimeLock
+    timeLock:'TimeLock', lockFunds:'Lock funds until a future date',
+    // Login
+    welcome:'Welcome to LAC', privacyFirst:'Privacy-first blockchain', createWallet:'Create New Wallet',
+    importSeed:'Import Seed', backupSeed:'Backup Your Seed', writeSeedDown:'Write this down! Lost seed = lost wallet',
+    seedSaved:'I saved my seed', enterSeed:'Enter your seed phrase',
+    loginBtn:'Login',
+    // Generic
+    loading:'Loading…', error:'Error', success:'Success', cancel:'Cancel', confirm:'Confirm', save:'Save',
+    back:'Back', done:'Done', close:'Close', search:'Search', more:'More',
   },
   uk: {
-    chats:'Чати', wallet:'Гаманець', explore:'Блоки', profile:'Профіль',
-    messages:'Повідомлення', groups:'Групи', send:'Надіслати', faucet:'Кран',
-    mining:'Майнінг', contacts:'Контакти', settings:'Налаштування',
-    totalBalance:'Загальний баланс', lacEarned:'LAC зароблено',
-    active:'Активний', waiting:'Очікування', levelProgress:'Прогрес рівня',
+    // Навігація
+    chats:'Чати', wallet:'Гаманець', explore:'Блоки', profile:'Профіль', panic:'ПАНІК',
+    // Чат
+    messages:'Повідомлення', groups:'Групи', noMessages:'Немає повідомлень', startConvo:'Почніть розмову',
+    noGroups:'Немає груп', createGroup:'Створити групу', newMessage:'Нове повідомлення',
+    ephemeral:'Тимчасове', burnAfterRead:'Знищити після прочитання', replyTo:'Відповідь', online:'онлайн',
+    noMsgYet:'Повідомлень поки немає', sendFirst:'Надішліть перше повідомлення', writeFirst:'Напишіть перше повідомлення',
+    ephAutoDelete:'Повідомлення самознищуються через 5 хв', onChainZH:'On-chain · Zero-History L3→L2→L1',
+    privateGroup:'Приватна група · Тільки за запрошенням', groupCopied:'Посилання скопійовано!',
+    enterAddr:'Введіть @нікнейм або lac1… адресу', startChat:'Почати чат',
+    groupName:'Назва групи', groupType:'Тип групи', create:'Створити',
+    public:'Публічна', private:'Приватна', l1:'L1 Блокчейн', l2:'L2 Тимчасова',
+    // Гаманець
+    totalBalance:'Загальний баланс', send:'Надіслати', faucet:'Кран',
+    veil:'VEIL', stash:'STASH', dice:'Кості', contacts:'Контакти',
+    mining:'Майнінг', miningDetails:'Деталі', levelProgress:'Прогрес рівня',
     recentTx:'Останні транзакції', viewAll:'Всі', noTx:'Немає транзакцій',
-    noMessages:'Немає повідомлень', startConvo:'Почніть розмову',
-    noContacts:'Контактів поки немає', noGroups:'Немає груп',
-    createGroup:'Створити групу', newMessage:'Нове повідомлення',
+    lacEarned:'LAC зароблено', active:'Активний', waiting:'Очікування',
+    refresh:'Оновити', copied:'Скопійовано!', copy:'Копіювати', share:'Поділитися',
+    // Надсилання
     recipient:'Отримувач', amount:'Сума', message:'Повідомлення',
-    deposit:'Депозит', withdraw:'Вивести', saved:'Збережені',
-    copy:'Копіювати', share:'Поділитися', refresh:'Оновити',
-    logout:'Вийти', panic:'ПАНІК', panicMsg:'Це видалить ВСІ локальні дані з цього пристрою. Гаманець залишається в мережі — ви зможете увійти знову за допомогою seed.',
-    dashboard:'Статистика', supply:'Емісія', onWallets:'На гаманцях зараз',
-    totalMined:'Всього намайнено', burnedForever:'Спалено назавжди', inStash:'В пулі STASH',
-    blocks:'Блоки', wallets:'Гаманці', allTimeTx:'Всі транзакції',
-    topBalances:'Топ балансів', levelDist:'Розподіл рівнів',
-    miningDetails:'Деталі', miningActive:'Майнінг активний', miningWaiting:'Майнінг очікує',
-    yourLevel:'Ваш рівень', miningChance:'Шанс майнінгу', blocksMined:'Блоків намайнено',
-    totalEarned:'Всього зароблено', miningInfo:'Інфо майнінгу', blockReward:'Нагорода за блок',
-    winnersBlock:'Переможців/блок', minBalance:'Мін. баланс', yourBalance:'Ваш баланс',
-    recentRewards:'Останні нагороди', transactions:'Транзакції',
-    explorer:'Провідник', loadingBlocks:'Завантаження блоків…',
+    sendNormal:'Звичайний переказ', sendVeil:'VEIL переказ (Анонімний)',
+    fee:'Комісія', sendBtn:'Надіслати', sending:'Надсилання…',
+    // STASH
     stashTitle:'STASH Пул', anonSafe:'Анонімний сейф',
     stashDesc:'Депозит → секретний ключ → вивести на БУДЬ-ЯКИЙ гаманець. Нуль зв\'язку.',
-    poolLac:'Пул LAC', activeKeys:'Активні ключі', redeemed:'Використано',
+    deposit:'Депозит', withdraw:'Вивести', savedKeys:'Збережені ключі',
+    poolLac:'Пул', activeKeys:'Активні ключі', redeemed:'Використано',
     depositSuccess:'Депозит успішний!', stashKey:'STASH КЛЮЧ (НАТИСНІТЬ ДЛЯ КОПІЮВАННЯ)',
     stashWarn:'Будь-хто з цим ключем може вивести кошти. Зберігайте його!',
-    withdrawKey:'Введіть STASH ключ', language:'Мова',
-    dice:'Кості', diceGame:'Гра в кості', placeBet:'Зробити ставку',
-    veil:'VEIL', stash:'STASH',
-    ephemeral:'Тимчасове', burnAfterRead:'Знищити після прочитання',
-    replyTo:'Відповідь', online:'онлайн',
+    withdrawKey:'Введіть STASH ключ', noKeys:'Немає збережених ключів',
+    tapCopy:'Натисніть для копіювання', deleteKey:'Видалити', markUsed:'Використано',
+    // Майнінг
+    miningInfo:'Інфо майнінгу', blockReward:'Нагорода за блок',
+    winnersBlock:'Переможців/блок', minBalance:'Мін. баланс', yourBalance:'Ваш баланс',
+    yourLevel:'Ваш рівень', miningChance:'Шанс майнінгу',
+    totalEarned:'Всього зароблено', recentRewards:'Останні нагороди', noRewards:'Нагород поки немає',
+    miningExplain:'PoET (Proof of Elapsed Time) — чесний майнінг без витрат енергії',
+    // Кості
+    diceGame:'Гра в кості', placeBet:'Зробити ставку', betAmount:'Сума ставки',
+    redBlack:'Червоне/Чорне', overUnder:'Більше/Менше', roll:'Кинути!',
+    youWon:'Ви виграли!', youLost:'Ви програли', gameHistory:'Історія',
+    // Профіль
+    settings:'Налаштування', registerUsername:'Зареєструвати нікнейм', getYourName:'Отримайте свій @нікнейм',
+    upgradeLevel:'Підвищити рівень', copyAddress:'Копіювати адресу', exportSeed:'Експорт Seed',
+    backupKey:'Збережіть секретний ключ', logout:'Вийти', saveSeedFirst:'Спершу збережіть seed!',
+    language:'Мова', seedWarning:'Ваш seed буде показано.\nПереконайтеся, що ніхто не бачить!\nПоказати seed?',
+    makeSureSaved:'Переконайтеся, що seed збережено!',
+    panicMsg:'Це видалить ВСІ локальні дані з цього пристрою. Гаманець залишається в мережі — ви зможете увійти знову за допомогою seed.',
+    // Статистика
+    dashboard:'Статистика', supply:'Емісія', onWallets:'На гаманцях', totalMined:'Всього намайнено',
+    burnedForever:'Спалено назавжди', inStash:'В пулі STASH', totalEmitted:'Всього емітовано', blocks:'Блоки', wallets:'Гаманці',
+    txCount:'ТX', allTimeTx:'Транзакції за весь час', normal:'Звичайні',
+    burns:'Спалювання', usernames:'Нікнейми', topBalances:'Топ балансів', levelDist:'Розподіл рівнів',
+    walletsCount:'гаманців', l2encrypted:'L2 зашифрованих повідомлень (авто-видалені)',
+    diceLost:'Програно в кості', diceWon:'Виграно в кості',
+    // Провідник
+    explorer:'Провідник', loadingBlocks:'Завантаження блоків…', time:'Час', miner:'Майнер',
+    transactions:'Транзакції', noTxInBlock:'Немає транзакцій у цьому блоці',
+    anonymous:'Анонімний', from:'Від', to:'Кому',
+    // Контакти
+    noContacts:'Контактів поки немає', addContact:'Додати контакт', enterContact:'Введіть @нікнейм або lac1… адресу',
+    add:'Додати',
+    // TimeLock
+    timeLock:'TimeLock', lockFunds:'Заблокувати кошти до дати',
+    // Логін
+    welcome:'Ласкаво просимо до LAC', privacyFirst:'Блокчейн з приватністю', createWallet:'Створити гаманець',
+    importSeed:'Імпортувати Seed', backupSeed:'Збережіть свій Seed', writeSeedDown:'Запишіть! Втрачений seed = втрачений гаманець',
+    seedSaved:'Я зберіг seed', enterSeed:'Введіть seed-фразу',
+    loginBtn:'Увійти',
+    // Загальне
+    loading:'Завантаження…', error:'Помилка', success:'Успіх', cancel:'Скасувати', confirm:'Підтвердити', save:'Зберегти',
+    back:'Назад', done:'Готово', close:'Закрити', search:'Пошук', more:'Більше',
   }
 };
 const getLang = () => localStorage.getItem('lac_lang') || 'en';
@@ -361,6 +441,7 @@ const MainApp = ({ onLogout }) => {
       dashboard: <DashboardView onBack={back} />,
       validator: <ValidatorView onBack={back} profile={profile} onRefresh={reload} />,
       dice: <DiceView onBack={back} profile={profile} onRefresh={reload} />,
+      referral: <ReferralView onBack={back} />,
     };
     return (
       <div className="w-full h-screen bg-gradient-to-br from-gray-900 to-gray-950 flex items-center justify-center p-2 sm:p-4">
@@ -505,7 +586,7 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
               onClick={() => onNav({type:'chat',peer:{address:c.peer,name:c.name}})} />
           ))
         ) : (
-          groups.length === 0 ? <Empty emoji="👥" text="No groups" sub="Create a group" /> :
+          groups.length === 0 ? <Empty emoji="👥" text={t('noGroups')} sub={t('createGroup')} /> :
           groups.map(g => {
             const tb = {public:['emerald','🌍 Public'],private:['purple','🔒 Private'],l1_blockchain:['blue','⛓ L1'],l2_ephemeral:['amber','⚡ L2']}[g.type]||['emerald','🌍 Public'];
             return (
@@ -538,6 +619,7 @@ const notifSound = (() => {
 })();
 
 const ChatView = ({ peer, onBack, profile }) => {
+  const { t } = useT();
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -634,7 +716,7 @@ const ChatView = ({ peer, onBack, profile }) => {
           )}
         </div>} />
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
-        {msgs.length===0 && !sending && <Empty emoji="💬" text="No messages yet" sub="Send the first message" />}
+        {msgs.length===0 && !sending && <Empty emoji="💬" text={t('noMsgYet')} sub={t('sendFirst')} />}
         {msgs.map((m,i) => {
           const mine = m.direction==='sent' || m.from_address===myAddr;
           const isEph = m.ephemeral || m.msg_type==='ephemeral';
@@ -653,7 +735,7 @@ const ChatView = ({ peer, onBack, profile }) => {
                 className={`max-w-[78%] px-3.5 py-2 rounded-2xl cursor-pointer active:opacity-80 ${burned?'bg-gray-900/50 border border-gray-800':mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
                 {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{m.from||sAddr(m.from_address)}</p>}
                 {m.reply_to && <div className={`text-[11px] px-2 py-1 rounded-lg mb-1.5 border-l-2 ${mine?'bg-emerald-800/30 border-emerald-400/40':'bg-gray-800/50 border-purple-400/40'}`}><p className={`font-medium text-[10px] ${mine?'text-emerald-300/70':'text-purple-400/70'}`}>{m.reply_to.from}</p><p className={`truncate ${mine?'text-emerald-200/50':'text-gray-400'}`}>{m.reply_to.text}</p></div>}
-                <p className={`text-[14px] leading-snug ${burned?'text-gray-600 italic':''}`}>{m.text||m.message}</p>
+                <p className={`text-[14px] leading-snug break-words ${burned?'text-gray-600 italic':''}`} style={{overflowWrap:'anywhere'}}>{m.text||m.message}</p>
                 <div className={`flex items-center gap-1.5 mt-0.5 ${mine?'justify-end':''}`}>
                   {isEph && <span className="text-[9px] opacity-50">⏱</span>}
                   {isBurn && !burned && <span className="text-[9px] text-red-400">🔥</span>}
@@ -703,6 +785,9 @@ const GroupView = ({ group, onBack, profile }) => {
   const [posts, setPosts] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [replyTo, setReplyTo] = useState(null);
+  const [reactTo, setReactTo] = useState(null);
+  const { t } = useT();
   const end = useRef(null);
   const isEph = group.type==='l2_ephemeral' || group.type==='ephemeral';
   const isL1 = group.type==='l1_blockchain';
@@ -734,15 +819,17 @@ const GroupView = ({ group, onBack, profile }) => {
   const send = async () => {
     if(!text.trim()||sending) return;
     const txt = text.trim();
+    const reply = replyTo ? { text: replyTo.text?.slice(0,100), from: replyTo.from } : null;
     setSending(true);
     setText('');
+    setReplyTo(null);
     const ts = ~~(Date.now()/1000);
-    const opt = { from: profile?.username||'You', from_address: profile?.address, text: txt, message: txt, timestamp: ts, _opt: true };
+    const opt = { from: profile?.username||'You', from_address: profile?.address, text: txt, message: txt, timestamp: ts, _opt: true, reply_to: reply };
     localPosts.current = [...localPosts.current, opt];
     setPosts([...localPosts.current]);
     lastJson.current = '';
     setSending(false);
-    try { await post('/api/group.post',{group_id:gid,message:txt}); }
+    try { await post('/api/group.post',{group_id:gid,message:txt,reply_to:reply}); }
     catch(e) {
       toast.error(e.message);
       localPosts.current = localPosts.current.filter(p => p !== opt);
@@ -750,33 +837,57 @@ const GroupView = ({ group, onBack, profile }) => {
     }
   };
 
+  const doReact = async (p, emoji) => {
+    setReactTo(null);
+    const msgKey = (p.text||p.message||'').slice(0,30) + '|' + (p.timestamp||0);
+    try { await post('/api/message.react', { msg_key: msgKey, emoji }); load(); } catch {}
+  };
+
   return (
     <div className="h-full bg-[#060f0c] flex flex-col">
       <Header title={group.name} onBack={onBack} right={
         <div className="flex items-center gap-2">
-          <button onClick={() => { cp(gid); toast.success('Group link copied!'); }} className="p-1.5 rounded-lg bg-gray-800 text-gray-400 active:bg-gray-700"><Copy className="w-3.5 h-3.5" /></button>
+          <button onClick={() => { cp(gid); toast.success(t('groupCopied')); }} className="p-1.5 rounded-lg bg-gray-800 text-gray-400 active:bg-gray-700"><Copy className="w-3.5 h-3.5" /></button>
           <Badge color={typeBadge[0]}>{typeBadge[1]}</Badge>
         </div>} />
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
-        {isEph && <div className="text-center py-1"><span className="text-amber-400/60 text-[10px] bg-amber-600/10 px-3 py-1 rounded-full">⚡ Messages self-destruct after 5 min</span></div>}
-        {isL1 && <div className="text-center py-1"><span className="text-blue-400/60 text-[10px] bg-blue-600/10 px-3 py-1 rounded-full">⛓ On-chain · Zero-History cleans L3→L2→L1</span></div>}
-        {isPrivate && <div className="text-center py-1"><span className="text-purple-400/60 text-[10px] bg-purple-600/10 px-3 py-1 rounded-full">🔒 Private group · Invite only</span></div>}
-        {posts.length===0 && <Empty emoji="💬" text="No messages yet" sub="Write the first message" />}
-        {posts.map((p,i) => { const mine=p.from_address===profile?.address; return (
-          <div key={i} className={`flex ${mine?'justify-end':'justify-start'}`}>
-            <div className={`max-w-[78%] px-3.5 py-2 rounded-2xl ${mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
+        {isEph && <div className="text-center py-1"><span className="text-amber-400/60 text-[10px] bg-amber-600/10 px-3 py-1 rounded-full">⚡ {t('ephAutoDelete')}</span></div>}
+        {isL1 && <div className="text-center py-1"><span className="text-blue-400/60 text-[10px] bg-blue-600/10 px-3 py-1 rounded-full">⛓ {t('onChainZH')}</span></div>}
+        {isPrivate && <div className="text-center py-1"><span className="text-purple-400/60 text-[10px] bg-purple-600/10 px-3 py-1 rounded-full">🔒 {t('privateGroup')}</span></div>}
+        {posts.length===0 && <Empty emoji="💬" text={t('noMsgYet')} sub={t('writeFirst')} />}
+        {posts.map((p,i) => { const mine=p.from_address===profile?.address;
+          const rxn = p.reactions || {};
+          const hasRxn = Object.keys(rxn).length > 0;
+          return (
+          <div key={i} className={`flex flex-col ${mine?'items-end':'items-start'}`}>
+            <div onClick={() => setReplyTo({text:p.text||p.message, from:p.from||'Anon'})}
+              onContextMenu={(e) => { e.preventDefault(); setReactTo(reactTo===i?null:i); }}
+              className={`max-w-[78%] px-3.5 py-2 rounded-2xl cursor-pointer active:opacity-80 ${mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
               {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{p.from||'Anon'}</p>}
-              <p className="text-[14px] leading-snug">{p.text||p.message}</p>
+              {p.reply_to && <div className={`text-[11px] px-2 py-1 rounded-lg mb-1.5 border-l-2 ${mine?'bg-emerald-800/30 border-emerald-400/40':'bg-gray-800/50 border-purple-400/40'}`}><p className={`font-medium text-[10px] ${mine?'text-emerald-300/70':'text-purple-400/70'}`}>{p.reply_to.from}</p><p className={`truncate ${mine?'text-emerald-200/50':'text-gray-400'}`}>{p.reply_to.text}</p></div>}
+              <p className="text-[14px] leading-snug break-words" style={{overflowWrap:'anywhere'}}>{p.text||p.message}</p>
               <p className={`text-[10px] mt-0.5 ${mine?'text-emerald-300/50':'text-gray-600'}`}>{ago(p.timestamp)}</p>
             </div>
+            {hasRxn && <div className="flex gap-1 mt-0.5 px-1">{Object.entries(rxn).map(([em,addrs]) =>
+              <button key={em} onClick={() => doReact(p,em)} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gray-800/60 border border-gray-700/30 text-[11px] hover:bg-gray-700/60">
+                <span>{em}</span>{addrs.length > 1 && <span className="text-gray-400 text-[9px]">{addrs.length}</span>}
+              </button>
+            )}</div>}
+            {reactTo === i && <div className="flex gap-1 mt-1 px-1 py-1 rounded-xl bg-gray-800/90 border border-gray-700/40 shadow-lg">
+              {['👍','❤️','🔥','😂','😮','👎'].map(em => <button key={em} onClick={() => doReact(p,em)} className="text-lg px-1 hover:scale-125 transition-transform active:scale-90">{em}</button>)}
+            </div>}
           </div>
         ); })}
         <div ref={end} />
       </div>
+      {replyTo && <div className="flex items-center gap-2 px-3 py-2 bg-[#0a1a15] border-t border-emerald-900/30">
+        <div className="flex-1 border-l-2 border-emerald-500 pl-2 min-w-0"><p className="text-emerald-400 text-[10px] font-medium">{replyTo.from}</p><p className="text-gray-400 text-[11px] truncate">{replyTo.text}</p></div>
+        <button onClick={() => setReplyTo(null)} className="text-gray-600 hover:text-gray-400 shrink-0"><X className="w-4 h-4" /></button>
+      </div>}
       <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
         <div className="flex gap-2 items-end">
           <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key==='Enter'&&!e.shiftKey&&send()}
-            className="flex-1 bg-[#0a1a15] text-white px-4 py-2.5 rounded-2xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600" placeholder="Message…" />
+            className="flex-1 bg-[#0a1a15] text-white px-4 py-2.5 rounded-2xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600" placeholder={t('message')+'…'} />
           <button onClick={send} disabled={sending||!text.trim()} className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shrink-0 disabled:opacity-30"><Send className="w-4 h-4 text-white ml-0.5" /></button>
         </div>
       </div>
@@ -787,10 +898,11 @@ const GroupView = ({ group, onBack, profile }) => {
 // ━━━ NEW CHAT / GROUP ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const NewChat = ({ onBack, onGo }) => {
   const [to, setTo] = useState('');
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="New Message" onBack={onBack} />
-    <div className="p-4"><p className="text-gray-500 text-xs mb-2">Enter @username or lac1… address</p>
+  const { t } = useT();
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={t('newMessage')} onBack={onBack} />
+    <div className="p-4"><p className="text-gray-500 text-xs mb-2">{t('enterAddr')}</p>
       <Input value={to} onChange={setTo} placeholder="@alice or lac1…" mono />
-      <div className="mt-4"><Btn onClick={() => to.trim()&&onGo({address:to.trim(),name:to.trim()})} color="emerald" full disabled={!to.trim()}>Start Chat</Btn></div>
+      <div className="mt-4"><Btn onClick={() => to.trim()&&onGo({address:to.trim(),name:to.trim()})} color="emerald" full disabled={!to.trim()}>{t('startChat')}</Btn></div>
     </div></div>);
 };
 
@@ -824,6 +936,114 @@ const NewGroup = ({ onBack, onDone }) => {
         </div>
       </div>
       <Btn onClick={go} color="emerald" full disabled={!name.trim()} loading={ld}>Create Group</Btn>
+    </div></div>);
+};
+
+// ━━━ REFERRAL SYSTEM ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const tierInfo = { genesis:['🏆','Genesis','amber'], early:['⚡','Early','purple'], growth:['🌱','Growth','emerald'], vip:['💎','VIP','blue'], none:['—','—','gray'] };
+const ReferralView = ({ onBack }) => {
+  const [data, setData] = useState(null);
+  const [board, setBoard] = useState(null);
+  const [code, setCode] = useState('');
+  const [boost, setBoost] = useState('');
+  const [ld, setLd] = useState(false);
+  const { t } = useT();
+
+  useEffect(() => {
+    get('/api/referral/code').then(setData).catch(()=>{});
+    get('/api/referral/leaderboard').then(setBoard).catch(()=>{});
+  }, []);
+
+  const useCode = async () => {
+    if (!code.trim()) return;
+    setLd(true);
+    try { const r = await post('/api/referral/use',{code:code.trim()}); toast.success(r.message||'Done!'); setCode(''); get('/api/referral/code').then(setData); }
+    catch(e) { toast.error(e.message); }
+    finally { setLd(false); }
+  };
+  const burnBoost = async () => {
+    const amt = parseInt(boost);
+    if (!amt || amt < 100) { toast.error('Min 100 LAC'); return; }
+    setLd(true);
+    try { const r = await post('/api/referral/burn-boost',{amount:amt}); toast.success(`🔥 ${amt} LAC burned! Tier: ${r.new_tier}`); setBoost(''); get('/api/referral/code').then(setData); }
+    catch(e) { toast.error(e.message); }
+    finally { setLd(false); }
+  };
+
+  const ti = tierInfo[data?.tier||'none'];
+
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="🤝 Referral" onBack={onBack} />
+    <div className="flex-1 overflow-y-auto p-4">
+      {!data ? <p className="text-gray-600 text-center py-8">{t('loading')}</p> : <>
+        {/* Your code */}
+        <Card gradient="bg-gradient-to-br from-purple-900/20 to-[#0f1f18] border-purple-800/20" className="mb-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-purple-400 font-semibold text-sm">Your Invite Code</p>
+            <Badge color={ti[2]}>{ti[0]} {ti[1]}</Badge>
+          </div>
+          <div className="bg-[#060f0c] p-3 rounded-xl border border-purple-900/20 text-center">
+            <p onClick={() => cp(data.code)} className="text-purple-300 font-mono text-xl font-bold cursor-pointer select-all">{data.code}</p>
+            <p className="text-gray-600 text-[10px] mt-1">{t('tapCopy')}</p>
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => cp(data.code)} className="flex-1 text-purple-400 text-xs flex items-center justify-center gap-1 bg-purple-900/20 px-3 py-2 rounded-lg active:bg-purple-900/40"><Copy className="w-3 h-3"/> {t('copy')}</button>
+            <button onClick={() => { if(navigator.share) navigator.share({text:`Join LAC blockchain! Use my invite: ${data.code}\nhttps://lac.network`}).catch(()=>{}); else cp(data.code); }} className="flex-1 text-blue-400 text-xs flex items-center justify-center gap-1 bg-blue-900/20 px-3 py-2 rounded-lg active:bg-blue-900/40">↗ {t('share')}</button>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            <div className="text-center"><p className="text-purple-400 font-bold text-lg">{data.referrals||0}</p><p className="text-gray-600 text-[9px]">Invited</p></div>
+            <div className="text-center"><p className="text-amber-400 font-bold text-lg">{(data.referrals||0)*5}</p><p className="text-gray-600 text-[9px]">LAC earned</p></div>
+            <div className="text-center"><p className="text-red-400 font-bold text-lg">{fmt(data.boost_burned||0)}</p><p className="text-gray-600 text-[9px]">Boosted</p></div>
+          </div>
+        </Card>
+
+        {/* Use code */}
+        {!data.invited_by && <Card className="mb-3">
+          <p className="text-white text-sm font-semibold mb-2">🎫 Use Invite Code</p>
+          <p className="text-gray-600 text-[10px] mb-2">Got a code? Enter it for +10 LAC bonus!</p>
+          <div className="flex gap-2">
+            <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="REF-XXXXXXXX"
+              className="flex-1 bg-[#0a1a15] text-purple-400 font-mono text-sm px-3 py-2 rounded-xl border border-purple-900/30 outline-none" />
+            <Btn onClick={useCode} color="purple" small loading={ld}>OK</Btn>
+          </div>
+        </Card>}
+        {data.invited_by && <Card className="mb-3"><p className="text-emerald-400 text-xs">✅ Invited with code {data.invited_by.slice(0,6)}**</p></Card>}
+
+        {/* Burn boost */}
+        <Card className="mb-3">
+          <p className="text-white text-sm font-semibold mb-1">🔥 Burn-to-Boost</p>
+          <p className="text-gray-600 text-[10px] mb-2">Burn LAC to boost your tier. 10,000+ = VIP</p>
+          <div className="flex gap-2">
+            <input value={boost} onChange={e => setBoost(e.target.value)} placeholder="Amount (min 100)" type="number"
+              className="flex-1 bg-[#0a1a15] text-red-400 font-mono text-sm px-3 py-2 rounded-xl border border-red-900/30 outline-none" />
+            <Btn onClick={burnBoost} color="red" small loading={ld}>🔥</Btn>
+          </div>
+        </Card>
+
+        {/* Tier info */}
+        <Card className="mb-3">
+          <p className="text-white text-sm font-semibold mb-2">📊 Tiers</p>
+          {[['genesis','🏆','First 100 wallets','amber'],['early','⚡','First 1,000 wallets','purple'],['growth','🌱','Standard referrers','emerald'],['vip','💎','10+ referrals or 10K burned','blue']].map(([id,ic,desc,c]) =>
+            <div key={id} className={`flex items-center gap-3 py-2 border-b border-gray-800/20 ${data.tier===id?'opacity-100':'opacity-50'}`}>
+              <span className="text-lg">{ic}</span>
+              <div className="flex-1"><p className={`text-${c}-400 text-xs font-semibold capitalize`}>{id}</p><p className="text-gray-600 text-[10px]">{desc}</p></div>
+              {data.tier===id && <span className="text-emerald-400 text-xs">← You</span>}
+            </div>
+          )}
+        </Card>
+
+        {/* Leaderboard */}
+        {board && board.leaderboard?.length > 0 && <Card>
+          <p className="text-white text-sm font-semibold mb-2">🏆 Leaderboard</p>
+          <p className="text-gray-600 text-[10px] mb-2">{board.total_referrers} referrers · {board.total_referrals} total invites</p>
+          {board.leaderboard.slice(0,10).map((b,i) => {
+            const bt = tierInfo[b.tier||'growth'];
+            return <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-800/20">
+              <div className="flex items-center gap-2"><span className="text-gray-600 text-xs w-5">#{i+1}</span><span className="text-gray-500 font-mono text-[10px]">{b.code}</span></div>
+              <div className="flex items-center gap-2"><Badge color={bt[2]}>{bt[0]}</Badge><span className="text-emerald-400 text-xs font-bold">{b.referrals}</span></div>
+            </div>;
+          })}
+        </Card>}
+      </>}
     </div></div>);
 };
 
@@ -975,6 +1195,7 @@ const txLabel = (tx) => {
     'username_register':'👤 Username', 'faucet':'🚰 Faucet',
     'timelock_create':'⏰ TimeLock Send', 'timelock_activated':'⏰ TimeLock Received',
     'dms_transfer':'💀 DMS Transfer', 'dms_wipe':'💀 DMS Wipe',
+    'referral_bonus':'🤝 Referral Bonus', 'referral_boost':'🔥 Referral Boost',
   };
   return labels[t] || t?.replace(/_/g,' ') || tx.dir;
 };
@@ -1031,6 +1252,7 @@ const SendView = ({ onBack, profile, onDone }) => {
 const STASHView = ({ onBack, onDone }) => {
   const [tab, setTab] = useState('dep'); const [nom, setNom] = useState(null); const [key, setKey] = useState('');
   const [res, setRes] = useState(null); const [ld, setLd] = useState(false); const [info, setInfo] = useState(null);
+  const { t } = useT();
   const [savedKeys, setSavedKeys] = useState(() => {
     try { return JSON.parse(localStorage.getItem('lac_stash_keys')||'[]'); } catch { return []; }
   });
@@ -1078,67 +1300,68 @@ const STASHView = ({ onBack, onDone }) => {
     finally { setLd(false); }
   };
 
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="🎒 STASH Pool" onBack={onBack} />
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={'🎒 '+t('stashTitle')} onBack={onBack} />
     <div className="flex-1 overflow-y-auto p-4">
       <Card gradient="bg-gradient-to-br from-amber-900/20 to-[#0f1f18] border-amber-800/20" className="mb-4">
-        <p className="text-amber-400 font-semibold text-sm">Anonymous Money Safe</p>
-        <p className="text-gray-500 text-[11px] mt-1">Deposit → secret key → withdraw to ANY wallet. Zero link.</p>
+        <p className="text-amber-400 font-semibold text-sm">{t('anonSafe')}</p>
+        <p className="text-gray-500 text-[11px] mt-1">{t('stashDesc')}</p>
         {info && <div className="mt-2 grid grid-cols-3 gap-2">
-          <div><p className="text-amber-300 text-xs font-bold">{fmt(info.total_balance||0)}</p><p className="text-gray-600 text-[9px]">Pool LAC</p></div>
-          <div><p className="text-emerald-400 text-xs font-bold">{info.active_keys||0}</p><p className="text-gray-600 text-[9px]">Active keys</p></div>
-          <div><p className="text-gray-400 text-xs font-bold">{info.spent_count||0}</p><p className="text-gray-600 text-[9px]">Redeemed</p></div>
+          <div><p className="text-amber-300 text-xs font-bold">{fmt(info.total_balance||0)}</p><p className="text-gray-600 text-[9px]">{t('poolLac')}</p></div>
+          <div><p className="text-emerald-400 text-xs font-bold">{info.active_keys||0}</p><p className="text-gray-600 text-[9px]">{t('activeKeys')}</p></div>
+          <div><p className="text-gray-400 text-xs font-bold">{info.spent_count||0}</p><p className="text-gray-600 text-[9px]">{t('redeemed')}</p></div>
         </div>}
       </Card>
 
       {/* Result feedback */}
       {res?.t==='dep' && res.key && (
         <Card gradient="bg-emerald-900/15 border-emerald-700/30" className="mb-3">
-          <p className="text-emerald-400 text-sm font-bold mb-2">✅ Deposit successful!</p>
+          <p className="text-emerald-400 text-sm font-bold mb-2">✅ {t('depositSuccess')}</p>
           <div className="bg-[#060f0c] p-3 rounded-lg border border-emerald-900/20">
-            <p className="text-[9px] text-gray-600 mb-1 uppercase tracking-wider">STASH Key (tap to copy)</p>
+            <p className="text-[9px] text-gray-600 mb-1 uppercase tracking-wider">{t('stashKey')}</p>
             <p onClick={() => cp(res.key)} className="text-emerald-300 font-mono text-[12px] break-all select-all cursor-pointer leading-5">{res.key}</p>
           </div>
           <div className="flex gap-2 mt-2">
-            <button onClick={() => cp(res.key)} className="flex-1 text-emerald-400 text-xs flex items-center justify-center gap-1 bg-emerald-900/20 px-3 py-2 rounded-lg active:bg-emerald-900/40"><Copy className="w-3 h-3"/> Copy</button>
-            <button onClick={() => { if(navigator.share) navigator.share({text:res.key}).catch(()=>{}); else cp(res.key); }} className="flex-1 text-blue-400 text-xs flex items-center justify-center gap-1 bg-blue-900/20 px-3 py-2 rounded-lg active:bg-blue-900/40">↗ Share</button>
+            <button onClick={() => cp(res.key)} className="flex-1 text-emerald-400 text-xs flex items-center justify-center gap-1 bg-emerald-900/20 px-3 py-2 rounded-lg active:bg-emerald-900/40"><Copy className="w-3 h-3"/> {t('copy')}</button>
+            <button onClick={() => { if(navigator.share) navigator.share({text:res.key}).catch(()=>{}); else cp(res.key); }} className="flex-1 text-blue-400 text-xs flex items-center justify-center gap-1 bg-blue-900/20 px-3 py-2 rounded-lg active:bg-blue-900/40">↗ {t('share')}</button>
           </div>
-          <p className="text-red-400/70 text-[10px] mt-2 text-center">⚠️ Anyone with this key can withdraw {fmt(res.a)} LAC. Keep it safe!</p>
+          <p className="text-red-400/70 text-[10px] mt-2 text-center">⚠️ {t('stashWarn')}</p>
         </Card>
       )}
       {res?.t==='wdr' && (
         <Card gradient="bg-emerald-900/15 border-emerald-700/30" className="mb-3">
-          <p className="text-emerald-400 text-sm font-bold">💰 +{fmt(res.a)} LAC withdrawn to your wallet!</p>
+          <p className="text-emerald-400 text-sm font-bold">💰 +{fmt(res.a)} LAC!</p>
         </Card>
       )}
 
-      <TabBar tabs={[['dep','💎 Deposit'],['wdr','💰 Withdraw'],['keys','🔑 Saved']]} active={tab} onChange={v => { setTab(v); setRes(null); }} />
+      <TabBar tabs={[['dep','💎 '+t('deposit')],['wdr','💰 '+t('withdraw')],['keys','🔑 '+t('savedKeys')]]} active={tab} onChange={v => { setTab(v); setRes(null); }} />
       <div className="mt-3">
         {tab==='dep' ? (
           <div className="space-y-2">
             {noms.map(n => (
               <button key={n.c} onClick={() => setNom(n.c)} className={`w-full p-3 rounded-xl border text-left ${nom===n.c?'border-amber-500 bg-amber-600/10':'border-gray-800 bg-[#0a1a15]'}`}>
                 <span className="text-white font-semibold text-sm">{fmt(n.a)} LAC</span>
-                <span className="text-gray-600 text-[11px] ml-2">(fee: 2 LAC)</span>
+                <span className="text-gray-600 text-[11px] ml-2">({t('fee')}: 2 LAC)</span>
               </button>))}
-            <Btn onClick={dep} color="amber" full loading={ld} disabled={nom===null}>Deposit to STASH</Btn>
+            <Btn onClick={dep} color="amber" full loading={ld} disabled={nom===null}>{t('deposit')} STASH</Btn>
           </div>
         ) : tab==='wdr' ? (
           <div className="space-y-3">
-            <textarea value={key} onChange={e => setKey(e.target.value)} rows={3} placeholder="Paste STASH key…"
+            <textarea value={key} onChange={e => setKey(e.target.value)} rows={3} placeholder={t('withdrawKey')+'…'}
               className="w-full bg-[#0a1a15] text-emerald-400 font-mono text-[11px] p-3 rounded-xl border border-emerald-900/30 outline-none resize-none" />
-            <Btn onClick={wdr} color="emerald" full loading={ld} disabled={!key.trim()}>Withdraw</Btn>
+            <Btn onClick={wdr} color="emerald" full loading={ld} disabled={!key.trim()}>{t('withdraw')}</Btn>
           </div>
         ) : (
           <div className="space-y-2">
-            {savedKeys.length === 0 ? <Empty emoji="🔑" text="No saved keys" sub="Deposit to get your first STASH key" /> :
+            {savedKeys.length === 0 ? <Empty emoji="🔑" text={t('noKeys')} sub={t('deposit')+' STASH'} /> :
             savedKeys.map((s, i) => (
               <Card key={i} gradient={s.used ? 'bg-gray-800/20 border-gray-700/20' : 'bg-amber-900/10 border-amber-800/20'}>
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <p className={`font-mono text-[10px] break-all ${s.used ? 'text-gray-600 line-through' : 'text-amber-300'}`}>{s.key}</p>
-                    <p className="text-gray-600 text-[10px] mt-1">{fmt(s.amount)} LAC · {s.used ? '✅ Used' : '⏳ Active'}</p>
+                    <p className="text-gray-600 text-[10px] mt-1">{fmt(s.amount)} LAC · {s.used ? '✅ '+t('markUsed') : '⏳ '+t('active')}</p>
                   </div>
                   <div className="flex gap-1 ml-2 shrink-0">
+                    {!s.used && <button onClick={() => { setKey(s.key); setTab('wdr'); }} className="p-1.5 bg-emerald-900/20 rounded-lg" title="Use"><Download className="w-3 h-3 text-emerald-400" /></button>}
                     {!s.used && <button onClick={() => { cp(s.key); toast.success('Copied!'); }} className="p-1.5 bg-amber-900/20 rounded-lg"><Copy className="w-3 h-3 text-amber-400" /></button>}
                     <button onClick={() => { if(confirm('Delete this key?')) delKey(i); }} className="p-1.5 bg-red-900/20 rounded-lg"><Trash2 className="w-3 h-3 text-red-400" /></button>
                   </div>
@@ -1645,13 +1868,14 @@ const UsernameView = ({ onBack, onDone }) => {
 // ━━━ CONTACTS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const ContactsView = ({ onBack, onChat }) => {
   const [contacts, setContacts] = useState([]); const [addr, setAddr] = useState('');
+  const { t } = useT();
   useEffect(() => { get('/api/contacts').then(d => setContacts(d.contacts||[])).catch(()=>{}); }, []);
   const add = async () => { if(!addr.trim()) return; try { await post('/api/contact/add',{address:addr.trim()}); toast.success('Added!'); setAddr(''); setContacts((await get('/api/contacts')).contacts||[]); } catch(e){ toast.error(e.message); } };
 
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="👥 Contacts" onBack={onBack} />
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={'👥 '+t('contacts')} onBack={onBack} />
     <div className="p-4">
-      <div className="flex gap-2 mb-4"><Input value={addr} onChange={setAddr} placeholder="Add address or @user" mono /><Btn onClick={add} color="emerald" small><UserPlus className="w-4 h-4"/></Btn></div>
-      {contacts.length===0?<Empty emoji="👥" text="No contacts yet"/>:contacts.map((c,i) => (
+      <div className="flex gap-2 mb-4"><Input value={addr} onChange={setAddr} placeholder={t('enterContact')} mono /><Btn onClick={add} color="emerald" small><UserPlus className="w-4 h-4"/></Btn></div>
+      {contacts.length===0?<Empty emoji="👥" text={t('noContacts')}/>:contacts.map((c,i) => (
         <ListItem key={i} icon={<div className="relative"><User className="w-5 h-5 text-emerald-500"/>{c.online && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-[#060f0c]" />}</div>} title={c.username||sAddr(c.address)} sub={c.address?sAddr(c.address):''}
           onClick={() => onChat({address:c.address,name:c.username||c.address})} />
       ))}
@@ -1661,46 +1885,69 @@ const ContactsView = ({ onBack, onChat }) => {
 // ━━━ DASHBOARD ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const DashboardView = ({ onBack }) => {
   const [s, setS] = useState(null);
+  const { t } = useT();
   useEffect(() => { get('/api/stats').then(setS).catch(()=>{}); }, []);
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="📊 Dashboard" onBack={onBack} />
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={'📊 '+t('dashboard')} onBack={onBack} />
     <div className="flex-1 overflow-y-auto p-4">
-      {!s?<p className="text-gray-600 text-center py-8">Loading…</p>:<>
-        {/* Supply */}
+      {!s?<p className="text-gray-600 text-center py-8">{t('loading')}</p>:<>
+        {/* FORMULA: Emitted - Burned = On Wallets + STASH */}
         <Card gradient="bg-gradient-to-br from-emerald-900/20 to-[#0f1f18] border-emerald-800/15" className="mb-3">
-          <p className="text-white text-sm font-semibold mb-2">💰 Supply</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div><p className="text-[9px] text-gray-600 uppercase">On wallets now</p><p className="text-emerald-400 text-lg font-bold">{fmt(s.circulating_supply||s.total_supply)}</p><p className="text-gray-600 text-[9px]">LAC</p></div>
-            <div><p className="text-[9px] text-gray-600 uppercase">Total Mined</p><p className="text-blue-400 text-lg font-bold">{fmt(s.total_mined_emission||0)}</p><p className="text-gray-600 text-[9px]">LAC</p></div>
-            <div><p className="text-[9px] text-gray-600 uppercase">🔥 Burned forever</p><p className="text-red-400 text-sm font-bold">{fmt((s.total_burned||0)+(s.total_fees_burned||0))} LAC</p></div>
-            <div><p className="text-[9px] text-gray-600 uppercase">🎒 In STASH Pool</p><p className="text-amber-400 text-sm font-bold">{fmt(s.stash_pool_balance||0)} LAC</p></div>
+          <p className="text-white text-sm font-semibold mb-3">💰 {t('supply')}</p>
+          {/* Main balance */}
+          <div className="bg-[#060f0c] rounded-xl p-3 mb-3 border border-emerald-900/20">
+            <p className="text-[9px] text-gray-600 uppercase">💼 {t('onWallets')}</p>
+            <p className="text-emerald-400 text-2xl font-bold">{fmt(s.on_wallets||s.circulating_supply||0)} <span className="text-sm text-gray-600">LAC</span></p>
           </div>
+          {/* Emission */}
+          <div className="mb-2">
+            <div className="flex justify-between items-center mb-1"><p className="text-[10px] text-blue-400 font-semibold uppercase">✨ {t('totalEmitted')||'Emitted'}</p><p className="text-blue-400 font-bold text-sm">{fmt(s.total_emitted||s.total_mined_emission||0)} LAC</p></div>
+            <div className="space-y-0.5 pl-3">
+              {(s.emitted_mining||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">⛏️ {t('mining')}</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_mining)} LAC</span></div>}
+              {(s.emitted_faucet||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🚰 {t('faucet')}</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_faucet)} LAC</span></div>}
+              {(s.emitted_dice||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🎲 {t('dice')} payouts</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_dice)} LAC</span></div>}
+            </div>
+          </div>
+          {/* Burns */}
+          <div className="mb-2">
+            <div className="flex justify-between items-center mb-1"><p className="text-[10px] text-red-400 font-semibold uppercase">🔥 {t('burnedForever')}</p><p className="text-red-400 font-bold text-sm">{fmt(s.total_burned||0)} LAC</p></div>
+            <div className="space-y-0.5 pl-3">
+              {(s.burned_dice||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🎲 {t('dice')}</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_dice)} LAC</span></div>}
+              {(s.burned_levels||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">⬆️ Levels</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_levels)} LAC</span></div>}
+              {(s.burned_username||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">👤 {t('usernames')}</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_username)} LAC</span></div>}
+              {(s.burned_fees||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">💸 {t('fee')||'Fees'}</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_fees)} LAC</span></div>}
+              {(s.burned_dms||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">💀 DMS</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_dms)} LAC</span></div>}
+              {(s.burned_other||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🔥 Other</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_other)} LAC</span></div>}
+            </div>
+          </div>
+          {/* STASH */}
+          {(s.stash_pool_balance||0) > 0 && <div className="flex justify-between items-center pt-2 border-t border-gray-800/30"><p className="text-[10px] text-amber-400 font-semibold">🎒 {t('inStash')}</p><p className="text-amber-400 font-bold text-sm">{fmt(s.stash_pool_balance)} LAC</p></div>}
         </Card>
         {/* Network */}
         <div className="grid grid-cols-3 gap-2 mb-3">
-          <StatBox icon="⛓" label="Blocks" value={fmt(s.total_blocks)} />
-          <StatBox icon="👛" label="Wallets" value={fmt(s.total_wallets)} />
-          <StatBox icon="📝" label="TX" value={fmt(s.all_tx_count||0)} />
+          <StatBox icon="⛓" label={t('blocks')} value={fmt(s.total_blocks)} />
+          <StatBox icon="👛" label={t('wallets')} value={fmt(s.total_wallets)} />
+          <StatBox icon="📝" label={t('txCount')||'TX'} value={fmt(s.all_tx_count||0)} />
         </div>
         {/* Transaction breakdown */}
-        <Card className="mb-3"><p className="text-white text-sm font-semibold mb-2">All-Time Transactions</p>
+        <Card className="mb-3"><p className="text-white text-sm font-semibold mb-2">{t('allTimeTx')}</p>
           <div className="grid grid-cols-3 gap-2">
-            <StatBox label="💸 Normal" value={s.all_normal||0} small />
+            <StatBox label={'💸 '+t('normal')} value={s.all_normal||0} small />
             <StatBox label="👻 VEIL" value={s.all_veil||0} color="text-purple-400" small />
             <StatBox label="🎒 STASH" value={s.all_stash||0} color="text-amber-400" small />
-            <StatBox label="🎲 Dice" value={s.all_dice||0} color="text-yellow-400" small />
+            <StatBox label={'🎲 '+t('dice')} value={s.all_dice||0} color="text-yellow-400" small />
             <StatBox label="⏰ TimeLock" value={s.all_timelock||0} color="text-blue-400" small />
             <StatBox label="💀 DMS" value={s.all_dms||0} color="text-red-400" small />
-            <StatBox label="🔥 Burns" value={s.all_burn||0} color="text-red-400" small />
-            <StatBox label="👤 Usernames" value={s.all_username||0} small />
-            <StatBox label="🚰 Faucet" value={s.all_faucet||0} small />
+            <StatBox label={'🔥 '+t('burns')} value={s.all_burn||0} color="text-red-400" small />
+            <StatBox label={'👤 '+t('usernames')} value={s.all_username||0} small />
+            <StatBox label={'🚰 '+t('faucet')} value={s.all_faucet||0} small />
           </div>
-          {s.all_l2_messages > 0 && <p className="text-purple-400/50 text-[10px] mt-2 text-center">+ {s.all_l2_messages} L2 encrypted messages (auto-deleted)</p>}
+          {s.all_l2_messages > 0 && <p className="text-purple-400/50 text-[10px] mt-2 text-center">+ {s.all_l2_messages} {t('l2encrypted')}</p>}
         </Card>
-        {s.top_balances && <Card className="mb-3"><p className="text-white text-sm font-semibold mb-2">🏆 Top Balances</p>
+        {s.top_balances && <Card className="mb-3"><p className="text-white text-sm font-semibold mb-2">🏆 {t('topBalances')}</p>
           {s.top_balances.slice(0,5).map((b,i) => <div key={i} className="flex justify-between py-1 border-b border-gray-800/20"><span className="text-gray-500 text-xs">#{i+1}</span><span className="text-emerald-400 text-xs">{fmt(b)} LAC</span></div>)}
         </Card>}
-        {s.level_distribution && <Card><p className="text-white text-sm font-semibold mb-2">📊 Level Distribution</p>
-          {Object.entries(s.level_distribution).sort().map(([k,v]) => <div key={k} className="flex justify-between py-1 border-b border-gray-800/20"><span className="text-gray-500 text-xs">{k}</span><span className="text-white text-xs">{v} wallets</span></div>)}
+        {s.level_distribution && <Card><p className="text-white text-sm font-semibold mb-2">📊 {t('levelDist')}</p>
+          {Object.entries(s.level_distribution).sort().map(([k,v]) => <div key={k} className="flex justify-between py-1 border-b border-gray-800/20"><span className="text-gray-500 text-xs">{k}</span><span className="text-white text-xs">{v} {t('walletsCount')}</span></div>)}
         </Card>}
       </>}
     </div></div>);
@@ -1719,6 +1966,7 @@ const txMeta = (t) => {
     'burn_level_upgrade':['⬆️','Level Up','red'], 'burn_nickname_change':['✏️','Nickname','red'],
     'username_register':['👤','Username','emerald'], 'faucet':['🚰','Faucet','gray'],
     'mining_reward':['⛏️','Reward','emerald'], 'poet_reward':['⛏️','Reward','emerald'],
+    'referral_bonus':['🤝','Referral','purple'], 'referral_boost':['🔥','Ref Boost','red'],
   };
   return m[t] || ['📄', t?.replace(/_/g,' ')||'Event', 'gray'];
 };
@@ -1812,22 +2060,25 @@ const ExplorerView = ({ onBack }) => {
 };
 
 // ━━━ EXPLORE TAB ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const ExploreTab = ({ onNav, onMenu }) => (
+const ExploreTab = ({ onNav, onMenu }) => {
+  const { t } = useT();
+  return (
   <div className="h-full overflow-y-auto pb-4">
     <div className="px-4 pt-4 pb-2 flex items-center gap-3">
       <button onClick={onMenu} className="text-gray-400 hover:text-white"><Menu className="w-5 h-5" /></button>
-      <h1 className="text-xl font-bold text-white">Explore</h1>
+      <h1 className="text-xl font-bold text-white">{t('explore')}</h1>
     </div>
     <div className="px-4 space-y-2">
       {[
-        {icon:'⛓',title:'Block Explorer',sub:'Browse blocks & transactions',type:'explorer'},
-        {icon:'📊',title:'Network Dashboard',sub:'Stats, top balances, distribution',type:'dashboard'},
-        {icon:'⛏️',title:'Mining',sub:'Your mining stats & rewards',type:'mining'},
-        {icon:'⏰',title:'Time-Lock',sub:'Schedule future payments',type:'timelock'},
-        {icon:'💀',title:'Dead Man\'s Switch',sub:'Auto-actions if you go inactive',type:'dms'},
-        {icon:'👥',title:'Contacts',sub:'Your address book',type:'contacts'},
-        {icon:'🛡️',title:'Validator',sub:'Zero-History validator node',type:'validator'},
-        {icon:'🎲',title:'Dice',sub:'Provably fair blockchain game',type:'dice'},
+        {icon:'⛓',title:t('explorer'),sub:t('blocks')+' & '+t('transactions'),type:'explorer'},
+        {icon:'📊',title:t('dashboard'),sub:t('topBalances')+', '+t('levelDist'),type:'dashboard'},
+        {icon:'⛏️',title:t('mining'),sub:t('totalEarned')+', '+t('recentRewards'),type:'mining'},
+        {icon:'⏰',title:'TimeLock',sub:t('lockFunds'),type:'timelock'},
+        {icon:'💀',title:'Dead Man\'s Switch',sub:'DMS',type:'dms'},
+        {icon:'👥',title:t('contacts'),sub:t('addContact'),type:'contacts'},
+        {icon:'🛡️',title:'Validator',sub:'Zero-History',type:'validator'},
+        {icon:'🎲',title:t('dice'),sub:t('diceGame'),type:'dice'},
+        {icon:'🤝',title:'Referral',sub:'Invite friends, earn LAC',type:'referral'},
       ].map(item => (
         <button key={item.type} onClick={() => onNav({type:item.type})}
           className="w-full bg-[#0f1f1a] border border-emerald-900/15 rounded-2xl p-4 flex items-center gap-4 active:bg-emerald-900/20">
@@ -1839,6 +2090,7 @@ const ExploreTab = ({ onNav, onMenu }) => (
     </div>
   </div>
 );
+};
 
 // ━━━ PROFILE TAB ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
@@ -1869,11 +2121,11 @@ const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
       </div>
 
       <div className="mx-4 mt-4 space-y-0.5">
-        {!uname && <ListItem icon={<User className="w-5 h-5 text-purple-400"/>} title="Register Username" sub="Get your @name" onClick={() => onNav({type:'username'})} />}
-        <ListItem icon={<Award className="w-5 h-5 text-amber-400"/>} title="Upgrade Level" sub={`L${p.level??0} → L${(p.level??0)+1} · ${levelCosts[p.level??0]>0 ? fmt(levelCosts[p.level??0])+' LAC' : 'MAX'}`}
+        {!uname && <ListItem icon={<User className="w-5 h-5 text-purple-400"/>} title={t('registerUsername')} sub={t('getYourName')} onClick={() => onNav({type:'username'})} />}
+        <ListItem icon={<Award className="w-5 h-5 text-amber-400"/>} title={t('upgradeLevel')} sub={`L${p.level??0} → L${(p.level??0)+1} · ${levelCosts[p.level??0]>0 ? fmt(levelCosts[p.level??0])+' LAC' : 'MAX'}`}
           onClick={upgrade} right={upg?<span className="text-xs text-gray-500">…</span>:undefined} />
-        <ListItem icon={<Copy className="w-5 h-5 text-blue-400"/>} title="Copy Address" sub={sAddr(p.address)} onClick={() => cp(p.address)} />
-        <ListItem icon={<Lock className="w-5 h-5 text-red-400"/>} title="Export Seed" sub="Backup your secret key" onClick={() => {
+        <ListItem icon={<Copy className="w-5 h-5 text-blue-400"/>} title={t('copyAddress')} sub={sAddr(p.address)} onClick={() => cp(p.address)} />
+        <ListItem icon={<Lock className="w-5 h-5 text-red-400"/>} title={t('exportSeed')} sub={t('backupKey')} onClick={() => {
           const s=localStorage.getItem('lac_seed');
           if(s){ const show=confirm('⚠️ Your seed will be shown.\nMake sure nobody is watching!\n\nShow seed?');
             if(show){ cp(s); prompt('Your seed (copied to clipboard):', s); }

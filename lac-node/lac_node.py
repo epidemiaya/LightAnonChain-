@@ -257,6 +257,8 @@ class State:
         self.groups = {}  # gid → {name, posts: [{from, text, ts}]}
         self.contacts = {}  # address → [contact_addresses]
         self.reactions = {}  # msg_key → {emoji: [addr1, addr2]}
+        self.referrals = {}  # invite_code → {creator, used_by: [], created_at}
+        self.referral_map = {}  # addr → {invite_code, invited_by, boost_burned}
         self.spent_key_images = set()  # Ring signature key images
         self.mempool = []
         
@@ -349,6 +351,10 @@ class State:
                 stash_data = self.state_manager.load_with_backup('stash_pool.json')
                 if stash_data:
                     self.stash_pool = stash_data
+                ref_data = self.state_manager.load_with_backup('referrals.json')
+                if ref_data:
+                    self.referrals = ref_data.get('codes', {})
+                    self.referral_map = ref_data.get('map', {})
             except:
                 pass
             try:
@@ -564,6 +570,7 @@ class State:
             self.state_manager.save_atomic('key_images.json', list(self.spent_key_images))
             self.state_manager.save_atomic('stash_pool.json', self.stash_pool)
             self.state_manager.save_atomic('persistent_msgs.json', self.persistent_msgs)
+            self.state_manager.save_atomic('referrals.json', {'codes': self.referrals, 'map': self.referral_map})
         else:
             # Fallback
             with open(self.datadir / 'chain.json', 'w') as f:
@@ -2340,9 +2347,18 @@ def group_posts():
         if not group:
             return jsonify({'error': 'Group not found'}), 404
         
+        # Enrich posts with reactions
+        enriched_posts = []
+        for p in group.get('posts', []):
+            ep = dict(p)
+            msg_key = (p.get('text', '') or p.get('message', ''))[:30] + '|' + str(p.get('timestamp', 0))
+            ep['msg_key'] = msg_key
+            ep['reactions'] = S.reactions.get(msg_key, {})
+            enriched_posts.append(ep)
+        
         return jsonify({
             'ok': True,
-            'posts': group.get('posts', [])
+            'posts': enriched_posts
         })
 
 @app.route('/api/group.post', methods=['POST'])
@@ -2361,6 +2377,7 @@ def post_to_group():
     # Support both old and new parameter names
     gid = data.get('group_id', '').strip() or data.get('gid', '').strip()
     text = data.get('message', '').strip() or data.get('text', '').strip()
+    reply_to = data.get('reply_to', None)  # {text, from}
     
     if not gid or not text:
         return jsonify({'error': 'Group ID and text required'}), 400
@@ -2408,7 +2425,8 @@ def post_to_group():
             'text': text,
             'timestamp': int(time.time()),
             'ts': int(time.time()),
-            'group_type': gtype
+            'group_type': gtype,
+            'reply_to': reply_to if reply_to else None
         }
         
         # Ensure posts list exists
@@ -5107,6 +5125,7 @@ def stash_withdraw():
         
         secret_hex = None
         amount = None
+        nominal_code = None
         
         # New format: STASH-{amount}-{hex}
         if stash_key.startswith('STASH-'):
@@ -5115,26 +5134,30 @@ def stash_withdraw():
                 try:
                     amount = int(parts[1])
                     secret_hex = parts[2]
+                    # Reverse lookup nominal_code from amount
+                    for nc, val in STASH_NOMINALS.items():
+                        if val == amount:
+                            nominal_code = nc
+                            break
+                    if nominal_code is None:
+                        nominal_code = 0  # fallback
                 except:
                     return jsonify({'error': 'Invalid STASH key format', 'ok': False}), 400
             else:
                 return jsonify({'error': 'Invalid STASH key format', 'ok': False}), 400
-            # Verify amount is valid nominal
-            if amount not in STASH_NOMINALS.values():
-                return jsonify({'error': 'Invalid STASH amount', 'ok': False}), 400
         # Old format: stash_{"v":1,"n":0,"s":"hex"}
         elif stash_key.startswith('stash_{'):
             try:
                 key_json = stash_key[6:]
                 key_data = json.loads(key_json)
-                nominal_code = key_data.get('n')
+                nominal_code = key_data.get('n', 0)
                 secret_hex = key_data.get('s')
                 if nominal_code in STASH_NOMINALS:
                     amount = STASH_NOMINALS[nominal_code]
             except:
                 return jsonify({'error': 'Malformed STASH key', 'ok': False}), 400
         else:
-            return jsonify({'error': 'Invalid STASH key format', 'ok': False}), 400
+            return jsonify({'error': 'Invalid STASH key format. Use STASH-amount-key or old stash_{} format', 'ok': False}), 400
         
         if not secret_hex or not amount:
             return jsonify({'error': 'Invalid STASH key', 'ok': False}), 400
@@ -5223,108 +5246,402 @@ def stash_info():
 
 
 
+# ==================== REFERRAL SYSTEM ====================
+def get_referral_tier(addr):
+    """Determine referral tier"""
+    ref = S.referral_map.get(addr, {})
+    code = ref.get('invite_code')
+    if not code:
+        return 'none', 0
+    used = len(S.referrals.get(code, {}).get('used_by', []))
+    boost = ref.get('boost_burned', 0)
+    
+    # Tier calculation
+    wallet = S.wallets.get(addr, {})
+    wallet_index = list(S.wallets.keys()).index(addr) if addr in S.wallets else 9999
+    
+    if wallet_index < 100:
+        tier = 'genesis'
+    elif wallet_index < 1000:
+        tier = 'early'
+    elif used >= 10 or boost >= 10000:
+        tier = 'vip'
+    else:
+        tier = 'growth'
+    
+    return tier, used
+
+@app.route('/api/referral/code', methods=['GET'])
+def referral_get_code():
+    """Get or create your referral invite code"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    addr = get_address_from_seed(seed)
+    
+    with S.lock:
+        if addr not in S.wallets:
+            return jsonify({'error': 'Wallet not found'}), 404
+        
+        ref = S.referral_map.get(addr, {})
+        code = ref.get('invite_code')
+        
+        if not code:
+            # Generate unique code: REF-xxxx
+            code = 'REF-' + secrets.token_hex(4).upper()
+            while code in S.referrals:
+                code = 'REF-' + secrets.token_hex(4).upper()
+            
+            S.referrals[code] = {
+                'creator': addr,
+                'used_by': [],
+                'created_at': int(time.time())
+            }
+            if addr not in S.referral_map:
+                S.referral_map[addr] = {}
+            S.referral_map[addr]['invite_code'] = code
+            S.save()
+        
+        used_count = len(S.referrals.get(code, {}).get('used_by', []))
+        tier, _ = get_referral_tier(addr)
+        
+        return jsonify({
+            'ok': True,
+            'code': code,
+            'referrals': used_count,
+            'tier': tier,
+            'invited_by': S.referral_map.get(addr, {}).get('invited_by', None),
+            'boost_burned': S.referral_map.get(addr, {}).get('boost_burned', 0)
+        })
+
+@app.route('/api/referral/use', methods=['POST'])
+def referral_use():
+    """Use an invite code — links you to referrer anonymously"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    code = data.get('code', '').strip().upper()
+    
+    if not code:
+        return jsonify({'error': 'Code required'}), 400
+    
+    with S.lock:
+        if addr not in S.wallets:
+            return jsonify({'error': 'Wallet not found'}), 404
+        
+        # Check if already used a code
+        ref = S.referral_map.get(addr, {})
+        if ref.get('invited_by'):
+            return jsonify({'error': 'You already used a referral code', 'ok': False}), 400
+        
+        if code not in S.referrals:
+            return jsonify({'error': 'Invalid referral code', 'ok': False}), 400
+        
+        referral = S.referrals[code]
+        
+        # Can't refer yourself
+        if referral['creator'] == addr:
+            return jsonify({'error': 'Cannot use your own code', 'ok': False}), 400
+        
+        # Can't use if already referred
+        if addr in referral['used_by']:
+            return jsonify({'error': 'Already used this code', 'ok': False}), 400
+        
+        # Apply referral
+        referral['used_by'].append(addr)
+        if addr not in S.referral_map:
+            S.referral_map[addr] = {}
+        S.referral_map[addr]['invited_by'] = code
+        
+        # Bonus: referrer gets 5 LAC, new user gets 10 LAC
+        referrer_addr = referral['creator']
+        if referrer_addr in S.wallets:
+            S.wallets[referrer_addr]['balance'] += 5
+        S.wallets[addr]['balance'] += 10
+        
+        # Create on-chain record
+        S.mempool.append({
+            'type': 'referral_bonus',
+            'from': 'referral_system',
+            'to': 'anonymous',
+            'amount': 15,
+            'timestamp': int(time.time()),
+            'referral_code': code[:4] + '****'  # partially hidden
+        })
+        
+        S.save()
+        
+        return jsonify({
+            'ok': True,
+            'bonus': 10,
+            'message': '🎉 Referral activated! +10 LAC bonus'
+        })
+
+@app.route('/api/referral/burn-boost', methods=['POST'])
+def referral_burn_boost():
+    """Burn LAC to boost your referral tier"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    amount = data.get('amount', 0)
+    
+    if not isinstance(amount, (int, float)) or amount < 100:
+        return jsonify({'error': 'Minimum burn: 100 LAC'}), 400
+    
+    with S.lock:
+        if addr not in S.wallets:
+            return jsonify({'error': 'Wallet not found'}), 404
+        
+        if S.wallets[addr].get('balance', 0) < amount:
+            return jsonify({'error': 'Insufficient balance'}), 400
+        
+        S.wallets[addr]['balance'] -= amount
+        
+        if addr not in S.referral_map:
+            S.referral_map[addr] = {}
+        S.referral_map[addr]['boost_burned'] = S.referral_map[addr].get('boost_burned', 0) + amount
+        
+        # On-chain record
+        S.mempool.append({
+            'type': 'referral_boost',
+            'from': 'anonymous',
+            'to': BURN_ADDRESS,
+            'amount': amount,
+            'timestamp': int(time.time())
+        })
+        
+        tier, refs = get_referral_tier(addr)
+        S.save()
+        
+        return jsonify({
+            'ok': True,
+            'burned': amount,
+            'total_boost': S.referral_map[addr].get('boost_burned', 0),
+            'new_tier': tier,
+            'balance': S.wallets[addr].get('balance', 0)
+        })
+
+@app.route('/api/referral/leaderboard', methods=['GET'])
+def referral_leaderboard():
+    """Anonymous referral leaderboard"""
+    with S.lock:
+        board = []
+        for code, data in S.referrals.items():
+            count = len(data.get('used_by', []))
+            if count > 0:
+                creator = data.get('creator', '')
+                tier, _ = get_referral_tier(creator)
+                boost = S.referral_map.get(creator, {}).get('boost_burned', 0)
+                # Anonymous: show partial code + tier
+                board.append({
+                    'code': code[:6] + '**',
+                    'referrals': count,
+                    'tier': tier,
+                    'boost': round(boost, 2)
+                })
+        
+        board.sort(key=lambda x: x['referrals'], reverse=True)
+        
+        return jsonify({
+            'ok': True,
+            'leaderboard': board[:20],
+            'total_referrals': sum(b['referrals'] for b in board),
+            'total_referrers': len(board)
+        })
+
 @app.route('/api/stats', methods=['GET'])
 def chain_stats():
-    """Public chain statistics — anonymous, no addresses exposed"""
+    """
+    Public chain statistics — full blockchain scan
+    
+    FORMULA: Emitted - Burned = On Wallets + In STASH
+    Emitted = mining + faucet + dice_mint(payouts)
+    Burned = username_reg + level_ups + dice_loss + dms + fees + other burns
+    """
     try:
         with S.lock:
             total_wallets = len(S.wallets)
             total_blocks = len(S.chain)
             
+            # === GROUND TRUTH: wallet balances ===
             balances = sorted([w.get('balance', 0) for w in S.wallets.values()], reverse=True)
             top_balances = balances[:10]
-            total_supply = sum(balances)
+            on_wallets = sum(balances)
+            stash_balance = S.stash_pool.get('total_balance', 0)
             
             levels = {}
             for w in S.wallets.values():
                 lv = w.get('level', 0)
                 levels[f"L{lv}"] = levels.get(f"L{lv}", 0) + 1
             
-            # Full chain stats (ALL TIME)
-            all_tx = 0; all_veil = 0; all_normal = 0; all_stash = 0
-            all_dice = 0; all_burn = 0; all_timelock = 0; all_dms = 0
-            all_username = 0; all_faucet = 0; all_msg_count = 0
-            total_mined_emission = 0  # all mining rewards ever created
-            total_burned = 0  # all LAC permanently destroyed
-            total_fees_burned = 0  # fees that go nowhere
+            # === CHAIN SCAN ===
+            emitted_mining = 0
+            emitted_faucet = 0
+            burned_fees = 0
+            burned_username = 0
+            burned_dms = 0
+            burned_other = 0  # burn_level_upgrade, burn_nickname_change, etc
+            tx_counts = {
+                'normal': 0, 'veil': 0, 'stash': 0, 'dice': 0,
+                'burn': 0, 'timelock': 0, 'dms': 0, 'username': 0, 'faucet': 0
+            }
+            total_tx = 0
+            total_l2_msgs = 0
+            
             for b in S.chain:
-                txs = b.get('transactions', [])
-                all_tx += len(txs)
-                all_msg_count += len(b.get('ephemeral_msgs', []))
-                # Count mining emission - check multiple formats
+                # Mining emission
                 if 'mining_rewards' in b:
                     for r in b['mining_rewards']:
-                        total_mined_emission += r.get('reward', 0) or r.get('amount', 0)
+                        emitted_mining += r.get('reward', 0) or r.get('amount', 0)
                 elif 'total_reward' in b:
-                    total_mined_emission += b.get('total_reward', 0)
-                # Also check for reward transactions
-                for tx in txs:
-                    if tx.get('type') in ('mining_reward', 'poet_reward'):
-                        total_mined_emission += tx.get('amount', 0) or tx.get('reward', 0)
+                    emitted_mining += b.get('total_reward', 0)
+                
+                total_l2_msgs += len(b.get('ephemeral_msgs', []))
+                txs = b.get('transactions', [])
+                total_tx += len(txs)
+                
                 for tx in txs:
                     t = tx.get('type', '')
-                    if t == 'veil_transfer': all_veil += 1
-                    elif t in ['normal', 'transfer']: all_normal += 1
-                    elif t.startswith('stash_'): all_stash += 1
-                    elif t.startswith('dice_'): all_dice += 1
-                    elif t.startswith('burn_'): 
-                        all_burn += 1
-                        total_burned += tx.get('amount', 0)
-                    elif t == 'timelock_create': all_timelock += 1
-                    elif t.startswith('dms_'): all_dms += 1
-                    elif t == 'username_register': 
-                        all_username += 1
-                        total_burned += tx.get('amount', 0)
-                    elif t == 'faucet': all_faucet += 1
-                    # Count dice burns
-                    if t == 'dice_burn':
-                        total_burned += tx.get('amount', 0)
-                    # Count fees
-                    fee = tx.get('fee', 0) or tx.get('ring_fee', 0) or tx.get('stealth_fee', 0) or tx.get('veil_fee', 0)
-                    total_fees_burned += fee
+                    amt = tx.get('amount', 0) or 0
+                    fee = tx.get('fee', 0) or tx.get('ring_fee', 0) or tx.get('stealth_fee', 0) or tx.get('veil_fee', 0) or 0
+                    burned_fees += fee
+                    
+                    if t in ('transfer', 'normal'):
+                        tx_counts['normal'] += 1
+                    elif t == 'veil_transfer':
+                        tx_counts['veil'] += 1
+                    elif t in ('stash_deposit', 'stash_withdraw'):
+                        tx_counts['stash'] += 1
+                    elif t in ('dice_burn', 'dice_mint'):
+                        tx_counts['dice'] += 1
+                    elif t == 'timelock_create':
+                        tx_counts['timelock'] += 1
+                    elif t.startswith('dms_'):
+                        tx_counts['dms'] += 1
+                        if t in ('dms_wipe', 'dms_burn_stash'):
+                            burned_dms += amt
+                    elif t == 'username_register':
+                        tx_counts['username'] += 1
+                        burned_username += amt
+                    elif t == 'faucet':
+                        tx_counts['faucet'] += 1
+                        emitted_faucet += amt
+                    elif t.startswith('burn_'):
+                        tx_counts['burn'] += 1
+                        burned_other += amt
+                    elif t in ('mining_reward', 'poet_reward'):
+                        emitted_mining += amt
+                    elif t == 'referral_bonus':
+                        emitted_faucet += amt  # referral bonuses are emission
+                    elif t == 'referral_boost':
+                        burned_other += amt  # boost burns
             
-            # Recent stats (last 100 blocks)
-            recent = S.chain[-100:] if len(S.chain) > 100 else S.chain
-            recent_tx = sum(len(b.get('transactions', [])) for b in recent)
-            recent_veil = sum(1 for b in recent for tx in b.get('transactions', []) if tx.get('type') == 'veil_transfer')
-            recent_normal = sum(1 for b in recent for tx in b.get('transactions', []) if tx.get('type') in ['normal', 'transfer'])
+            # === WALLET-BASED DATA ===
+            # Dice from wallet history (more reliable)
+            dice_total_lost = 0
+            dice_total_won = 0  # net win = payout - bet
+            dice_total_payout = 0  # full payouts (emission)
+            dice_total_bet = 0
+            dice_games = 0
+            for w in S.wallets.values():
+                for game in w.get('dice_history', []):
+                    dice_games += 1
+                    bet = game.get('amount', 0)
+                    dice_total_bet += bet
+                    if game.get('won'):
+                        payout = game.get('payout', 0)
+                        dice_total_payout += payout
+                        dice_total_won += payout - bet
+                    else:
+                        dice_total_lost += bet
             
-            # DMS stats
+            # Level burns from wallet levels
+            LEVEL_COSTS = [0, 100, 500, 2000, 10000, 50000, 200000, 1000000]
+            burned_levels = 0
+            for w in S.wallets.values():
+                lv = w.get('level', 0)
+                for i in range(lv):
+                    if i < len(LEVEL_COSTS):
+                        burned_levels += LEVEL_COSTS[i]
+            
+            # Supplement tx counts if chain is sparse
+            if tx_counts['dice'] == 0 and dice_games > 0:
+                tx_counts['dice'] = dice_games
+            stash_redeemed = len(S.stash_pool.get('spent_nullifiers', []))
+            stash_deposits = len(S.stash_pool.get('deposits', {}))
+            if tx_counts['stash'] == 0 and (stash_deposits > 0 or stash_redeemed > 0):
+                tx_counts['stash'] = stash_deposits + stash_redeemed
+            
+            # === FORMULA ===
+            # Emitted = mining + faucet + dice payouts (created from nothing)
+            total_emitted = emitted_mining + emitted_faucet + dice_total_payout
+            
+            # Burned = username + levels + dice losses + dms + fees + other
+            total_burned = burned_username + burned_levels + dice_total_lost + burned_dms + burned_fees + burned_other
+            
+            # Sanity: if chain emission is 0, derive from ground truth
+            if emitted_mining == 0 and emitted_faucet == 0:
+                total_emitted = on_wallets + stash_balance + total_burned
+            
+            # Verify: Emitted - Burned should ≈ OnWallets + STASH
+            expected_circulation = total_emitted - total_burned
+            actual_circulation = on_wallets + stash_balance
+            
             dms_active = sum(1 for w in S.wallets.values() if w.get('dead_mans_switch', {}).get('enabled'))
             
             return jsonify({
                 'ok': True,
                 'total_wallets': total_wallets,
                 'total_blocks': total_blocks,
-                'total_supply': round(total_supply, 2),
                 'top_balances': [round(b, 2) for b in top_balances],
                 'level_distribution': levels,
-                # ALL TIME
-                'all_tx_count': all_tx,
-                'all_veil': all_veil,
-                'all_normal': all_normal,
-                'all_stash': all_stash,
-                'all_dice': all_dice,
-                'all_burn': all_burn,
-                'all_timelock': all_timelock,
-                'all_dms': all_dms,
-                'all_username': all_username,
-                'all_faucet': all_faucet,
-                'all_l2_messages': all_msg_count,
-                'dms_active': dms_active,
-                # RECENT (backward compat)
-                'recent_tx_count': recent_tx,
-                'recent_veil': recent_veil,
-                'recent_normal': recent_normal,
-                'stash_pool_balance': S.stash_pool.get('total_balance', 0),
-                'stash_keys_redeemed': len(S.stash_pool.get('spent_nullifiers', [])),
-                # SUPPLY
-                'total_mined_emission': round(total_mined_emission if total_mined_emission > 0 else (total_supply + total_burned + total_fees_burned + S.stash_pool.get('total_balance', 0)), 2),
+                # === SUPPLY (main card) ===
+                'on_wallets': round(on_wallets, 2),
+                'total_emitted': round(total_emitted, 2),
                 'total_burned': round(total_burned, 2),
-                'total_fees_burned': round(total_fees_burned, 2),
-                'circulating_supply': round(total_supply, 2),
+                'stash_pool_balance': round(stash_balance, 2),
+                # === EMISSION breakdown ===
+                'emitted_mining': round(emitted_mining, 2),
+                'emitted_faucet': round(emitted_faucet, 2),
+                'emitted_dice': round(dice_total_payout, 2),
+                # === BURNS breakdown ===
+                'burned_username': round(burned_username, 2),
+                'burned_levels': round(burned_levels, 2),
+                'burned_dice': round(dice_total_lost, 2),
+                'burned_dms': round(burned_dms, 2),
+                'burned_fees': round(burned_fees, 2),
+                'burned_other': round(burned_other, 2),
+                # === TX counts ===
+                'all_tx_count': total_tx,
+                'all_normal': tx_counts['normal'],
+                'all_veil': tx_counts['veil'],
+                'all_stash': tx_counts['stash'],
+                'all_dice': tx_counts['dice'],
+                'all_burn': tx_counts['burn'],
+                'all_timelock': tx_counts['timelock'],
+                'all_dms': tx_counts['dms'],
+                'all_username': tx_counts['username'],
+                'all_faucet': tx_counts['faucet'],
+                'all_l2_messages': total_l2_msgs,
+                'dms_active': dms_active,
+                'dice_total_won': round(dice_total_won, 2),
+                'dice_total_lost': round(dice_total_lost, 2),
+                'stash_keys_active': max(stash_deposits - stash_redeemed, 0),
+                'stash_keys_redeemed': stash_redeemed,
+                # Backward compat
+                'total_supply': round(on_wallets, 2),
+                'circulating_supply': round(on_wallets, 2),
+                'total_mined_emission': round(total_emitted, 2),
             })
     except Exception as e:
+        import traceback; traceback.print_exc()
         return jsonify({'error': str(e), 'ok': False}), 500
 
 if __name__ == '__main__':
