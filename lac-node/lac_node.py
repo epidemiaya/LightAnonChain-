@@ -917,122 +917,40 @@ def validate_seed(seed):
     return False
 
 # ===== Ed25519 CRYPTOGRAPHY =====
-# Real digital signatures using Ed25519 (RFC 8032)
-# pip install PyNaCl --break-system-packages
-
-ED25519_AVAILABLE = False
+# ===== LAC CRYPTO MODULE =====
+# Real cryptography: Ed25519, X25519, Ring Signatures, Stealth Addresses
 try:
-    from nacl.signing import SigningKey, VerifyKey
-    from nacl.encoding import HexEncoder
-    from nacl.exceptions import BadSignatureError
-    ED25519_AVAILABLE = True
-    print("✅ Ed25519 cryptography loaded (PyNaCl)")
+    from lac_crypto import (
+        Ed25519, EncryptedMessaging, RingSignature, StealthAddress,
+        PostQuantum, select_ring_members, get_full_crypto_info, crypto_status
+    )
+    CRYPTO_MODULE = True
+    _cs = crypto_status()
+    ED25519_AVAILABLE = _cs.get('ed25519', False)
+    print(f"✅ LAC Crypto Module loaded — Ed25519:{_cs['ed25519']} X25519:{_cs['x25519']} Ring:{_cs['ring_signatures']} Kyber:{_cs['post_quantum']}")
 except ImportError:
-    try:
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.exceptions import InvalidSignature
-        ED25519_AVAILABLE = True
-        print("✅ Ed25519 cryptography loaded (cryptography lib)")
-    except ImportError:
-        print("⚠️ No Ed25519 library found. Install: pip install PyNaCl --break-system-packages")
-        print("   Running with SHA256-based auth (less secure)")
+    CRYPTO_MODULE = False
+    ED25519_AVAILABLE = False
+    print("⚠️ lac_crypto.py not found — running without crypto module")
 
+# Backward-compatible wrappers
 def derive_ed25519_keys(seed):
-    """Derive Ed25519 signing keypair from seed"""
-    # Deterministic: SHA512 of seed → first 32 bytes = private key seed
-    key_material = hashlib.sha512(f"ed25519:{seed}".encode()).digest()[:32]
-    
-    if ED25519_AVAILABLE:
-        try:
-            # Try PyNaCl first
-            from nacl.signing import SigningKey
-            from nacl.encoding import HexEncoder
-            sk = SigningKey(key_material)
-            vk = sk.verify_key
-            return {
-                'private': key_material.hex(),
-                'public': vk.encode().hex(),
-                'method': 'nacl'
-            }
-        except:
-            pass
-        try:
-            # Try cryptography lib
-            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-            from cryptography.hazmat.primitives import serialization
-            sk = Ed25519PrivateKey.from_private_bytes(key_material)
-            pk = sk.public_key()
-            pk_bytes = pk.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
-            return {
-                'private': key_material.hex(),
-                'public': pk_bytes.hex(),
-                'method': 'cryptography'
-            }
-        except:
-            pass
-    
-    # Fallback: SHA256-based (not real Ed25519)
-    pub = hashlib.sha256(key_material).hexdigest()
-    return {
-        'private': key_material.hex(),
-        'public': pub,
-        'method': 'sha256_fallback'
-    }
+    if CRYPTO_MODULE:
+        kp = Ed25519.derive_keypair(seed)
+        return {'private': kp['private_hex'], 'public': kp['public_hex'], 'method': 'nacl' if ED25519_AVAILABLE else 'fallback'}
+    return {'private': '', 'public': hashlib.sha256(seed.encode()).hexdigest(), 'method': 'none'}
 
-def sign_message(seed, message):
-    """Sign a message with Ed25519"""
-    key_material = hashlib.sha512(f"ed25519:{seed}".encode()).digest()[:32]
-    msg_bytes = message.encode() if isinstance(message, str) else message
-    
-    if ED25519_AVAILABLE:
-        try:
-            from nacl.signing import SigningKey
-            sk = SigningKey(key_material)
-            signed = sk.sign(msg_bytes)
-            return signed.signature.hex()
-        except:
-            pass
-        try:
-            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-            sk = Ed25519PrivateKey.from_private_bytes(key_material)
-            sig = sk.sign(msg_bytes)
-            return sig.hex()
-        except:
-            pass
-    
-    # Fallback HMAC
-    import hmac
-    return hmac.new(key_material, msg_bytes, hashlib.sha256).hexdigest()
+def sign_transaction(seed, tx_data):
+    """Sign a transaction with Ed25519"""
+    if CRYPTO_MODULE:
+        return Ed25519.sign_transaction(seed, tx_data)
+    return tx_data  # unsigned
 
-def verify_signature(public_key_hex, signature_hex, message):
-    """Verify Ed25519 signature"""
-    msg_bytes = message.encode() if isinstance(message, str) else message
-    
-    if ED25519_AVAILABLE:
-        try:
-            from nacl.signing import VerifyKey
-            from nacl.encoding import HexEncoder
-            from nacl.exceptions import BadSignatureError
-            vk = VerifyKey(bytes.fromhex(public_key_hex))
-            vk.verify(msg_bytes, bytes.fromhex(signature_hex))
-            return True
-        except BadSignatureError:
-            return False
-        except:
-            pass
-        try:
-            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-            from cryptography.exceptions import InvalidSignature
-            pk = Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key_hex))
-            pk.verify(bytes.fromhex(signature_hex), msg_bytes)
-            return True
-        except InvalidSignature:
-            return False
-        except:
-            pass
-    
-    return True  # Fallback: accept (no crypto lib available)
+def verify_transaction(tx_data):
+    """Verify transaction signature"""
+    if CRYPTO_MODULE:
+        return Ed25519.verify_transaction(tx_data)
+    return True  # accept unsigned if no crypto
 
 
 # LAC Bech32-style address charset (no 1/b/i/o)
@@ -1345,6 +1263,13 @@ def register():
         if addr in S.wallets:
             return jsonify({'error': 'Wallet already exists'}), 409
         
+        crypto_info = {}
+        if CRYPTO_MODULE:
+            try:
+                crypto_info = get_full_crypto_info(seed)
+            except:
+                pass
+        
         S.wallets[addr] = {
             'balance': 0,
             'level': 0,
@@ -1352,8 +1277,11 @@ def register():
             'created_at': int(time.time()),
             'tx_count': 0,
             'msg_count': 0,
-            'ed25519_pubkey': derive_ed25519_keys(seed)['public'],
-            'crypto_method': derive_ed25519_keys(seed)['method'],
+            'ed25519_pubkey': crypto_info.get('ed25519_pubkey', derive_ed25519_keys(seed)['public']),
+            'messaging_pubkey': crypto_info.get('messaging_pubkey', ''),
+            'stealth_scan_pubkey': crypto_info.get('stealth_scan_pubkey', ''),
+            'stealth_spend_pubkey': crypto_info.get('stealth_spend_pubkey', ''),
+            'key_image': crypto_info.get('key_image', ''),
         }
         
         # Register username if provided
@@ -1403,31 +1331,43 @@ def register():
         })
 
 @app.route('/api/crypto/status', methods=['GET'])
-def crypto_status():
-    """Get cryptography status and derive public key"""
+def crypto_status_endpoint():
+    """Get cryptography status and all keys for this wallet"""
     seed = request.headers.get('X-Seed', '').strip()
     if not validate_seed(seed):
         return jsonify({'error': 'Unauthorized'}), 401
     
     addr = get_address_from_seed(seed)
-    keys = derive_ed25519_keys(seed)
     
-    with S.lock:
-        wallet = S.wallets.get(addr, {})
-        # Auto-upgrade: store pubkey if not yet stored
-        if addr in S.wallets and not wallet.get('ed25519_pubkey'):
-            S.wallets[addr]['ed25519_pubkey'] = keys['public']
-            S.wallets[addr]['crypto_method'] = keys['method']
-            S.save()
-    
-    return jsonify({
+    result = {
         'ok': True,
-        'ed25519_available': ED25519_AVAILABLE,
-        'method': keys['method'],
-        'public_key': keys['public'],
         'address': addr,
-        'wallet_has_pubkey': bool(wallet.get('ed25519_pubkey')),
-    })
+        'crypto_module': CRYPTO_MODULE,
+        'ed25519_available': ED25519_AVAILABLE,
+    }
+    
+    if CRYPTO_MODULE:
+        full_info = get_full_crypto_info(seed)
+        result.update(full_info)
+        
+        # Auto-upgrade wallet with pubkeys
+        with S.lock:
+            if addr in S.wallets:
+                w = S.wallets[addr]
+                if not w.get('ed25519_pubkey'):
+                    w['ed25519_pubkey'] = full_info['ed25519_pubkey']
+                if not w.get('messaging_pubkey'):
+                    w['messaging_pubkey'] = full_info['messaging_pubkey']
+                if not w.get('stealth_scan_pubkey'):
+                    w['stealth_scan_pubkey'] = full_info['stealth_scan_pubkey']
+                    w['stealth_spend_pubkey'] = full_info['stealth_spend_pubkey']
+                S.save()
+    else:
+        keys = derive_ed25519_keys(seed)
+        result['ed25519_pubkey'] = keys['public']
+        result['method'] = keys['method']
+    
+    return jsonify(result)
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -1831,6 +1771,9 @@ def transfer_normal():
             'anonymous': False  # Public transaction marker
         }
         
+        # Ed25519 sign the transaction
+        tx = sign_transaction(seed, tx)
+        
         # Add to mempool (NO decoys, NO ring signatures)
         S.mempool.append(tx)
         
@@ -1952,6 +1895,21 @@ def send_message():
             'reply_to': reply_to if reply_to else None,
             'ttl': 300 if ephemeral else 0
         }
+        
+        # E2E Encryption: if both users have messaging keys
+        if CRYPTO_MODULE and ED25519_AVAILABLE:
+            rcv_pubkey = to_wallet.get('messaging_pubkey')
+            if rcv_pubkey:
+                try:
+                    enc = EncryptedMessaging.encrypt(seed, rcv_pubkey, text)
+                    msg['encrypted'] = enc
+                    msg['e2e'] = True
+                    # Don't remove plaintext on server — for now, both exist
+                    # In production: msg['text'] = '[encrypted]'
+                except Exception:
+                    msg['e2e'] = False
+            else:
+                msg['e2e'] = False
         
         if ephemeral:
             S.ephemeral_msgs.append(msg)
@@ -3085,6 +3043,7 @@ def upgrade_level():
             'timestamp': int(time.time()),
             'ring_signature': True
         }
+        burn_tx = sign_transaction(seed, burn_tx)
         S.mempool.append(burn_tx)
         
         # Burn the cost
@@ -4159,6 +4118,7 @@ def username_register():
             'amount': price,
             'timestamp': int(time.time())
         }
+        tx = sign_transaction(seed, tx)
         S.mempool.append(tx)
         S.save()
         
@@ -5016,10 +4976,22 @@ def veil_transfer():
             # === LAC VEIL CRYPTOGRAPHY ===
             
             # 1. One-Time Address (OTA) — unlinkable recipient
-            ephemeral = secrets.token_bytes(32)
-            recipient_pub = hashlib.sha256(to_addr.encode()).digest()
-            shared_secret = hashlib.sha256(ephemeral + recipient_pub).digest()
-            ota = f"veil_{hashlib.sha256(b'OTA' + shared_secret).hexdigest()[:64]}"
+            if CRYPTO_MODULE and ED25519_AVAILABLE:
+                # Real Stealth Address with X25519 DH
+                stealth_keys = StealthAddress.derive_stealth_keys(seed)
+                # Get or generate recipient stealth keys
+                to_wallet = S.wallets.get(to_addr, {})
+                rcv_scan = to_wallet.get('stealth_scan_pubkey', hashlib.sha256(to_addr.encode()).hexdigest())
+                rcv_spend = to_wallet.get('stealth_spend_pubkey', hashlib.sha256((to_addr+'spend').encode()).hexdigest())
+                ota_data = StealthAddress.generate_one_time_address(rcv_scan, rcv_spend)
+                ota = ota_data['one_time_address']
+                ephemeral_hex = ota_data['ephemeral_pubkey']
+                ephemeral = bytes.fromhex(ephemeral_hex) if len(ephemeral_hex) <= 64 else secrets.token_bytes(32)
+            else:
+                ephemeral = secrets.token_bytes(32)
+                recipient_pub = hashlib.sha256(to_addr.encode()).digest()
+                shared_secret = hashlib.sha256(ephemeral + recipient_pub).digest()
+                ota = f"veil_{hashlib.sha256(b'OTA' + shared_secret).hexdigest()[:64]}"
             
             # 2. Key Image — unique per transaction, prevents double-spend  
             private_key = hashlib.sha256(seed.encode()).digest()
@@ -5069,18 +5041,39 @@ def veil_transfer():
                 'real_to': to_addr,
                 'real_amount': amount,
                 'fee': veil_fee,
-                'ephemeral': ephemeral.hex(),
+                'ephemeral': ephemeral.hex() if isinstance(ephemeral, bytes) else ephemeral,
                 'payload_hash': payload_hash,
-                'ring_signature': {
+                'ring_signature': None,  # Will be set below
+                'timestamp': int(time.time()),
+                'anonymous': True
+            }
+            
+            # Real Ring Signature if crypto module available
+            if CRYPTO_MODULE and ED25519_AVAILABLE:
+                try:
+                    kp = Ed25519.derive_keypair(seed)
+                    all_pubkeys = [w.get('ed25519_pubkey', hashlib.sha256(a.encode()).hexdigest()) 
+                                   for a, w in S.wallets.items() if a != from_addr][:50]
+                    ring_pks, signer_idx = select_ring_members(all_pubkeys, kp['public_hex'], ring_size=min(8, len(all_pubkeys)+1))
+                    ring_sig = RingSignature.sign(seed, json.dumps({'ki': key_image, 'ota': ota, 'ts': tx['timestamp']}).encode(), ring_pks, signer_idx)
+                    tx['ring_signature'] = ring_sig
+                except Exception as e:
+                    print(f"⚠️ Real ring sig failed, using fallback: {e}")
+                    tx['ring_signature'] = {
+                        'key_image': key_image,
+                        'ring': ring_members,
+                        'ring_size': len(ring_members),
+                        'c0': secrets.token_hex(16),
+                        'responses': [secrets.token_hex(8) for _ in ring_members]
+                    }
+            else:
+                tx['ring_signature'] = {
                     'key_image': key_image,
                     'ring': ring_members,
                     'ring_size': len(ring_members),
                     'c0': secrets.token_hex(16),
                     'responses': [secrets.token_hex(8) for _ in ring_members]
-                },
-                'timestamp': int(time.time()),
-                'anonymous': True
-            }
+                }
             
             # === PHANTOM TRANSACTIONS — Transaction Indistinguishability ===
             # Generate 4-10 fake TXs that look identical to the real one.
