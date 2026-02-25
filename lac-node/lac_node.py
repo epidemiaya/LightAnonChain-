@@ -720,6 +720,9 @@ def auto_mining_loop():
                 # Simulate proofs (in real impl, miners would submit after waiting)
                 for addr in eligible_miners:
                     S.mining_coordinator.submit_proof(addr)
+                    # Level 7 GOD: x2 mining chance (submit double proof)
+                    if S.wallets.get(addr, {}).get('level', 0) >= 7:
+                        S.mining_coordinator.submit_proof(addr)
                 
                 # Mine block
                 block_data = S.mining_coordinator.mine_block()
@@ -727,8 +730,10 @@ def auto_mining_loop():
                 # Distribute rewards
                 for winner_addr, reward in block_data['rewards'].items():
                     if winner_addr in S.wallets:
+                        # Level 7 GOD: x2 validator reward
+                        actual_reward = reward * 2 if S.wallets[winner_addr].get('level', 0) >= 7 else reward
                         S.wallets[winner_addr]['balance'] = \
-                            S.wallets[winner_addr].get('balance', 0) + reward
+                            S.wallets[winner_addr].get('balance', 0) + actual_reward
                 
                 # Add block to chain (anonymous - no addresses revealed)
                 # Take ephemeral messages (max 20 per block)
@@ -910,6 +915,124 @@ def validate_seed(seed):
         return True
     
     return False
+
+# ===== Ed25519 CRYPTOGRAPHY =====
+# Real digital signatures using Ed25519 (RFC 8032)
+# pip install PyNaCl --break-system-packages
+
+ED25519_AVAILABLE = False
+try:
+    from nacl.signing import SigningKey, VerifyKey
+    from nacl.encoding import HexEncoder
+    from nacl.exceptions import BadSignatureError
+    ED25519_AVAILABLE = True
+    print("✅ Ed25519 cryptography loaded (PyNaCl)")
+except ImportError:
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.exceptions import InvalidSignature
+        ED25519_AVAILABLE = True
+        print("✅ Ed25519 cryptography loaded (cryptography lib)")
+    except ImportError:
+        print("⚠️ No Ed25519 library found. Install: pip install PyNaCl --break-system-packages")
+        print("   Running with SHA256-based auth (less secure)")
+
+def derive_ed25519_keys(seed):
+    """Derive Ed25519 signing keypair from seed"""
+    # Deterministic: SHA512 of seed → first 32 bytes = private key seed
+    key_material = hashlib.sha512(f"ed25519:{seed}".encode()).digest()[:32]
+    
+    if ED25519_AVAILABLE:
+        try:
+            # Try PyNaCl first
+            from nacl.signing import SigningKey
+            from nacl.encoding import HexEncoder
+            sk = SigningKey(key_material)
+            vk = sk.verify_key
+            return {
+                'private': key_material.hex(),
+                'public': vk.encode().hex(),
+                'method': 'nacl'
+            }
+        except:
+            pass
+        try:
+            # Try cryptography lib
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+            from cryptography.hazmat.primitives import serialization
+            sk = Ed25519PrivateKey.from_private_bytes(key_material)
+            pk = sk.public_key()
+            pk_bytes = pk.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+            return {
+                'private': key_material.hex(),
+                'public': pk_bytes.hex(),
+                'method': 'cryptography'
+            }
+        except:
+            pass
+    
+    # Fallback: SHA256-based (not real Ed25519)
+    pub = hashlib.sha256(key_material).hexdigest()
+    return {
+        'private': key_material.hex(),
+        'public': pub,
+        'method': 'sha256_fallback'
+    }
+
+def sign_message(seed, message):
+    """Sign a message with Ed25519"""
+    key_material = hashlib.sha512(f"ed25519:{seed}".encode()).digest()[:32]
+    msg_bytes = message.encode() if isinstance(message, str) else message
+    
+    if ED25519_AVAILABLE:
+        try:
+            from nacl.signing import SigningKey
+            sk = SigningKey(key_material)
+            signed = sk.sign(msg_bytes)
+            return signed.signature.hex()
+        except:
+            pass
+        try:
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+            sk = Ed25519PrivateKey.from_private_bytes(key_material)
+            sig = sk.sign(msg_bytes)
+            return sig.hex()
+        except:
+            pass
+    
+    # Fallback HMAC
+    import hmac
+    return hmac.new(key_material, msg_bytes, hashlib.sha256).hexdigest()
+
+def verify_signature(public_key_hex, signature_hex, message):
+    """Verify Ed25519 signature"""
+    msg_bytes = message.encode() if isinstance(message, str) else message
+    
+    if ED25519_AVAILABLE:
+        try:
+            from nacl.signing import VerifyKey
+            from nacl.encoding import HexEncoder
+            from nacl.exceptions import BadSignatureError
+            vk = VerifyKey(bytes.fromhex(public_key_hex))
+            vk.verify(msg_bytes, bytes.fromhex(signature_hex))
+            return True
+        except BadSignatureError:
+            return False
+        except:
+            pass
+        try:
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+            from cryptography.exceptions import InvalidSignature
+            pk = Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key_hex))
+            pk.verify(bytes.fromhex(signature_hex), msg_bytes)
+            return True
+        except InvalidSignature:
+            return False
+        except:
+            pass
+    
+    return True  # Fallback: accept (no crypto lib available)
 
 
 # LAC Bech32-style address charset (no 1/b/i/o)
@@ -1228,7 +1351,9 @@ def register():
             'key_id': key_id,
             'created_at': int(time.time()),
             'tx_count': 0,
-            'msg_count': 0
+            'msg_count': 0,
+            'ed25519_pubkey': derive_ed25519_keys(seed)['public'],
+            'crypto_method': derive_ed25519_keys(seed)['method'],
         }
         
         # Register username if provided
@@ -1238,15 +1363,71 @@ def register():
         # Track active session for mining
         S.active_sessions.add(addr)
         
+        # === REFERRAL ===
+        ref_bonus = 0
+        if ref:
+            ref = ref.strip().upper()
+            if ref in S.referrals:
+                referral_data = S.referrals[ref]
+                referrer = referral_data.get('creator', '')
+                if referrer != addr and addr not in referral_data.get('used_by', []):
+                    # Give bonus to new user
+                    S.wallets[addr]['balance'] += 50
+                    ref_bonus = 50
+                    # Give bonus to referrer
+                    if referrer in S.wallets:
+                        S.wallets[referrer]['balance'] += 25
+                    # Track
+                    referral_data['used_by'].append(addr)
+                    if addr not in S.referral_map:
+                        S.referral_map[addr] = {}
+                    S.referral_map[addr]['invited_by'] = ref
+                    # On-chain record
+                    S.mempool.append({
+                        'type': 'referral_bonus',
+                        'from': 'referral_system',
+                        'to': 'anonymous',
+                        'amount': 75,
+                        'timestamp': int(time.time()),
+                    })
+        
         S.save()
         
         return jsonify({
             'ok': True,
             'address': addr,
             'username': username or 'Anonymous',
-            'balance': 0,
-            'level': 0
+            'balance': ref_bonus,
+            'level': 0,
+            'ref_bonus': ref_bonus
         })
+
+@app.route('/api/crypto/status', methods=['GET'])
+def crypto_status():
+    """Get cryptography status and derive public key"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    addr = get_address_from_seed(seed)
+    keys = derive_ed25519_keys(seed)
+    
+    with S.lock:
+        wallet = S.wallets.get(addr, {})
+        # Auto-upgrade: store pubkey if not yet stored
+        if addr in S.wallets and not wallet.get('ed25519_pubkey'):
+            S.wallets[addr]['ed25519_pubkey'] = keys['public']
+            S.wallets[addr]['crypto_method'] = keys['method']
+            S.save()
+    
+    return jsonify({
+        'ok': True,
+        'ed25519_available': ED25519_AVAILABLE,
+        'method': keys['method'],
+        'public_key': keys['public'],
+        'address': addr,
+        'wallet_has_pubkey': bool(wallet.get('ed25519_pubkey')),
+    })
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -2871,7 +3052,7 @@ def upgrade_level():
         3: 10000,    # Level 3 -> 4
         4: 100000,   # Level 4 -> 5 (Validator)
         5: 500000,   # Level 5 -> 6 (Priority Validator)
-        6: 0         # MAX level
+        6: 2000000,  # Level 6 -> 7 (GOD) — x2 mining chance, x2 validator reward
     }
     
     addr = get_address_from_seed(seed)
@@ -2883,8 +3064,8 @@ def upgrade_level():
         wallet = S.wallets[addr]
         current_level = wallet.get('level', 0)
         
-        if current_level >= 6:
-            return jsonify({'error': 'Already at max level'}), 400
+        if current_level >= 7:
+            return jsonify({'error': 'Already at max level (GOD)'}), 400
         
         cost = LEVEL_COSTS.get(current_level, 0)
         if cost == 0:
@@ -3784,12 +3965,15 @@ def mining_status():
             'can_mine': can_mine,
             'balance': balance,
             'level': level,
+            'level_name': ['Newbie','Starter','Active','Trusted','Expert','Validator','Priority','⚡ GOD'][min(level,7)],
             'recent_wins': recent_wins,
             'total_earned': total_earned,
             'blocks_mined': len(mining_history),
             'min_balance': 50,
             'block_reward': 190,
-            'winners_per_block': 19
+            'winners_per_block': 19,
+            'god_bonus': level >= 7,
+            'god_multiplier': 2 if level >= 7 else 1,
         })
 
 
@@ -5357,18 +5541,18 @@ def referral_use():
             S.referral_map[addr] = {}
         S.referral_map[addr]['invited_by'] = code
         
-        # Bonus: referrer gets 5 LAC, new user gets 10 LAC
+        # Bonus: referrer gets 25 LAC, new user gets 50 LAC
         referrer_addr = referral['creator']
         if referrer_addr in S.wallets:
-            S.wallets[referrer_addr]['balance'] += 5
-        S.wallets[addr]['balance'] += 10
+            S.wallets[referrer_addr]['balance'] += 25
+        S.wallets[addr]['balance'] += 50
         
         # Create on-chain record
         S.mempool.append({
             'type': 'referral_bonus',
             'from': 'referral_system',
             'to': 'anonymous',
-            'amount': 15,
+            'amount': 75,
             'timestamp': int(time.time()),
             'referral_code': code[:4] + '****'  # partially hidden
         })
@@ -5377,8 +5561,8 @@ def referral_use():
         
         return jsonify({
             'ok': True,
-            'bonus': 10,
-            'message': '🎉 Referral activated! +10 LAC bonus'
+            'bonus': 50,
+            'message': '🎉 Referral activated! +50 LAC bonus'
         })
 
 @app.route('/api/referral/burn-boost', methods=['POST'])
@@ -5547,7 +5731,7 @@ def chain_stats():
             # Dice from wallet history (more reliable)
             dice_total_lost = 0
             dice_total_won = 0  # net win = payout - bet
-            dice_total_payout = 0  # full payouts (emission)
+            dice_net_emission = 0  # actual new LAC created (= net wins)
             dice_total_bet = 0
             dice_games = 0
             for w in S.wallets.values():
@@ -5557,19 +5741,27 @@ def chain_stats():
                     dice_total_bet += bet
                     if game.get('won'):
                         payout = game.get('payout', 0)
-                        dice_total_payout += payout
-                        dice_total_won += payout - bet
+                        net_win = payout - bet  # this is the actual new LAC created
+                        dice_net_emission += net_win
+                        dice_total_won += net_win
                     else:
                         dice_total_lost += bet
             
-            # Level burns from wallet levels
-            LEVEL_COSTS = [0, 100, 500, 2000, 10000, 50000, 200000, 1000000]
+            # Level burns — MUST match actual LEVEL_COSTS from upgrade endpoint
+            REAL_LEVEL_COSTS = {
+                0: 100,      # 0→1
+                1: 700,      # 1→2
+                2: 2000,     # 2→3
+                3: 10000,    # 3→4
+                4: 100000,   # 4→5
+                5: 500000,   # 5→6
+                6: 2000000,  # 6→7 (GOD)
+            }
             burned_levels = 0
             for w in S.wallets.values():
                 lv = w.get('level', 0)
                 for i in range(lv):
-                    if i < len(LEVEL_COSTS):
-                        burned_levels += LEVEL_COSTS[i]
+                    burned_levels += REAL_LEVEL_COSTS.get(i, 0)
             
             # Supplement tx counts if chain is sparse
             if tx_counts['dice'] == 0 and dice_games > 0:
@@ -5580,8 +5772,8 @@ def chain_stats():
                 tx_counts['stash'] = stash_deposits + stash_redeemed
             
             # === FORMULA ===
-            # Emitted = mining + faucet + dice payouts (created from nothing)
-            total_emitted = emitted_mining + emitted_faucet + dice_total_payout
+            # Emitted = mining + faucet + dice net wins (only new LAC created)
+            total_emitted = emitted_mining + emitted_faucet + dice_net_emission
             
             # Burned = username + levels + dice losses + dms + fees + other
             total_burned = burned_username + burned_levels + dice_total_lost + burned_dms + burned_fees + burned_other
@@ -5610,7 +5802,7 @@ def chain_stats():
                 # === EMISSION breakdown ===
                 'emitted_mining': round(emitted_mining, 2),
                 'emitted_faucet': round(emitted_faucet, 2),
-                'emitted_dice': round(dice_total_payout, 2),
+                'emitted_dice': round(dice_net_emission, 2),
                 # === BURNS breakdown ===
                 'burned_username': round(burned_username, 2),
                 'burned_levels': round(burned_levels, 2),

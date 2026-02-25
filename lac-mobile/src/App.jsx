@@ -2,7 +2,7 @@
  * LAC Mobile v8 — Full-featured Privacy Blockchain App
  * Telegram-like design with all LAC features
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import {
   MessageCircle, Wallet, Settings, Send, Shield, Eye, Lock,
@@ -306,12 +306,18 @@ const LoginScreen = ({ onAuth }) => {
   const [gen, setGen] = useState('');
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const { t } = useT();
+  
+  // Read referral code from URL: ?ref=REF-XXXXXXXX
+  const refCode = useMemo(() => {
+    try { return new URLSearchParams(window.location.search).get('ref') || ''; } catch { return ''; }
+  }, []);
 
   const mkSeed = () => { const c='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; let s=''; for(let i=0;i<64;i++) s+=c[~~(Math.random()*c.length)]; return s; };
 
   const create = async () => {
     setLoading(true);
-    try { const s = mkSeed(); const r = await post('/api/register', { seed: s }); if(r.ok){ setGen(s); localStorage.setItem('lac_address',r.address); setMode('backup'); } }
+    try { const s = mkSeed(); const r = await post('/api/register', { seed: s, ref: refCode }); if(r.ok){ setGen(s); localStorage.setItem('lac_address',r.address); if(r.ref_bonus) toast.success(`🎉 +${r.ref_bonus} LAC referral bonus!`); setMode('backup'); } }
     catch(e){ toast.error(e.message); } finally { setLoading(false); }
   };
 
@@ -323,11 +329,11 @@ const LoginScreen = ({ onAuth }) => {
       try {
         r = await post('/api/login', { seed: imp.trim() });
       } catch(loginErr) {
-        // Wallet not found — auto-register with this seed
         if (loginErr.message?.includes('not found') || loginErr.message?.includes('404')) {
           try {
-            r = await post('/api/register', { seed: imp.trim() });
+            r = await post('/api/register', { seed: imp.trim(), ref: refCode });
             toast.success('Wallet restored!');
+            if(r.ref_bonus) toast.success(`🎉 +${r.ref_bonus} LAC referral bonus!`);
           } catch(regErr) {
             toast.error('Register failed: ' + regErr.message, {duration: 4000});
             return;
@@ -348,11 +354,12 @@ const LoginScreen = ({ onAuth }) => {
         <span className="text-4xl font-black text-white">L</span>
       </div>
       <h1 className="text-3xl font-bold text-white mb-1">LAC</h1>
-      <p className="text-emerald-600 text-sm mb-1">Privacy-First Blockchain</p>
-      <p className="text-gray-600 text-xs mb-10">Zero-History · VEIL · STASH · PoET</p>
+      <p className="text-emerald-600 text-sm mb-1">{t('privacyFirst')}</p>
+      <p className="text-gray-600 text-xs mb-6">Zero-History · VEIL · STASH · PoET</p>
+      {refCode && <div className="bg-purple-900/20 border border-purple-700/30 rounded-xl px-4 py-2 mb-6"><p className="text-purple-400 text-xs text-center">🎁 Referral: <span className="font-mono font-bold">{refCode}</span> · +50 LAC bonus!</p></div>}
       <div className="w-full max-w-sm space-y-3">
-        <Btn onClick={create} color="emerald" full loading={loading}>Create Wallet</Btn>
-        <Btn onClick={() => setMode('import')} color="gray" full>I Have a Seed</Btn>
+        <Btn onClick={create} color="emerald" full loading={loading}>{t('createWallet')}</Btn>
+        <Btn onClick={() => setMode('import')} color="gray" full>{t('importSeed')}</Btn>
       </div>
     </div>
   );
@@ -364,26 +371,26 @@ const LoginScreen = ({ onAuth }) => {
           <div className="w-16 h-16 rounded-full bg-amber-600/20 flex items-center justify-center mx-auto mb-4">
             <AlertTriangle className="w-8 h-8 text-amber-400" />
           </div>
-          <h2 className="text-2xl font-bold text-white">Save Your Seed</h2>
-          <p className="text-gray-400 mt-2 text-sm">Write it down. This is your ONLY recovery method.</p>
+          <h2 className="text-2xl font-bold text-white">{t('backupSeed')}</h2>
+          <p className="text-gray-400 mt-2 text-sm">{t('writeSeedDown')}</p>
         </div>
         <Card className="mb-4" gradient="bg-[#0a1810] border-amber-800/30">
           <p className="text-emerald-400 font-mono text-[13px] break-all leading-6 select-all">{gen}</p>
         </Card>
-        <Btn onClick={() => { cp(gen); setSaved(true); }} color="gray" full>📋 Copy to Clipboard</Btn>
-        {saved && <div className="mt-4"><Btn onClick={() => onAuth(gen)} color="emerald" full>I Saved It — Let's Go</Btn></div>}
+        <Btn onClick={() => { cp(gen); setSaved(true); }} color="gray" full>📋 {t('copy')}</Btn>
+        {saved && <div className="mt-4"><Btn onClick={() => onAuth(gen)} color="emerald" full>{t('seedSaved')} →</Btn></div>}
       </div>
     </div>
   );
 
   return (
     <div className="h-screen bg-[#060f0c] flex flex-col p-6">
-      <button onClick={() => setMode('welcome')} className="text-gray-500 mb-6 flex items-center gap-1 text-sm"><ArrowLeft className="w-4 h-4" /> Back</button>
+      <button onClick={() => setMode('welcome')} className="text-gray-500 mb-6 flex items-center gap-1 text-sm"><ArrowLeft className="w-4 h-4" /> {t('back')}</button>
       <div className="flex-1 flex flex-col justify-center">
-        <h2 className="text-2xl font-bold text-white mb-6 text-center">Import Wallet</h2>
+        <h2 className="text-2xl font-bold text-white mb-6 text-center">{t('importSeed')}</h2>
         <textarea value={imp} onChange={e => setImp(e.target.value)} rows={3}
-          className="w-full bg-[#0a1a15] text-emerald-400 font-mono text-sm p-4 rounded-2xl border border-emerald-900/30 outline-none resize-none mb-4" placeholder="Paste seed…" />
-        <Btn onClick={login} color="emerald" full disabled={imp.length<16} loading={loading}>Login</Btn>
+          className="w-full bg-[#0a1a15] text-emerald-400 font-mono text-sm p-4 rounded-2xl border border-emerald-900/30 outline-none resize-none mb-4" placeholder={t('enterSeed')+'…'} />
+        <Btn onClick={login} color="emerald" full disabled={imp.length<16} loading={loading}>{t('loginBtn')}</Btn>
       </div>
     </div>
   );
@@ -987,11 +994,15 @@ const ReferralView = ({ onBack }) => {
           </div>
           <div className="flex gap-2 mt-2">
             <button onClick={() => cp(data.code)} className="flex-1 text-purple-400 text-xs flex items-center justify-center gap-1 bg-purple-900/20 px-3 py-2 rounded-lg active:bg-purple-900/40"><Copy className="w-3 h-3"/> {t('copy')}</button>
-            <button onClick={() => { if(navigator.share) navigator.share({text:`Join LAC blockchain! Use my invite: ${data.code}\nhttps://lac.network`}).catch(()=>{}); else cp(data.code); }} className="flex-1 text-blue-400 text-xs flex items-center justify-center gap-1 bg-blue-900/20 px-3 py-2 rounded-lg active:bg-blue-900/40">↗ {t('share')}</button>
+            <button onClick={() => { if(navigator.share) navigator.share({text:`Join LAC! Use my invite:\n${window.location.origin}/?ref=${data.code}`}).catch(()=>{}); else cp(`${window.location.origin}/?ref=${data.code}`); }} className="flex-1 text-blue-400 text-xs flex items-center justify-center gap-1 bg-blue-900/20 px-3 py-2 rounded-lg active:bg-blue-900/40">↗ {t('share')}</button>
+          </div>
+          <div className="mt-2 bg-[#060f0c] p-2 rounded-lg border border-gray-800/30">
+            <p className="text-[9px] text-gray-600 mb-1">Referral link:</p>
+            <p onClick={() => cp(`${window.location.origin}/?ref=${data.code}`)} className="text-purple-300 font-mono text-[10px] break-all cursor-pointer select-all">{window.location.origin}/?ref={data.code}</p>
           </div>
           <div className="grid grid-cols-3 gap-2 mt-3">
             <div className="text-center"><p className="text-purple-400 font-bold text-lg">{data.referrals||0}</p><p className="text-gray-600 text-[9px]">Invited</p></div>
-            <div className="text-center"><p className="text-amber-400 font-bold text-lg">{(data.referrals||0)*5}</p><p className="text-gray-600 text-[9px]">LAC earned</p></div>
+            <div className="text-center"><p className="text-amber-400 font-bold text-lg">{(data.referrals||0)*25}</p><p className="text-gray-600 text-[9px]">LAC earned</p></div>
             <div className="text-center"><p className="text-red-400 font-bold text-lg">{fmt(data.boost_burned||0)}</p><p className="text-gray-600 text-[9px]">Boosted</p></div>
           </div>
         </Card>
@@ -999,7 +1010,7 @@ const ReferralView = ({ onBack }) => {
         {/* Use code */}
         {!data.invited_by && <Card className="mb-3">
           <p className="text-white text-sm font-semibold mb-2">🎫 Use Invite Code</p>
-          <p className="text-gray-600 text-[10px] mb-2">Got a code? Enter it for +10 LAC bonus!</p>
+          <p className="text-gray-600 text-[10px] mb-2">Got a code? Enter it for +50 LAC bonus!</p>
           <div className="flex gap-2">
             <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="REF-XXXXXXXX"
               className="flex-1 bg-[#0a1a15] text-purple-400 font-mono text-sm px-3 py-2 rounded-xl border border-purple-900/30 outline-none" />
@@ -1150,14 +1161,22 @@ const MiningMini = () => {
   );
 };
 
-const levelCosts = [100, 700, 2000, 10000, 100000, 500000, 0]; // L0→L1, L1→L2, ... L5→L6, L6=MAX
+const levelCosts = [100, 700, 2000, 10000, 100000, 500000, 2000000, 0]; // L0→L1...L6→L7(GOD), L7=MAX
+const levelNames = ['Newbie','Starter','Active','Trusted','Expert','Validator','Priority','⚡ GOD'];
 const LevelBar = ({ level, balance }) => {
-  const cost = levelCosts[level] || 0; // cost to go from current level to next
+  const cost = levelCosts[level] || 0;
   const pct = cost > 0 ? Math.min(100, (balance/cost)*100) : 100;
+  const name = levelNames[level] || `L${level}`;
+  const nextName = levelNames[level+1] || '';
+  const isGod = level >= 7;
   return (
     <div>
-      <div className="flex justify-between text-[11px] mb-1"><span className="text-gray-500">L{level}</span><span className="text-gray-500">{cost>0?`${fmt(balance)}/${fmt(cost)} LAC`:'MAX'}</span><span className="text-gray-500">L{level+1}</span></div>
-      <div className="h-2 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all" style={{width:`${pct}%`}} /></div>
+      <div className="flex justify-between text-[11px] mb-1">
+        <span className={isGod?'text-amber-400 font-bold':'text-gray-500'}>{isGod?'⚡ GOD':name} (L{level})</span>
+        <span className="text-gray-500">{cost>0?`${fmt(balance)}/${fmt(cost)} LAC`:(isGod?'⚡ MAX LEVEL':'MAX')}</span>
+        {cost>0 && <span className="text-gray-500">{nextName} (L{level+1})</span>}
+      </div>
+      <div className="h-2 bg-gray-800 rounded-full overflow-hidden"><div className={`h-full ${isGod?'bg-gradient-to-r from-amber-500 to-yellow-400':'bg-gradient-to-r from-emerald-500 to-emerald-400'} rounded-full transition-all`} style={{width:`${pct}%`}} /></div>
     </div>
   );
 };
@@ -1838,13 +1857,14 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
 // ━━━ USERNAME ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const UsernameView = ({ onBack, onDone }) => {
   const [name, setName] = useState(''); const [avail, setAvail] = useState(null); const [ld, setLd] = useState(false);
-  const cost = !name||name.length<3?0:name.length===3?1000:name.length===4?100:10;
-  const chk = async () => { try { const r=await post('/api/username/check',{username:name.toLowerCase()}); setAvail(r.available); toast(r.available?'Available!':'Taken',{icon:r.available?'✅':'❌'}); } catch(e){ toast.error(e.message); } };
+  const { t } = useT();
+  const cost = !name||name.length<3?0:name.length===3?10000:name.length===4?1000:name.length===5?100:10;
+  const chk = async () => { try { const r=await post('/api/username/check',{username:name.toLowerCase()}); setAvail(r.available); toast(r.available?'✅':'❌ Taken',{icon:r.available?'✅':'❌'}); } catch(e){ toast.error(e.message); } };
   const reg = async () => { setLd(true); try { await post('/api/username/register',{username:name.toLowerCase()}); toast.success(`@${name} registered!`); onDone(); } catch(e){ toast.error(e.message); } finally { setLd(false); } };
 
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="👤 Username" onBack={onBack} />
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={'👤 '+t('registerUsername')} onBack={onBack} />
     <div className="p-4 space-y-4">
-      <Card><p className="text-gray-400 text-xs">Register a @username so people can find you. Shorter = more expensive.</p></Card>
+      <Card><p className="text-gray-400 text-xs">{t('getYourName')}. Shorter = more expensive.</p></Card>
       <div className="flex gap-2">
         <div className="flex-1 flex items-center bg-[#0a1a15] border border-emerald-900/30 rounded-xl overflow-hidden">
           <span className="text-gray-600 pl-3">@</span>
@@ -1858,7 +1878,7 @@ const UsernameView = ({ onBack, onDone }) => {
       {avail===false && <p className="text-red-400 text-sm text-center">Already taken</p>}
 
       <Card className="mt-4"><p className="text-white text-sm font-semibold mb-2">💰 Pricing</p>
-        {[['3 chars','1,000 LAC'],['4 chars','100 LAC'],['5+ chars','10 LAC']].map(([k,v]) => (
+        {[['3 chars','10,000 LAC'],['4 chars','1,000 LAC'],['5 chars','100 LAC'],['6+ chars','10 LAC']].map(([k,v]) => (
           <div key={k} className="flex justify-between py-1.5 border-b border-gray-800/20"><span className="text-gray-500 text-xs">{k}</span><span className="text-amber-400 text-xs font-medium">{v}</span></div>
         ))}
       </Card>
@@ -1904,7 +1924,7 @@ const DashboardView = ({ onBack }) => {
             <div className="space-y-0.5 pl-3">
               {(s.emitted_mining||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">⛏️ {t('mining')}</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_mining)} LAC</span></div>}
               {(s.emitted_faucet||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🚰 {t('faucet')}</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_faucet)} LAC</span></div>}
-              {(s.emitted_dice||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🎲 {t('dice')} payouts</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_dice)} LAC</span></div>}
+              {(s.emitted_dice||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🎲 {t('dice')} wins</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_dice)} LAC</span></div>}
             </div>
           </div>
           {/* Burns */}
@@ -2122,7 +2142,7 @@ const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
 
       <div className="mx-4 mt-4 space-y-0.5">
         {!uname && <ListItem icon={<User className="w-5 h-5 text-purple-400"/>} title={t('registerUsername')} sub={t('getYourName')} onClick={() => onNav({type:'username'})} />}
-        <ListItem icon={<Award className="w-5 h-5 text-amber-400"/>} title={t('upgradeLevel')} sub={`L${p.level??0} → L${(p.level??0)+1} · ${levelCosts[p.level??0]>0 ? fmt(levelCosts[p.level??0])+' LAC' : 'MAX'}`}
+        <ListItem icon={<Award className="w-5 h-5 text-amber-400"/>} title={t('upgradeLevel')} sub={`${levelNames[p.level??0]||'L'+(p.level??0)} → ${levelNames[(p.level??0)+1]||'?'} · ${levelCosts[p.level??0]>0 ? fmt(levelCosts[p.level??0])+' LAC' : '⚡ MAX'}`}
           onClick={upgrade} right={upg?<span className="text-xs text-gray-500">…</span>:undefined} />
         <ListItem icon={<Copy className="w-5 h-5 text-blue-400"/>} title={t('copyAddress')} sub={sAddr(p.address)} onClick={() => cp(p.address)} />
         <ListItem icon={<Lock className="w-5 h-5 text-red-400"/>} title={t('exportSeed')} sub={t('backupKey')} onClick={() => {
