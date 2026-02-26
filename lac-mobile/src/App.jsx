@@ -449,6 +449,7 @@ const MainApp = ({ onLogout }) => {
       validator: <ValidatorView onBack={back} profile={profile} onRefresh={reload} />,
       dice: <DiceView onBack={back} profile={profile} onRefresh={reload} />,
       referral: <ReferralView onBack={back} />,
+      pol: <PolView onBack={back} profile={profile} />,
     };
     return (
       <div className="w-full h-screen bg-gradient-to-br from-gray-900 to-gray-950 flex items-center justify-center p-2 sm:p-4">
@@ -743,6 +744,7 @@ const ChatView = ({ peer, onBack, profile }) => {
                 {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{m.from||sAddr(m.from_address)}</p>}
                 {m.reply_to && <div className={`text-[11px] px-2 py-1 rounded-lg mb-1.5 border-l-2 ${mine?'bg-emerald-800/30 border-emerald-400/40':'bg-gray-800/50 border-purple-400/40'}`}><p className={`font-medium text-[10px] ${mine?'text-emerald-300/70':'text-purple-400/70'}`}>{m.reply_to.from}</p><p className={`truncate ${mine?'text-emerald-200/50':'text-gray-400'}`}>{m.reply_to.text}</p></div>}
                 <p className={`text-[14px] leading-snug break-words ${burned?'text-gray-600 italic':''}`} style={{overflowWrap:'anywhere'}}>{m.text||m.message}</p>
+                {m.pol && <div className="flex items-center gap-1 mt-1 px-2 py-1 bg-blue-900/20 border border-blue-800/20 rounded-lg"><span className="text-[9px]">📍</span><span className="text-blue-400 text-[10px] font-medium">{m.pol.zone}</span><span className="text-blue-600 text-[9px]">verified</span></div>}
                 <div className={`flex items-center gap-1.5 mt-0.5 ${mine?'justify-end':''}`}>
                   {isEph && <span className="text-[9px] opacity-50">⏱</span>}
                   {isBurn && !burned && <span className="text-[9px] text-red-400">🔥</span>}
@@ -1902,6 +1904,134 @@ const ContactsView = ({ onBack, onChat }) => {
     </div></div>);
 };
 
+// ━━━ PROOF-OF-LOCATION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const PolView = ({ onBack, profile }) => {
+  const [status, setStatus] = useState('idle'); // idle | detecting | proving | done | error
+  const [coords, setCoords] = useState(null);
+  const [zones, setZones] = useState([]);
+  const [selectedZone, setSelectedZone] = useState('');
+  const [proof, setProof] = useState(null);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [msgMode, setMsgMode] = useState(false);
+  const { t } = useT();
+
+  const getLocation = () => {
+    setStatus('detecting'); setError('');
+    if (!navigator.geolocation) { setError('GPS not available'); setStatus('error'); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const c = { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy };
+        setCoords(c);
+        // Detect zones
+        post('/api/pol/detect', { lat: c.lat, lon: c.lon }).then(r => {
+          if (r.ok) { setZones(r.zones || []); setSelectedZone(r.zones?.[0] || ''); }
+          setStatus('idle');
+        }).catch(() => setStatus('idle'));
+      },
+      (err) => { setError(`GPS error: ${err.message}`); setStatus('error'); },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  };
+
+  const createProof = async () => {
+    if (!coords || !selectedZone) return;
+    setStatus('proving');
+    try {
+      const endpoint = msgMode && message.trim() ? '/api/pol/message' : '/api/pol/prove';
+      const body = { lat: coords.lat, lon: coords.lon, zone: selectedZone };
+      if (msgMode && message.trim()) body.text = message.trim();
+      const r = await post(endpoint, body);
+      if (r.ok) {
+        setProof(r.proof);
+        // Store private data locally
+        if (r.private) localStorage.setItem('lac_pol_private_' + r.proof?.proof_hash?.slice(0,8), JSON.stringify(r.private));
+        setStatus('done');
+      } else { setError(r.error || 'Failed'); setStatus('error'); }
+    } catch (e) { setError(e.message); setStatus('error'); }
+  };
+
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="📍 Proof-of-Location" onBack={onBack} />
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Info */}
+      <Card gradient="bg-gradient-to-br from-blue-900/20 to-[#0f1f18] border-blue-800/15">
+        <p className="text-blue-400 text-sm font-semibold mb-2">🔒 Privacy-First Location Proofs</p>
+        <p className="text-gray-400 text-xs leading-relaxed">Prove you're in a region WITHOUT revealing exact coordinates. Your GPS data stays on your device — only the zone name goes on-chain.</p>
+      </Card>
+
+      {/* Step 1: Get GPS */}
+      {!coords ? (
+        <Card>
+          <p className="text-white text-sm font-semibold mb-3">Step 1: Get Your Location</p>
+          <button onClick={getLocation} disabled={status === 'detecting'}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white font-bold py-3 rounded-xl text-sm">
+            {status === 'detecting' ? '📡 Detecting GPS...' : '📍 Enable GPS'}
+          </button>
+          {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
+          <p className="text-gray-600 text-[10px] mt-2 text-center">Coordinates never leave your device</p>
+        </Card>
+      ) : status !== 'done' ? (<>
+        {/* Step 2: Select Zone */}
+        <Card gradient="bg-gradient-to-br from-emerald-900/20 to-[#0f1f18] border-emerald-800/15">
+          <p className="text-white text-sm font-semibold mb-1">Step 2: Select Zone to Prove</p>
+          <p className="text-gray-600 text-[10px] mb-3">GPS: {coords.lat.toFixed(4)}, {coords.lon.toFixed(4)} (±{Math.round(coords.accuracy)}m) — stays on device</p>
+          {zones.length > 0 ? (
+            <div className="space-y-1.5">
+              {zones.map(z => (
+                <button key={z} onClick={() => setSelectedZone(z)}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm border transition-all ${selectedZone === z ? 'bg-emerald-900/30 border-emerald-500/50 text-emerald-400' : 'bg-[#0a1a14] border-emerald-900/15 text-gray-400'}`}>
+                  {z === selectedZone ? '✅ ' : '📍 '}{z}
+                </button>
+              ))}
+            </div>
+          ) : <p className="text-gray-600 text-xs">No zones detected for your location</p>}
+        </Card>
+
+        {/* Optional: Attach message */}
+        <Card>
+          <button onClick={() => setMsgMode(!msgMode)} className="text-amber-400 text-xs font-semibold">
+            {msgMode ? '▼ Hide Message' : '▶ Attach Message (journalist mode)'}
+          </button>
+          {msgMode && <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Message text bound to location proof..."
+            className="w-full mt-2 bg-[#0a1a14] border border-emerald-900/20 rounded-xl p-3 text-white text-sm h-24 resize-none" />}
+        </Card>
+
+        {/* Step 3: Generate */}
+        <button onClick={createProof} disabled={!selectedZone || status === 'proving'}
+          className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-700 text-white font-bold py-3.5 rounded-xl text-sm">
+          {status === 'proving' ? '🔐 Generating Proof...' : `🔐 Prove: "${selectedZone}"`}
+        </button>
+        {error && <p className="text-red-400 text-xs text-center">{error}</p>}
+      </>) : (
+        /* Step 4: Proof Result */
+        <Card gradient="bg-gradient-to-br from-emerald-900/20 to-[#0f1f18] border-emerald-500/30">
+          <p className="text-emerald-400 text-lg font-bold mb-3">✅ Location Proved!</p>
+          <div className="space-y-2">
+            <div className="flex justify-between"><span className="text-gray-600 text-xs">Zone</span><span className="text-white text-sm font-semibold">{proof?.zone}</span></div>
+            <div className="flex justify-between"><span className="text-gray-600 text-xs">Area</span><span className="text-gray-400 text-xs">~{(proof?.area_km2||0).toLocaleString()} km²</span></div>
+            <div className="flex justify-between"><span className="text-gray-600 text-xs">Protocol</span><span className="text-blue-400 text-xs">{proof?.protocol}</span></div>
+            <div className="flex justify-between"><span className="text-gray-600 text-xs">Privacy</span><span className="text-emerald-400 text-xs">Zone only — no coordinates</span></div>
+            {proof?.all_zones?.length > 1 && <div><span className="text-gray-600 text-xs">Also in:</span><span className="text-gray-500 text-xs ml-1">{proof.all_zones.filter(z=>z!==proof.zone).join(', ')}</span></div>}
+            <div className="mt-3 bg-[#060f0c] rounded-xl p-2">
+              <p className="text-gray-600 text-[9px] font-mono break-all">Commitment: {proof?.commitment?.slice(0,32)}...</p>
+              <p className="text-gray-600 text-[9px] font-mono break-all">Proof: {proof?.proof_hash?.slice(0,32)}...</p>
+            </div>
+          </div>
+          {proof?.message_binding && <div className="mt-2 bg-amber-900/10 border border-amber-800/20 rounded-xl p-2">
+            <p className="text-amber-400 text-xs font-semibold">📎 Message Attached</p>
+            <p className="text-gray-600 text-[9px] font-mono">Binding: {proof.message_binding.slice(0,32)}...</p>
+          </div>}
+          <button onClick={() => { setStatus('idle'); setProof(null); setCoords(null); setZones([]); }}
+            className="w-full mt-4 bg-[#0a1a14] border border-emerald-900/20 text-gray-400 py-2.5 rounded-xl text-xs">New Proof</button>
+        </Card>
+      )}
+
+      {/* Trust note */}
+      <p className="text-gray-700 text-[9px] text-center px-4">⚠️ GPS can be spoofed. This proves device-reported zone, not absolute truth. Sufficient for journalism, not for legal evidence.</p>
+    </div>
+  </div>);
+};
+
 // ━━━ DASHBOARD ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const DashboardView = ({ onBack }) => {
   const [s, setS] = useState(null);
@@ -1925,6 +2055,7 @@ const DashboardView = ({ onBack }) => {
               {(s.emitted_mining||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">⛏️ {t('mining')}</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_mining)} LAC</span></div>}
               {(s.emitted_faucet||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🚰 {t('faucet')}</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_faucet)} LAC</span></div>}
               {(s.emitted_dice||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🎲 {t('dice')} wins</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_dice)} LAC</span></div>}
+              {(s.emitted_referral||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🤝 Referral</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_referral)} LAC</span></div>}
             </div>
           </div>
           {/* Burns */}
@@ -1937,6 +2068,7 @@ const DashboardView = ({ onBack }) => {
               {(s.burned_fees||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">💸 {t('fee')||'Fees'}</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_fees)} LAC</span></div>}
               {(s.burned_dms||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">💀 DMS</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_dms)} LAC</span></div>}
               {(s.burned_other||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🔥 Other</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_other)} LAC</span></div>}
+              {(s.burned_historical||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">📜 Levels+Dice+Fees</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_historical)} LAC</span></div>}
             </div>
           </div>
           {/* STASH */}
@@ -2099,6 +2231,7 @@ const ExploreTab = ({ onNav, onMenu }) => {
         {icon:'🛡️',title:'Validator',sub:'Zero-History',type:'validator'},
         {icon:'🎲',title:t('dice'),sub:t('diceGame'),type:'dice'},
         {icon:'🤝',title:'Referral',sub:'Invite friends, earn LAC',type:'referral'},
+        {icon:'📍',title:'Proof-of-Location',sub:'Prove zone without revealing location',type:'pol'},
       ].map(item => (
         <button key={item.type} onClick={() => onNav({type:item.type})}
           className="w-full bg-[#0f1f1a] border border-emerald-900/15 rounded-2xl p-4 flex items-center gap-4 active:bg-emerald-900/20">

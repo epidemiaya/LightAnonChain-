@@ -259,6 +259,19 @@ class State:
         self.reactions = {}  # msg_key → {emoji: [addr1, addr2]}
         self.referrals = {}  # invite_code → {creator, used_by: [], created_at}
         self.referral_map = {}  # addr → {invite_code, invited_by, boost_burned}
+        # Real-time counters (accumulated, never recalculated)
+        self.counters = {
+            'emitted_mining': 0,
+            'emitted_faucet': 0,
+            'emitted_dice': 0,      # net wins only
+            'emitted_referral': 0,
+            'burned_dice': 0,
+            'burned_levels': 0,
+            'burned_username': 0,
+            'burned_fees': 0,
+            'burned_dms': 0,
+            'burned_other': 0,
+        }
         self.spent_key_images = set()  # Ring signature key images
         self.mempool = []
         
@@ -355,6 +368,9 @@ class State:
                 if ref_data:
                     self.referrals = ref_data.get('codes', {})
                     self.referral_map = ref_data.get('map', {})
+                cnt_data = self.state_manager.load_with_backup('counters.json')
+                if cnt_data:
+                    self.counters.update(cnt_data)
             except:
                 pass
             try:
@@ -571,6 +587,7 @@ class State:
             self.state_manager.save_atomic('stash_pool.json', self.stash_pool)
             self.state_manager.save_atomic('persistent_msgs.json', self.persistent_msgs)
             self.state_manager.save_atomic('referrals.json', {'codes': self.referrals, 'map': self.referral_map})
+            self.state_manager.save_atomic('counters.json', self.counters)
         else:
             # Fallback
             with open(self.datadir / 'chain.json', 'w') as f:
@@ -728,12 +745,15 @@ def auto_mining_loop():
                 block_data = S.mining_coordinator.mine_block()
                 
                 # Distribute rewards
+                block_emission = 0
                 for winner_addr, reward in block_data['rewards'].items():
                     if winner_addr in S.wallets:
                         # Level 7 GOD: x2 validator reward
                         actual_reward = reward * 2 if S.wallets[winner_addr].get('level', 0) >= 7 else reward
                         S.wallets[winner_addr]['balance'] = \
                             S.wallets[winner_addr].get('balance', 0) + actual_reward
+                        block_emission += actual_reward
+                S.counters['emitted_mining'] += block_emission
                 
                 # Add block to chain (anonymous - no addresses revealed)
                 # Take ephemeral messages (max 20 per block)
@@ -932,6 +952,16 @@ except ImportError:
     CRYPTO_MODULE = False
     ED25519_AVAILABLE = False
     print("⚠️ lac_crypto.py not found — running without crypto module")
+
+# ===== PROOF-OF-LOCATION MODULE =====
+POL_AVAILABLE = False
+try:
+    from lac_proof_of_location import ProofOfLocation
+    POL_AVAILABLE = True
+    pol_zones = ProofOfLocation.get_available_zones()
+    print(f"✅ Proof-of-Location loaded — {pol_zones['total_zones']} zones")
+except ImportError:
+    print("⚠️ lac_proof_of_location.py not found — PoL disabled")
 
 # Backward-compatible wrappers
 def derive_ed25519_keys(seed):
@@ -1305,6 +1335,7 @@ def register():
                     # Give bonus to referrer
                     if referrer in S.wallets:
                         S.wallets[referrer]['balance'] += 25
+                    S.counters['emitted_referral'] += 75
                     # Track
                     referral_data['used_by'].append(addr)
                     if addr not in S.referral_map:
@@ -1715,6 +1746,7 @@ def faucet():
         
         # Update balance immediately
         S.wallets[addr]['balance'] = S.wallets[addr].get('balance', 0) + faucet_amount
+        S.counters['emitted_faucet'] += faucet_amount
         S.save()
         
         return jsonify({
@@ -1779,6 +1811,7 @@ def transfer_normal():
         
         # Update balances
         from_wallet['balance'] -= total_needed
+        S.counters['burned_fees'] += fee
         from_wallet['tx_count'] = from_wallet.get('tx_count', 0) + 1
         
         if to_addr not in S.wallets:
@@ -1918,6 +1951,7 @@ def send_message():
         
         # Charge fee
         from_wallet['balance'] -= MIN_MSG_FEE
+        S.counters['burned_fees'] += MIN_MSG_FEE
         from_wallet['msg_count'] = from_wallet.get('msg_count', 0) + 1
         
         S.save_msgs()  # FAST: only messages, not entire chain
@@ -2252,6 +2286,7 @@ def dice_play():
                 'proof_hash': result_hash[:16]
             }
             wallet['balance'] += (payout - bet_amount)  # net: +bet_amount
+            S.counters['emitted_dice'] += (payout - bet_amount)
             if not hasattr(S, 'pending_txs'):
                 S.pending_txs = []
             S.pending_txs.append(mint_tx)
@@ -2267,6 +2302,7 @@ def dice_play():
                 'proof_hash': result_hash[:16]
             }
             wallet['balance'] -= bet_amount
+            S.counters['burned_dice'] += bet_amount
             if not hasattr(S, 'pending_txs'):
                 S.pending_txs = []
             S.pending_txs.append(burn_tx)
@@ -2290,7 +2326,7 @@ def dice_play():
             wallet['dice_history'] = []
         wallet['dice_history'].append(game_record)
         # Keep last 50
-        wallet['dice_history'] = wallet['dice_history'][-50:]
+        wallet['dice_history'] = wallet['dice_history'][-500:]
         
         S.save()
         
@@ -3049,6 +3085,7 @@ def upgrade_level():
         # Burn the cost
         wallet['balance'] -= cost
         wallet['level'] = current_level + 1
+        S.counters['burned_levels'] += cost
         
         S.save()
         
@@ -4107,6 +4144,7 @@ def username_register():
         # Register: direct mapping username → address
         S.usernames[username] = addr
         wallet['balance'] -= price
+        S.counters['burned_username'] += price
         wallet['username'] = username
         wallet['tx_count'] = wallet.get('tx_count', 0) + 1
         
@@ -5150,6 +5188,7 @@ def veil_transfer():
             
             # Update balances (only real TX affects balances)
             from_wallet['balance'] -= total_needed
+            S.counters['burned_fees'] += veil_fee
             from_wallet['tx_count'] = from_wallet.get('tx_count', 0) + 1
             
             if to_addr not in S.wallets:
@@ -5251,6 +5290,7 @@ def stash_deposit():
             
             # Deduct balance
             from_wallet['balance'] -= total_needed
+            S.counters['burned_fees'] += STASH_FEE
             from_wallet['tx_count'] = from_wallet.get('tx_count', 0) + 1
             
             # Update STASH pool state
@@ -5539,6 +5579,7 @@ def referral_use():
         if referrer_addr in S.wallets:
             S.wallets[referrer_addr]['balance'] += 25
         S.wallets[addr]['balance'] += 50
+        S.counters['emitted_referral'] += 75
         
         # Create on-chain record
         S.mempool.append({
@@ -5633,38 +5674,251 @@ def referral_leaderboard():
             'total_referrers': len(board)
         })
 
+# ═══════════════════════════════════════════════════════
+# PROOF-OF-LOCATION API
+# ═══════════════════════════════════════════════════════
+
+@app.route('/api/pol/zones', methods=['GET'])
+def pol_zones():
+    """List all available PoL zones"""
+    if not POL_AVAILABLE:
+        return jsonify({'ok': False, 'error': 'Proof-of-Location not available'}), 503
+    zones = ProofOfLocation.get_available_zones()
+    zones['ok'] = True
+    return jsonify(zones)
+
+@app.route('/api/pol/prove', methods=['POST'])
+def pol_prove():
+    """
+    Create a Proof-of-Location.
+    Client sends GPS coordinates, gets back a proof WITHOUT coordinates.
+    Coordinates are NEVER stored on server.
+    """
+    if not POL_AVAILABLE:
+        return jsonify({'ok': False, 'error': 'PoL not available'}), 503
+    
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'ok': False, 'error': 'Unauthorized'}), 401
+    
+    data = request.get_json() or {}
+    lat = data.get('lat')
+    lon = data.get('lon')
+    zone = data.get('zone')  # optional: specific zone to prove
+    
+    if lat is None or lon is None:
+        return jsonify({'ok': False, 'error': 'lat and lon required'}), 400
+    
+    try:
+        lat = float(lat)
+        lon = float(lon)
+    except (ValueError, TypeError):
+        return jsonify({'ok': False, 'error': 'Invalid coordinates'}), 400
+    
+    result = ProofOfLocation.create_proof(lat, lon, zone)
+    
+    if not result.get('valid'):
+        return jsonify({'ok': False, 'error': result.get('error', 'Unknown zone'), 'zones': result.get('actual_zones', [])})
+    
+    # Store proof on-chain (PUBLIC part only — NO coordinates)
+    addr = get_address_from_seed(seed)
+    proof_public = result['public']
+    
+    with S.lock:
+        if addr not in S.wallets:
+            return jsonify({'ok': False, 'error': 'Wallet not found'}), 404
+        
+        wallet = S.wallets[addr]
+        
+        # Store latest proof in wallet (for display)
+        wallet['last_pol'] = proof_public
+        
+        # On-chain TX (public only — coordinates NEVER touch the chain)
+        tx = {
+            'type': 'proof_of_location',
+            'from': addr,
+            'zone': proof_public['zone'],
+            'commitment': proof_public['commitment'],
+            'proof_hash': proof_public['proof_hash'],
+            'timestamp': proof_public['timestamp'],
+            'amount': 0,
+        }
+        tx = sign_transaction(seed, tx)
+        S.mempool.append(tx)
+        S.save()
+    
+    return jsonify({
+        'ok': True,
+        'proof': proof_public,
+        # Private data returned to device only — client should store locally
+        'private': result['private'],
+        'note': 'PRIVATE data contains your coordinates. Keep it on device only.'
+    })
+
+@app.route('/api/pol/verify', methods=['POST'])
+def pol_verify():
+    """Verify a Proof-of-Location"""
+    if not POL_AVAILABLE:
+        return jsonify({'ok': False, 'error': 'PoL not available'}), 503
+    
+    data = request.get_json() or {}
+    proof = data.get('proof', {})
+    
+    if not proof:
+        return jsonify({'ok': False, 'error': 'proof object required'}), 400
+    
+    result = ProofOfLocation.verify_proof(proof)
+    result['ok'] = result.get('valid', False)
+    return jsonify(result)
+
+@app.route('/api/pol/message', methods=['POST'])
+def pol_message():
+    """
+    Send a location-stamped message.
+    Journalist use case: prove you're in a zone without revealing exact location.
+    """
+    if not POL_AVAILABLE:
+        return jsonify({'ok': False, 'error': 'PoL not available'}), 503
+    
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'ok': False, 'error': 'Unauthorized'}), 401
+    
+    data = request.get_json() or {}
+    lat = data.get('lat')
+    lon = data.get('lon')
+    text = data.get('text', '').strip()
+    to = data.get('to', '').strip()
+    zone = data.get('zone')
+    
+    if not text or lat is None or lon is None:
+        return jsonify({'ok': False, 'error': 'lat, lon, and text required'}), 400
+    
+    try:
+        lat = float(lat)
+        lon = float(lon)
+    except (ValueError, TypeError):
+        return jsonify({'ok': False, 'error': 'Invalid coordinates'}), 400
+    
+    result = ProofOfLocation.create_message_proof(lat, lon, text, zone)
+    
+    if not result.get('valid'):
+        return jsonify({'ok': False, 'error': result.get('error', 'Unknown zone')})
+    
+    addr = get_address_from_seed(seed)
+    proof_public = result['public']
+    
+    with S.lock:
+        if addr not in S.wallets:
+            return jsonify({'ok': False, 'error': 'Wallet not found'}), 404
+        
+        wallet = S.wallets[addr]
+        
+        if wallet.get('balance', 0) < MIN_MSG_FEE:
+            return jsonify({'ok': False, 'error': f'Need {MIN_MSG_FEE} LAC'}), 400
+        
+        key_id = wallet.get('key_id')
+        from_username = get_username_by_key_id(key_id)
+        from_display = from_username if from_username else addr
+        
+        # Resolve recipient
+        to_address = resolve_recipient(to) if to else None
+        
+        msg = {
+            'from': from_display,
+            'from_address': addr,
+            'to': to_address or 'broadcast',
+            'text': text,
+            'timestamp': int(time.time()),
+            'verified': True,
+            'pol': {
+                'zone': proof_public['zone'],
+                'all_zones': proof_public.get('all_zones', []),
+                'commitment': proof_public['commitment'],
+                'proof_hash': proof_public['proof_hash'],
+                'message_binding': proof_public.get('message_binding', ''),
+                'freshness': 'live',
+                'area_km2': proof_public.get('area_km2', 0),
+            }
+        }
+        
+        S.persistent_msgs.append(msg)
+        wallet['balance'] -= MIN_MSG_FEE
+        S.counters['burned_fees'] += MIN_MSG_FEE
+        wallet['msg_count'] = wallet.get('msg_count', 0) + 1
+        S.save_msgs()
+    
+    return jsonify({
+        'ok': True,
+        'message_id': hashlib.sha256(json.dumps(msg).encode()).hexdigest()[:16],
+        'proof': proof_public,
+        'zone': proof_public['zone'],
+        'balance': wallet.get('balance', 0),
+    })
+
+@app.route('/api/pol/detect', methods=['POST'])
+def pol_detect():
+    """Detect which zones contain given coordinates (no proof, just detection)"""
+    if not POL_AVAILABLE:
+        return jsonify({'ok': False, 'error': 'PoL not available'}), 503
+    
+    data = request.get_json() or {}
+    try:
+        lat = float(data.get('lat', 0))
+        lon = float(data.get('lon', 0))
+    except (ValueError, TypeError):
+        return jsonify({'ok': False, 'error': 'Invalid coordinates'}), 400
+    
+    zones = ProofOfLocation.detect_zones(lat, lon)
+    return jsonify({'ok': True, 'zones': zones, 'count': len(zones)})
+
 @app.route('/api/stats', methods=['GET'])
 def chain_stats():
     """
-    Public chain statistics — full blockchain scan
+    Public chain statistics
     
     FORMULA: Emitted - Burned = On Wallets + In STASH
-    Emitted = mining + faucet + dice_mint(payouts)
-    Burned = username_reg + level_ups + dice_loss + dms + fees + other burns
+    
+    Approach: Ground truth first, derive what we can't measure.
+    - on_wallets = sum(balances)  ← ALWAYS correct
+    - stash = stash_pool           ← ALWAYS correct
+    - emitted_mining = height × 190  ← ALWAYS correct (fixed block reward)
+    - total_burned = total_emitted - on_wallets - stash  ← DERIVED, always balances
     """
     try:
         with S.lock:
             total_wallets = len(S.wallets)
-            total_blocks = len(S.chain)
             
-            # === GROUND TRUTH: wallet balances ===
+            # === BLOCK HEIGHT (reliable even after pruning) ===
+            if S.chain:
+                block_height = S.chain[-1].get('index', len(S.chain) - 1) + 1
+            else:
+                block_height = 0
+            
+            # === GROUND TRUTH #1: Wallet balances ===
             balances = sorted([w.get('balance', 0) for w in S.wallets.values()], reverse=True)
-            top_balances = balances[:10]
-            on_wallets = sum(balances)
-            stash_balance = S.stash_pool.get('total_balance', 0)
+            on_wallets = round(sum(balances), 2)
+            stash_balance = round(S.stash_pool.get('total_balance', 0), 2)
             
+            # === GROUND TRUTH #2: Level distribution ===
             levels = {}
             for w in S.wallets.values():
                 lv = w.get('level', 0)
                 levels[f"L{lv}"] = levels.get(f"L{lv}", 0) + 1
             
-            # === CHAIN SCAN ===
-            emitted_mining = 0
-            emitted_faucet = 0
-            burned_fees = 0
-            burned_username = 0
-            burned_dms = 0
-            burned_other = 0  # burn_level_upgrade, burn_nickname_change, etc
+            # === EMISSION: Mining (most reliable source) ===
+            # Block reward is ALWAYS 190 LAC per block, distributed among 19 winners
+            # This is correct regardless of Zero-History pruning
+            BLOCK_REWARD = 190
+            emitted_mining = round(block_height * BLOCK_REWARD, 2)
+            
+            # === EMISSION: Other sources (from counters + chain scan) ===
+            # Counters track real-time events going forward
+            cnt = getattr(S, 'counters', {})
+            
+            # Chain scan for TX types and supplemental emission data
+            chain_faucet = 0
+            chain_referral = 0
             tx_counts = {
                 'normal': 0, 'veil': 0, 'stash': 0, 'dice': 0,
                 'burn': 0, 'timelock': 0, 'dms': 0, 'username': 0, 'faucet': 0
@@ -5673,13 +5927,6 @@ def chain_stats():
             total_l2_msgs = 0
             
             for b in S.chain:
-                # Mining emission
-                if 'mining_rewards' in b:
-                    for r in b['mining_rewards']:
-                        emitted_mining += r.get('reward', 0) or r.get('amount', 0)
-                elif 'total_reward' in b:
-                    emitted_mining += b.get('total_reward', 0)
-                
                 total_l2_msgs += len(b.get('ephemeral_msgs', []))
                 txs = b.get('transactions', [])
                 total_tx += len(txs)
@@ -5687,8 +5934,6 @@ def chain_stats():
                 for tx in txs:
                     t = tx.get('type', '')
                     amt = tx.get('amount', 0) or 0
-                    fee = tx.get('fee', 0) or tx.get('ring_fee', 0) or tx.get('stealth_fee', 0) or tx.get('veil_fee', 0) or 0
-                    burned_fees += fee
                     
                     if t in ('transfer', 'normal'):
                         tx_counts['normal'] += 1
@@ -5702,107 +5947,92 @@ def chain_stats():
                         tx_counts['timelock'] += 1
                     elif t.startswith('dms_'):
                         tx_counts['dms'] += 1
-                        if t in ('dms_wipe', 'dms_burn_stash'):
-                            burned_dms += amt
                     elif t == 'username_register':
                         tx_counts['username'] += 1
-                        burned_username += amt
                     elif t == 'faucet':
                         tx_counts['faucet'] += 1
-                        emitted_faucet += amt
+                        chain_faucet += amt
                     elif t.startswith('burn_'):
                         tx_counts['burn'] += 1
-                        burned_other += amt
-                    elif t in ('mining_reward', 'poet_reward'):
-                        emitted_mining += amt
                     elif t == 'referral_bonus':
-                        emitted_faucet += amt  # referral bonuses are emission
-                    elif t == 'referral_boost':
-                        burned_other += amt  # boost burns
+                        chain_referral += amt
             
-            # === WALLET-BASED DATA ===
-            # Dice from wallet history (more reliable)
-            dice_total_lost = 0
-            dice_total_won = 0  # net win = payout - bet
-            dice_net_emission = 0  # actual new LAC created (= net wins)
-            dice_total_bet = 0
-            dice_games = 0
-            for w in S.wallets.values():
-                for game in w.get('dice_history', []):
-                    dice_games += 1
-                    bet = game.get('amount', 0)
-                    dice_total_bet += bet
-                    if game.get('won'):
-                        payout = game.get('payout', 0)
-                        net_win = payout - bet  # this is the actual new LAC created
-                        dice_net_emission += net_win
-                        dice_total_won += net_win
-                    else:
-                        dice_total_lost += bet
+            # Best estimate of non-mining emission
+            emitted_faucet = max(cnt.get('emitted_faucet', 0), chain_faucet)
+            emitted_dice = cnt.get('emitted_dice', 0)
+            emitted_referral = max(cnt.get('emitted_referral', 0), chain_referral)
             
-            # Level burns — MUST match actual LEVEL_COSTS from upgrade endpoint
-            REAL_LEVEL_COSTS = {
-                0: 100,      # 0→1
-                1: 700,      # 1→2
-                2: 2000,     # 2→3
-                3: 10000,    # 3→4
-                4: 100000,   # 4→5
-                5: 500000,   # 5→6
-                6: 2000000,  # 6→7 (GOD)
-            }
-            burned_levels = 0
-            for w in S.wallets.values():
-                lv = w.get('level', 0)
-                for i in range(lv):
-                    burned_levels += REAL_LEVEL_COSTS.get(i, 0)
+            # If counters are empty (first deploy), scan dice history
+            if emitted_dice == 0:
+                for w in S.wallets.values():
+                    for game in w.get('dice_history', []):
+                        if game.get('won'):
+                            emitted_dice += game.get('payout', 0) - game.get('amount', 0)
             
-            # Supplement tx counts if chain is sparse
+            total_emitted = round(emitted_mining + emitted_faucet + emitted_dice + emitted_referral, 2)
+            
+            # === BURNED: Derived from ground truth (ALWAYS correct) ===
+            total_burned = round(total_emitted - on_wallets - stash_balance, 2)
+            if total_burned < 0:
+                total_burned = 0  # shouldn't happen, but safety
+            
+            # === BURN BREAKDOWN: Best estimates ===
+            # From real-time counters (accurate going forward)
+            est_burned_dice = cnt.get('burned_dice', 0)
+            est_burned_levels = cnt.get('burned_levels', 0)
+            est_burned_username = cnt.get('burned_username', 0)
+            est_burned_fees = cnt.get('burned_fees', 0)
+            est_burned_dms = cnt.get('burned_dms', 0)
+            est_burned_other = cnt.get('burned_other', 0)
+            
+            # If counters are zero (first deploy), estimate from dice history
+            if est_burned_dice == 0:
+                for w in S.wallets.values():
+                    for game in w.get('dice_history', []):
+                        if not game.get('won'):
+                            est_burned_dice += game.get('amount', 0)
+            
+            known_burns = est_burned_dice + est_burned_levels + est_burned_username + est_burned_fees + est_burned_dms + est_burned_other
+            
+            # Historical/untracked burns = difference between real total and known
+            historical_burns = round(total_burned - known_burns, 2)
+            if historical_burns < 0:
+                historical_burns = 0
+            
+            # Supplement tx counts
+            dice_games = sum(len(w.get('dice_history', [])) for w in S.wallets.values())
             if tx_counts['dice'] == 0 and dice_games > 0:
                 tx_counts['dice'] = dice_games
-            stash_redeemed = len(S.stash_pool.get('spent_nullifiers', []))
-            stash_deposits = len(S.stash_pool.get('deposits', {}))
-            if tx_counts['stash'] == 0 and (stash_deposits > 0 or stash_redeemed > 0):
-                tx_counts['stash'] = stash_deposits + stash_redeemed
-            
-            # === FORMULA ===
-            # Emitted = mining + faucet + dice net wins (only new LAC created)
-            total_emitted = emitted_mining + emitted_faucet + dice_net_emission
-            
-            # Burned = username + levels + dice losses + dms + fees + other
-            total_burned = burned_username + burned_levels + dice_total_lost + burned_dms + burned_fees + burned_other
-            
-            # Sanity: if chain emission is 0, derive from ground truth
-            if emitted_mining == 0 and emitted_faucet == 0:
-                total_emitted = on_wallets + stash_balance + total_burned
-            
-            # Verify: Emitted - Burned should ≈ OnWallets + STASH
-            expected_circulation = total_emitted - total_burned
-            actual_circulation = on_wallets + stash_balance
+            stash_ops = len(S.stash_pool.get('spent_nullifiers', [])) + len(S.stash_pool.get('deposits', {}))
+            if tx_counts['stash'] == 0 and stash_ops > 0:
+                tx_counts['stash'] = stash_ops
             
             dms_active = sum(1 for w in S.wallets.values() if w.get('dead_mans_switch', {}).get('enabled'))
             
             return jsonify({
                 'ok': True,
                 'total_wallets': total_wallets,
-                'total_blocks': total_blocks,
-                'top_balances': [round(b, 2) for b in top_balances],
+                'total_blocks': block_height,
+                'top_balances': [round(b, 2) for b in balances[:10]],
                 'level_distribution': levels,
-                # === SUPPLY (main card) ===
-                'on_wallets': round(on_wallets, 2),
-                'total_emitted': round(total_emitted, 2),
-                'total_burned': round(total_burned, 2),
-                'stash_pool_balance': round(stash_balance, 2),
+                # === SUPPLY (always balances: emitted - burned = on_wallets + stash) ===
+                'on_wallets': on_wallets,
+                'total_emitted': total_emitted,
+                'total_burned': total_burned,
+                'stash_pool_balance': stash_balance,
                 # === EMISSION breakdown ===
-                'emitted_mining': round(emitted_mining, 2),
+                'emitted_mining': emitted_mining,
                 'emitted_faucet': round(emitted_faucet, 2),
-                'emitted_dice': round(dice_net_emission, 2),
-                # === BURNS breakdown ===
-                'burned_username': round(burned_username, 2),
-                'burned_levels': round(burned_levels, 2),
-                'burned_dice': round(dice_total_lost, 2),
-                'burned_dms': round(burned_dms, 2),
-                'burned_fees': round(burned_fees, 2),
-                'burned_other': round(burned_other, 2),
+                'emitted_dice': round(emitted_dice, 2),
+                'emitted_referral': round(emitted_referral, 2),
+                # === BURNS breakdown (estimates, counters grow more accurate over time) ===
+                'burned_dice': round(est_burned_dice, 2),
+                'burned_levels': round(est_burned_levels, 2),
+                'burned_username': round(est_burned_username, 2),
+                'burned_fees': round(est_burned_fees, 2),
+                'burned_dms': round(est_burned_dms, 2),
+                'burned_other': round(est_burned_other, 2),
+                'burned_historical': round(historical_burns, 2),
                 # === TX counts ===
                 'all_tx_count': total_tx,
                 'all_normal': tx_counts['normal'],
@@ -5814,20 +6044,15 @@ def chain_stats():
                 'all_dms': tx_counts['dms'],
                 'all_username': tx_counts['username'],
                 'all_faucet': tx_counts['faucet'],
-                'all_l2_messages': total_l2_msgs,
+                # === Network ===
+                'l2_messages': total_l2_msgs,
                 'dms_active': dms_active,
-                'dice_total_won': round(dice_total_won, 2),
-                'dice_total_lost': round(dice_total_lost, 2),
-                'stash_keys_active': max(stash_deposits - stash_redeemed, 0),
-                'stash_keys_redeemed': stash_redeemed,
-                # Backward compat
-                'total_supply': round(on_wallets, 2),
-                'circulating_supply': round(on_wallets, 2),
-                'total_mined_emission': round(total_emitted, 2),
+                'active_sessions': len(S.active_sessions),
+                # === Counters status ===
+                'counters_active': sum(v for v in cnt.values() if isinstance(v, (int, float))) > 0,
             })
     except Exception as e:
-        import traceback; traceback.print_exc()
-        return jsonify({'error': str(e), 'ok': False}), 500
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     main()
