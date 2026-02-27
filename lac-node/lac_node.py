@@ -811,13 +811,12 @@ def auto_mining_loop():
                             'reward': reward,
                             'timestamp': block_data['timestamp']
                         })
+                        # Cap mining_history at 10000 entries per wallet
+                        if len(S.wallets[winner_addr]['mining_history']) > 10000:
+                            S.wallets[winner_addr]['mining_history'] = S.wallets[winner_addr]['mining_history'][-10000:]
                 
-                # Store mining rewards WITHOUT exposing addresses on chain (privacy)
-                # Each wallet has its own mining_history with their personal rewards
-                new_block["mining_rewards_count"] = len(block_data["rewards"])
-                new_block["mining_rewards_total"] = sum(block_data["rewards"].values())
-                # Private per-wallet storage only:
-                new_block["mining_rewards"] = []  # Empty — addresses not exposed on chain
+                # mining_rewards kept for chain explorer only, wallet history is primary source
+                new_block["mining_rewards"] = [{"reward": rew} for rew in block_data["rewards"].values()]
                 S.chain.append(new_block)
                 
                 # Process username transactions in block
@@ -872,6 +871,9 @@ def auto_mining_loop():
                 # ===================== END ANONYMOUS TRANSFERS =====================
                 # Clear processed mempool and ephemeral messages
                 S.mempool = S.mempool[50:]
+                # Cap mempool at 1000 to prevent unbounded growth
+                if len(S.mempool) > 1000:
+                    S.mempool = S.mempool[-1000:]
                 S.ephemeral_msgs = S.ephemeral_msgs[20:]
                 S.pending_txs = []  # Clear dice/game transactions
                 
@@ -1531,13 +1533,24 @@ def get_wallet_mining():
         
         wallet = S.wallets[addr]
         
-        # Primary: scan blockchain for mining rewards (most reliable)
+        # Primary: wallet mining_history (written at mine time, always accurate)
         mining_rewards = []
         total_mined = 0
         
-        for block in S.chain:
-            if 'mining_rewards' in block:
-                for reward in block['mining_rewards']:
+        history = wallet.get('mining_history', [])
+        for entry in history:
+            mining_rewards.append({
+                'block': entry.get('block'),
+                'timestamp': entry.get('timestamp'),
+                'reward': entry.get('reward', 0),
+                'confirmed': True
+            })
+            total_mined += entry.get('reward', 0)
+        
+        # Fallback: scan chain only if wallet history is empty (old data)
+        if not mining_rewards:
+            for block in S.chain:
+                for reward in block.get('mining_rewards', []):
                     if reward.get('address') == addr:
                         mining_rewards.append({
                             'block': block.get('index', 0),
@@ -1546,18 +1559,6 @@ def get_wallet_mining():
                             'confirmed': True
                         })
                         total_mined += reward.get('reward', 0)
-        
-        # Fallback: if chain scan found nothing, use wallet history
-        if not mining_rewards:
-            history = wallet.get('mining_history', [])
-            for entry in history:
-                mining_rewards.append({
-                    'block': entry.get('block'),
-                    'timestamp': entry.get('timestamp'),
-                    'reward': entry.get('reward', 0),
-                    'confirmed': True
-                })
-                total_mined += entry.get('reward', 0)
         
         # Sort by block descending, limit
         mining_rewards.sort(key=lambda x: x.get('block', 0), reverse=True)
@@ -3668,11 +3669,13 @@ def get_wallet_transactions():
             
             # Mining rewards
             if 'mining_rewards' in block:
-                for reward in block['mining_rewards']:
-                    if reward.get('address') == addr:
-                        transactions['mining'].append({
-                            'type': 'mining',
-                            'amount': reward['reward'],
+                for reward in block.get('mining_rewards', []):
+                    # New blocks: no address (privacy). Old blocks: has address
+                    if reward.get('address') == addr or reward.get('address') is None:
+                        if reward.get('address') == addr:  # only count if explicitly ours
+                            transactions['mining'].append({
+                                'type': 'mining',
+                                'amount': reward['reward'],
                             'block': block_index,
                             'timestamp': block_time
                         })
