@@ -5705,9 +5705,18 @@ def pol_prove():
     lat = data.get('lat')
     lon = data.get('lon')
     zone = data.get('zone')  # optional: specific zone to prove
+    manual = data.get('manual', False)  # manual mode: zone-only, no GPS coords
     
-    if lat is None or lon is None:
-        return jsonify({'ok': False, 'error': 'lat and lon required'}), 400
+    if manual and zone:
+        # Manual mode: use zone center coordinates
+        from lac_proof_of_location import ALL_ZONES
+        if zone not in ALL_ZONES:
+            return jsonify({'ok': False, 'error': f'Unknown zone: {zone}'}), 400
+        bounds = ALL_ZONES[zone]
+        lat = (bounds['lat_min'] + bounds['lat_max']) / 2
+        lon = (bounds['lon_min'] + bounds['lon_max']) / 2
+    elif lat is None or lon is None:
+        return jsonify({'ok': False, 'error': 'lat and lon required (or use manual=true with zone)'}), 400
     
     try:
         lat = float(lat)
@@ -5790,9 +5799,20 @@ def pol_message():
     text = data.get('text', '').strip()
     to = data.get('to', '').strip()
     zone = data.get('zone')
+    manual = data.get('manual', False)
     
-    if not text or lat is None or lon is None:
-        return jsonify({'ok': False, 'error': 'lat, lon, and text required'}), 400
+    if not text:
+        return jsonify({'ok': False, 'error': 'text required'}), 400
+    
+    if manual and zone:
+        from lac_proof_of_location import ALL_ZONES
+        if zone not in ALL_ZONES:
+            return jsonify({'ok': False, 'error': f'Unknown zone: {zone}'}), 400
+        bounds = ALL_ZONES[zone]
+        lat = (bounds['lat_min'] + bounds['lat_max']) / 2
+        lon = (bounds['lon_min'] + bounds['lon_max']) / 2
+    elif lat is None or lon is None:
+        return jsonify({'ok': False, 'error': 'lat, lon, and text required (or use manual=true with zone)'}), 400
     
     try:
         lat = float(lat)
@@ -5977,24 +5997,44 @@ def chain_stats():
                 total_burned = 0  # shouldn't happen, but safety
             
             # === BURN BREAKDOWN: Best estimates ===
-            # From real-time counters (accurate going forward)
-            est_burned_dice = cnt.get('burned_dice', 0)
-            est_burned_levels = cnt.get('burned_levels', 0)
-            est_burned_username = cnt.get('burned_username', 0)
+            # Fees/DMS/Other: from counters only
             est_burned_fees = cnt.get('burned_fees', 0)
             est_burned_dms = cnt.get('burned_dms', 0)
             est_burned_other = cnt.get('burned_other', 0)
-            
-            # If counters are zero (first deploy), estimate from dice history
+
+            # LEVELS: calculate from actual wallet levels — counters miss historical burns
+            LEVEL_CUMULATIVE = {0:0, 1:100, 2:800, 3:2800, 4:12800, 5:112800, 6:612800, 7:2612800}
+            wallet_burned_levels = sum(LEVEL_CUMULATIVE.get(w.get('level', 0), 0) for w in S.wallets.values())
+            est_burned_levels = max(cnt.get('burned_levels', 0), wallet_burned_levels)
+
+            # USERNAMES: calculate from registered usernames — counters miss historical burns
+            USERNAME_COSTS = {3: 10000, 4: 1000, 5: 100}
+            wallet_burned_username = 0
+            for w in S.wallets.values():
+                uname_w = w.get('username', '')
+                if uname_w and uname_w not in ('', 'Anonymous', 'None'):
+                    wallet_burned_username += USERNAME_COSTS.get(len(uname_w), 10)
+            est_burned_username = max(cnt.get('burned_username', 0), wallet_burned_username)
+
+            # DICE: counter + scan dice_history for losses if counter is empty
+            est_burned_dice = cnt.get('burned_dice', 0)
             if est_burned_dice == 0:
                 for w in S.wallets.values():
                     for game in w.get('dice_history', []):
                         if not game.get('won'):
                             est_burned_dice += game.get('amount', 0)
-            
+
+            # FEES: also scan chain for fees if counter is empty
+            if est_burned_fees == 0:
+                for b in S.chain:
+                    for tx in b.get('transactions', []):
+                        fee = tx.get('fee', 0) or 0
+                        if fee > 0:
+                            est_burned_fees += fee
+
             known_burns = est_burned_dice + est_burned_levels + est_burned_username + est_burned_fees + est_burned_dms + est_burned_other
-            
-            # Historical/untracked burns = difference between real total and known
+
+            # Untracked = whatever remains in total_burned not explained by counters
             historical_burns = round(total_burned - known_burns, 2)
             if historical_burns < 0:
                 historical_burns = 0

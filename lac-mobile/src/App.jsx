@@ -14,11 +14,12 @@ import {
 } from 'lucide-react';
 
 // ─── API Layer ────────────────────────────────────────
+const API_BASE = import.meta.env.VITE_API_URL || '';
 const api = async (path, opts = {}) => {
   const seed = localStorage.getItem('lac_seed');
   const h = { 'Content-Type': 'application/json' };
   if (seed) h['X-Seed'] = seed;
-  const r = await fetch(path, { method: opts.method || 'GET', headers: { ...h, ...opts.headers }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const r = await fetch(API_BASE + path, { method: opts.method || 'GET', headers: { ...h, ...opts.headers }, body: opts.body ? JSON.stringify(opts.body) : undefined });
   const d = await r.json();
   if (!r.ok) throw new Error(d.error || 'Error');
   return d;
@@ -468,7 +469,6 @@ const MainApp = ({ onLogout }) => {
     { icon: Skull, label: 'Dead Man Switch', act: () => { setSub({type:'dms'}); setMenuOpen(false); } },
     { icon: Lock, label: 'STASH Pool', act: () => { setSub({type:'stash'}); setMenuOpen(false); } },
     { icon: Hash, label: 'Username', act: () => { setSub({type:'username'}); setMenuOpen(false); } },
-    { icon: Users, label: 'Contacts', act: () => { setSub({type:'contacts'}); setMenuOpen(false); } },
     { icon: TrendingUp, label: 'Dashboard', act: () => { setSub({type:'dashboard'}); setMenuOpen(false); } },
     { icon: Shield, label: 'Validator', act: () => { setSub({type:'validator'}); setMenuOpen(false); } },
   ];
@@ -1914,11 +1914,36 @@ const PolView = ({ onBack, profile }) => {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [msgMode, setMsgMode] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
+  const [allZones, setAllZones] = useState([]);
   const { t } = useT();
+
+  // Load all zones for manual fallback
+  useEffect(() => {
+    get('/api/pol/zones').then(r => {
+      if (r.ok) {
+        const combined = [...(r.countries||[]), ...(r.ua_oblasts||[]), ...(r.special_zones||[])];
+        setAllZones(combined);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const enterManualMode = () => {
+    setManualMode(true);
+    setError('');
+    // Manual proof: coords = null, zone selected manually
+    // Backend will accept zone without coords in manual mode
+    setCoords({ lat: 0, lon: 0, accuracy: null, manual: true });
+    if (allZones.length > 0) setZones(allZones);
+  };
 
   const getLocation = () => {
     setStatus('detecting'); setError('');
-    if (!navigator.geolocation) { setError('GPS not available'); setStatus('error'); return; }
+    if (!navigator.geolocation || window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+      setError('GPS requires HTTPS. Use manual zone selection below.');
+      setStatus('error');
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const c = { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy };
@@ -1935,11 +1960,19 @@ const PolView = ({ onBack, profile }) => {
   };
 
   const createProof = async () => {
-    if (!coords || !selectedZone) return;
+    if (!selectedZone) return;
+    if (!coords && !manualMode) return;
     setStatus('proving');
     try {
       const endpoint = msgMode && message.trim() ? '/api/pol/message' : '/api/pol/prove';
-      const body = { lat: coords.lat, lon: coords.lon, zone: selectedZone };
+      const body = { zone: selectedZone };
+      if (!manualMode && coords && !coords.manual) {
+        body.lat = coords.lat;
+        body.lon = coords.lon;
+      } else {
+        // Manual mode: send zone-only proof (backend will use zone center coords)
+        body.manual = true;
+      }
       if (msgMode && message.trim()) body.text = message.trim();
       const r = await post(endpoint, body);
       if (r.ok) {
@@ -1967,16 +2000,37 @@ const PolView = ({ onBack, profile }) => {
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white font-bold py-3 rounded-xl text-sm">
             {status === 'detecting' ? '📡 Detecting GPS...' : '📍 Enable GPS'}
           </button>
-          {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
-          <p className="text-gray-600 text-[10px] mt-2 text-center">Coordinates never leave your device</p>
+          {error && (
+            <div className="mt-2">
+              <p className="text-red-400 text-xs">{error}</p>
+              <div className="mt-2 bg-amber-900/20 border border-amber-800/30 rounded-xl p-3">
+                <p className="text-amber-400 text-xs font-semibold mb-1">⚠️ GPS requires HTTPS</p>
+                <p className="text-gray-500 text-[10px] mb-2">Your device blocks GPS on HTTP. Use manual zone selection instead — you choose your zone without GPS.</p>
+                <button onClick={enterManualMode}
+                  className="w-full bg-amber-600/80 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm">
+                  🗺️ Select Zone Manually
+                </button>
+              </div>
+            </div>
+          )}
+          {!error && <p className="text-gray-600 text-[10px] mt-2 text-center">Coordinates never leave your device</p>}
+          {!error && (
+            <button onClick={enterManualMode} className="w-full mt-2 text-gray-600 text-[10px] hover:text-gray-400 py-1">
+              Or select zone manually (no GPS needed) →
+            </button>
+          )}
         </Card>
       ) : status !== 'done' ? (<>
         {/* Step 2: Select Zone */}
         <Card gradient="bg-gradient-to-br from-emerald-900/20 to-[#0f1f18] border-emerald-800/15">
           <p className="text-white text-sm font-semibold mb-1">Step 2: Select Zone to Prove</p>
-          <p className="text-gray-600 text-[10px] mb-3">GPS: {coords.lat.toFixed(4)}, {coords.lon.toFixed(4)} (±{Math.round(coords.accuracy)}m) — stays on device</p>
+          {manualMode ? (
+            <p className="text-amber-400 text-[10px] mb-3">🗺️ Manual mode — select your zone from the list</p>
+          ) : (
+            <p className="text-gray-600 text-[10px] mb-3">GPS: {coords?.lat?.toFixed(4)}, {coords?.lon?.toFixed(4)} (±{Math.round(coords?.accuracy||0)}m) — stays on device</p>
+          )}
           {zones.length > 0 ? (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
               {zones.map(z => (
                 <button key={z} onClick={() => setSelectedZone(z)}
                   className={`w-full text-left px-3 py-2.5 rounded-xl text-sm border transition-all ${selectedZone === z ? 'bg-emerald-900/30 border-emerald-500/50 text-emerald-400' : 'bg-[#0a1a14] border-emerald-900/15 text-gray-400'}`}>
@@ -2068,7 +2122,7 @@ const DashboardView = ({ onBack }) => {
               {(s.burned_fees||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">💸 {t('fee')||'Fees'}</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_fees)} LAC</span></div>}
               {(s.burned_dms||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">💀 DMS</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_dms)} LAC</span></div>}
               {(s.burned_other||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🔥 Other</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_other)} LAC</span></div>}
-              {(s.burned_historical||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">📜 Levels+Dice+Fees</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_historical)} LAC</span></div>}
+              {(s.burned_historical||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">📜 Other/Untracked</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_historical)} LAC</span></div>}
             </div>
           </div>
           {/* STASH */}
@@ -2227,10 +2281,7 @@ const ExploreTab = ({ onNav, onMenu }) => {
         {icon:'⛏️',title:t('mining'),sub:t('totalEarned')+', '+t('recentRewards'),type:'mining'},
         {icon:'⏰',title:'TimeLock',sub:t('lockFunds'),type:'timelock'},
         {icon:'💀',title:'Dead Man\'s Switch',sub:'DMS',type:'dms'},
-        {icon:'👥',title:t('contacts'),sub:t('addContact'),type:'contacts'},
         {icon:'🛡️',title:'Validator',sub:'Zero-History',type:'validator'},
-        {icon:'🎲',title:t('dice'),sub:t('diceGame'),type:'dice'},
-        {icon:'🤝',title:'Referral',sub:'Invite friends, earn LAC',type:'referral'},
         {icon:'📍',title:'Proof-of-Location',sub:'Prove zone without revealing location',type:'pol'},
       ].map(item => (
         <button key={item.type} onClick={() => onNav({type:item.type})}
@@ -2286,6 +2337,8 @@ const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
         }} />
         <ListItem icon={<Globe className="w-5 h-5 text-cyan-400"/>} title={t('language')} sub={lang==='uk'?'🇺🇦 Українська':'🇬🇧 English'}
           onClick={() => setLang(lang==='uk'?'en':'uk')} />
+        <ListItem icon={<span className="text-lg">🤝</span>} title="Referral" sub="Invite friends, earn LAC"
+          onClick={() => onNav({type:'referral'})} />
         <div className="h-px bg-gray-800/30 my-2" />
         <ListItem icon={<LogOut className="w-5 h-5 text-red-400"/>} title={t('logout')} sub="Save seed first!" onClick={() => { if(confirm('Make sure seed is saved!')) onLogout(); }} />
       </div>
