@@ -380,6 +380,12 @@ class State:
             except:
                 pass
             try:
+                rxn_data = self.state_manager.load_with_backup('reactions.json')
+                if rxn_data:
+                    self.reactions = rxn_data
+            except:
+                pass
+            try:
                 loaded_names = self.state_manager.load_with_backup('usernames.json')
                 if loaded_names:
                     self.usernames = loaded_names
@@ -413,6 +419,13 @@ class State:
             if pmf.exists():
                 with open(pmf) as f:
                     self.persistent_msgs = json.load(f)
+            rxnf = self.datadir / 'reactions.json'
+            if rxnf.exists():
+                try:
+                    with open(rxnf) as f:
+                        self.reactions = json.load(f)
+                except:
+                    self.reactions = {}
         
         # Load usernames (persist independently from blockchain — survives Zero-History)
         if STABILITY_ENABLED and self.state_manager:
@@ -588,6 +601,7 @@ class State:
             self.state_manager.save_atomic('persistent_msgs.json', self.persistent_msgs)
             self.state_manager.save_atomic('referrals.json', {'codes': self.referrals, 'map': self.referral_map})
             self.state_manager.save_atomic('counters.json', self.counters)
+            self.state_manager.save_atomic('reactions.json', self.reactions)
         else:
             # Fallback
             with open(self.datadir / 'chain.json', 'w') as f:
@@ -604,15 +618,20 @@ class State:
                 json.dump(self.stash_pool, f, indent=2)
             with open(self.datadir / 'persistent_msgs.json', 'w') as f:
                 json.dump(self.persistent_msgs, f, indent=2)
+            with open(self.datadir / 'reactions.json', 'w') as f:
+                json.dump(self.reactions, f)
 
     def save_msgs(self):
-        """Fast save — only messages. 10x faster than full save()"""
+        """Fast save — only messages + reactions. 10x faster than full save()"""
         try:
             if STABILITY_ENABLED and self.state_manager:
                 self.state_manager.save_atomic('persistent_msgs.json', self.persistent_msgs)
+                self.state_manager.save_atomic('reactions.json', self.reactions)
             else:
                 with open(self.datadir / 'persistent_msgs.json', 'w') as f:
                     json.dump(self.persistent_msgs, f)
+                with open(self.datadir / 'reactions.json', 'w') as f:
+                    json.dump(self.reactions, f)
         except Exception as e:
             print(f"⚠️ save_msgs error: {e}")
 
@@ -769,7 +788,13 @@ def auto_mining_loop():
                     'miner': 'poet_anonymous',
                     'difficulty': block_data['difficulty'],
                     'hash': hashlib.sha256(
-                        json.dumps(block_data).encode()
+                        json.dumps({
+                            'index': len(S.chain),
+                            'prev': S.chain[-1]['hash'] if S.chain else '0',
+                            'ts': block_data['timestamp'],
+                            'txs': len(S.mempool[:50]),
+                            'nonce': block_data.get('height', 0)
+                        }, sort_keys=True).encode()
                     ).hexdigest(),
                     'mining_winners_count': block_data['unique_winners'],
                     'total_reward': block_data['total_reward']
@@ -787,7 +812,12 @@ def auto_mining_loop():
                             'timestamp': block_data['timestamp']
                         })
                 
-                new_block["mining_rewards"] = [{"address": addr, "reward": rew} for addr, rew in block_data["rewards"].items()]
+                # Store mining rewards WITHOUT exposing addresses on chain (privacy)
+                # Each wallet has its own mining_history with their personal rewards
+                new_block["mining_rewards_count"] = len(block_data["rewards"])
+                new_block["mining_rewards_total"] = sum(block_data["rewards"].values())
+                # Private per-wallet storage only:
+                new_block["mining_rewards"] = []  # Empty — addresses not exposed on chain
                 S.chain.append(new_block)
                 
                 # Process username transactions in block
@@ -1146,6 +1176,16 @@ def auto_cleanup():
                         after = len(group['posts'])
                         if before > after:
                             print(f"🧹 Cleaned {before - after} expired posts from {group.get('name', gid)}")
+                
+                # ===== SESSION CLEANUP (> 24h inactive) =====
+                session_timeout = 86400  # 24 hours
+                stale = [addr for addr in list(S.active_sessions)
+                         if now - S.wallets.get(addr, {}).get('last_activity', now) > session_timeout]
+                for addr in stale:
+                    S.active_sessions.discard(addr)
+                if stale:
+                    print(f"🧹 Removed {len(stale)} stale sessions")
+                # ===== END SESSION CLEANUP =====
                 
                 # ===== DEAD MAN'S SWITCH CHECK =====
                 for addr, wallet in list(S.wallets.items()):
@@ -1948,6 +1988,9 @@ def send_message():
             S.ephemeral_msgs.append(msg)
         else:
             S.persistent_msgs.append(msg)
+            # Cap: keep last 5000 messages to prevent unbounded growth
+            if len(S.persistent_msgs) > 5000:
+                S.persistent_msgs = S.persistent_msgs[-5000:]
         
         # Charge fee
         from_wallet['balance'] -= MIN_MSG_FEE
@@ -2607,6 +2650,14 @@ def post_to_group():
         # Ensure posts list exists
         if 'posts' not in group:
             group['posts'] = []
+        
+        # Dedup: reject same text from same user within 5 seconds
+        recent = group['posts'][-20:] if len(group['posts']) > 20 else group['posts']
+        for existing in reversed(recent):
+            if (existing.get('from_address') == from_addr and
+                existing.get('text') == text and
+                abs(existing.get('timestamp', 0) - int(time.time())) < 5):
+                return jsonify({'ok': True, 'post': existing})  # silent dedup
         
         group['posts'].append(post)
         
@@ -5997,24 +6048,7 @@ def chain_stats():
                 total_burned = 0  # shouldn't happen, but safety
             
             # === BURN BREAKDOWN: Best estimates ===
-            # Fees/DMS/Other: from counters only
-            est_burned_fees = cnt.get('burned_fees', 0)
-            est_burned_dms = cnt.get('burned_dms', 0)
-            est_burned_other = cnt.get('burned_other', 0)
-
-            # LEVELS: calculate from actual wallet levels — counters miss historical burns
-            LEVEL_CUMULATIVE = {0:0, 1:100, 2:800, 3:2800, 4:12800, 5:112800, 6:612800, 7:2612800}
-            wallet_burned_levels = sum(LEVEL_CUMULATIVE.get(w.get('level', 0), 0) for w in S.wallets.values())
-            est_burned_levels = max(cnt.get('burned_levels', 0), wallet_burned_levels)
-
-            # USERNAMES: calculate from registered usernames — counters miss historical burns
-            USERNAME_COSTS = {3: 10000, 4: 1000, 5: 100}
-            wallet_burned_username = 0
-            for w in S.wallets.values():
-                uname_w = w.get('username', '')
-                if uname_w and uname_w not in ('', 'Anonymous', 'None'):
-                    wallet_burned_username += USERNAME_COSTS.get(len(uname_w), 10)
-            est_burned_username = max(cnt.get('burned_username', 0), wallet_burned_username)
+            # total_burned is GROUND TRUTH — breakdown must never exceed it
 
             # DICE: counter + scan dice_history for losses if counter is empty
             est_burned_dice = cnt.get('burned_dice', 0)
@@ -6024,7 +6058,28 @@ def chain_stats():
                         if not game.get('won'):
                             est_burned_dice += game.get('amount', 0)
 
-            # FEES: also scan chain for fees if counter is empty
+            # LEVELS: use counter if available; fallback to wallet-derived but cap at total_burned
+            LEVEL_CUMULATIVE = {0:0, 1:100, 2:800, 3:2800, 4:12800, 5:112800, 6:612800, 7:2612800}
+            wallet_burned_levels = sum(LEVEL_CUMULATIVE.get(w.get('level', 0), 0) for w in S.wallets.values())
+            cnt_burned_levels = cnt.get('burned_levels', 0)
+            # Use counter if it looks sane (>0), else use wallet-derived capped at total_burned
+            if cnt_burned_levels > 0:
+                est_burned_levels = cnt_burned_levels
+            else:
+                est_burned_levels = min(wallet_burned_levels, total_burned)
+
+            # USERNAMES: counter first, fallback wallet-derived
+            USERNAME_COSTS = {3: 10000, 4: 1000, 5: 100}
+            wallet_burned_username = 0
+            for w in S.wallets.values():
+                uname_w = w.get('username', '')
+                if uname_w and uname_w not in ('', 'Anonymous', 'None'):
+                    wallet_burned_username += USERNAME_COSTS.get(len(uname_w), 10)
+            cnt_burned_username = cnt.get('burned_username', 0)
+            est_burned_username = cnt_burned_username if cnt_burned_username > 0 else wallet_burned_username
+
+            # FEES: counter + chain scan fallback
+            est_burned_fees = cnt.get('burned_fees', 0)
             if est_burned_fees == 0:
                 for b in S.chain:
                     for tx in b.get('transactions', []):
@@ -6032,9 +6087,18 @@ def chain_stats():
                         if fee > 0:
                             est_burned_fees += fee
 
+            est_burned_dms = cnt.get('burned_dms', 0)
+            est_burned_other = cnt.get('burned_other', 0)
+
             known_burns = est_burned_dice + est_burned_levels + est_burned_username + est_burned_fees + est_burned_dms + est_burned_other
 
-            # Untracked = whatever remains in total_burned not explained by counters
+            # If breakdown exceeds total (e.g. test levels set without burning) — scale levels down
+            if known_burns > total_burned and total_burned > 0:
+                overflow = known_burns - total_burned
+                est_burned_levels = max(0, est_burned_levels - overflow)
+                known_burns = est_burned_dice + est_burned_levels + est_burned_username + est_burned_fees + est_burned_dms + est_burned_other
+
+            # Untracked = whatever remains in total_burned not explained by breakdown
             historical_burns = round(total_burned - known_burns, 2)
             if historical_burns < 0:
                 historical_burns = 0
