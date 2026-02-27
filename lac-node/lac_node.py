@@ -816,7 +816,7 @@ def auto_mining_loop():
                             S.wallets[winner_addr]['mining_history'] = S.wallets[winner_addr]['mining_history'][-10000:]
                 
                 # mining_rewards kept for chain explorer only, wallet history is primary source
-                new_block["mining_rewards"] = [{"reward": rew} for rew in block_data["rewards"].values()]
+                new_block["mining_rewards"] = [{"address": addr, "reward": rew} for addr, rew in block_data["rewards"].items()]
                 S.chain.append(new_block)
                 
                 # Process username transactions in block
@@ -1533,32 +1533,32 @@ def get_wallet_mining():
         
         wallet = S.wallets[addr]
         
-        # Primary: wallet mining_history (written at mine time, always accurate)
+        # Primary: scan blockchain (works for all old + new blocks)
         mining_rewards = []
         total_mined = 0
-        
-        history = wallet.get('mining_history', [])
-        for entry in history:
-            mining_rewards.append({
-                'block': entry.get('block'),
-                'timestamp': entry.get('timestamp'),
-                'reward': entry.get('reward', 0),
-                'confirmed': True
-            })
-            total_mined += entry.get('reward', 0)
-        
-        # Fallback: scan chain only if wallet history is empty (old data)
-        if not mining_rewards:
-            for block in S.chain:
-                for reward in block.get('mining_rewards', []):
-                    if reward.get('address') == addr:
-                        mining_rewards.append({
-                            'block': block.get('index', 0),
-                            'timestamp': block.get('timestamp', 0),
-                            'reward': reward.get('reward', 0),
-                            'confirmed': True
-                        })
-                        total_mined += reward.get('reward', 0)
+
+        for block in S.chain:
+            for reward in block.get('mining_rewards', []):
+                if reward.get('address') == addr:
+                    mining_rewards.append({
+                        'block': block.get('index', 0),
+                        'timestamp': block.get('timestamp', 0),
+                        'reward': reward.get('reward', 0),
+                        'confirmed': True
+                    })
+                    total_mined += reward.get('reward', 0)
+
+        # Supplement with wallet history for any gaps (new blocks without address in chain)
+        chain_blocks = {r['block'] for r in mining_rewards}
+        for entry in wallet.get('mining_history', []):
+            if entry.get('block') not in chain_blocks:
+                mining_rewards.append({
+                    'block': entry.get('block'),
+                    'timestamp': entry.get('timestamp'),
+                    'reward': entry.get('reward', 0),
+                    'confirmed': True
+                })
+                total_mined += entry.get('reward', 0)
         
         # Sort by block descending, limit
         mining_rewards.sort(key=lambda x: x.get('block', 0), reverse=True)
