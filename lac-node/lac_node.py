@@ -1200,6 +1200,32 @@ def auto_cleanup():
                     m for m in S.ephemeral_msgs 
                     if now - m.get('timestamp', 0) < 300
                 ]
+                
+                # Delete media files referenced only in expired ephemeral messages
+                if MEDIA_DIR:
+                    import re as _re
+                    active_urls = set()
+                    # Collect all media URLs still referenced in active messages
+                    for m in S.ephemeral_msgs:
+                        for match in _re.findall(r'\[(?:img|voice):(/api/media/[^\]]+)\]', m.get('text','') or ''):
+                            active_urls.add(match)
+                    for m in S.persistent_msgs:
+                        for match in _re.findall(r'\[(?:img|voice):(/api/media/[^\]]+)\]', m.get('text','') or ''):
+                            active_urls.add(match)
+                    # Delete files older than 6 minutes not in active_urls
+                    deleted = 0
+                    for subdir in ('images', 'voice'):
+                        d = MEDIA_DIR / subdir
+                        if not d.exists(): continue
+                        for fp in d.iterdir():
+                            if not fp.is_file(): continue
+                            age = now - fp.stat().st_mtime
+                            url = f'/api/media/{subdir}/{fp.name}'
+                            if age > 360 and url not in active_urls:
+                                try: fp.unlink(); deleted += 1
+                                except: pass
+                    if deleted:
+                        print(f"🗑️ Deleted {deleted} expired media files")
                 # Remove L2 ephemeral group posts older than 5 minutes
                 for gid, group in S.groups.items():
                     gtype = group.get('type', 'public')

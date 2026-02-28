@@ -661,13 +661,18 @@ const uploadMedia = async (file) => {
   fd.append('file', file);
   let r, d;
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
     r = await fetch(API_BASE_URL + '/api/media/upload', {
       method: 'POST',
       headers: { 'X-Seed': seed },
-      body: fd
+      body: fd,
+      signal: controller.signal
     });
+    clearTimeout(timeout);
     d = await r.json();
   } catch(e) {
+    if (e.name === 'AbortError') throw new Error('Upload timeout (file too large?)');
     throw new Error('Network error: ' + e.message);
   }
   if (!r.ok) throw new Error(d.error || `Upload failed (${r.status})`);
@@ -678,12 +683,17 @@ const uploadMedia = async (file) => {
 // Відображення картинки в повідомленні
 const MsgImage = ({ url }) => {
   const [open, setOpen] = useState(false);
+  const [err, setErr] = useState(false);
   const full = API_BASE_URL + url;
+  if (err) return <p className="text-gray-600 text-xs italic mt-1">🖼 Image expired</p>;
   return (
     <>
-      <img src={full} alt="img" onClick={() => setOpen(true)}
-        className="max-w-[220px] max-h-[220px] rounded-xl object-cover cursor-pointer mt-1 border border-emerald-900/20"
-        loading="lazy" />
+      <div className="mt-1">
+        <img src={full} alt="img" onClick={() => setOpen(true)} onError={() => setErr(true)}
+          className="max-w-[220px] max-h-[220px] rounded-xl object-cover cursor-pointer border border-amber-900/20"
+          loading="lazy" />
+        <p className="text-amber-500/60 text-[9px] mt-0.5">⚡ L2 · auto-delete 5 min</p>
+      </div>
       {open && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
           <img src={full} alt="img" className="max-w-full max-h-full rounded-xl object-contain" />
@@ -766,15 +776,18 @@ const useVoiceRecorder = () => {
 
   const stop = () => new Promise(resolve => {
     const mr = mediaRef.current;
-    if (!mr) return resolve(null);
+    if (!mr || mr.state === 'inactive') { resolve(null); return; }
     mr.onstop = () => {
       const mime = mr.mimeType || 'audio/webm';
       const blob = new Blob(chunksRef.current, { type: mime });
       mr.stream.getTracks().forEach(t => t.stop());
+      mediaRef.current = null;   // ← reset so next start() works
+      chunksRef.current = [];
       resolve(blob);
     };
     mr.stop();
     setRecording(false);
+    setSeconds(0);
     clearInterval(timerRef.current);
   });
 
@@ -784,6 +797,8 @@ const useVoiceRecorder = () => {
       mr.stream.getTracks().forEach(t => t.stop());
       mr.stop();
     }
+    mediaRef.current = null;   // ← reset
+    chunksRef.current = [];
     setRecording(false);
     setSeconds(0);
     clearInterval(timerRef.current);
@@ -897,26 +912,28 @@ const ChatView = ({ peer, onBack, profile }) => {
     }
   };
 
-  // Upload file then send message with media_url
+  // Upload file then send as L2 ephemeral (always — media is always 5-min self-destruct)
   const sendMedia = async (file, type) => {
     if (uploading) return;
     setUploading(true);
+    toast('⏳ Uploading...', {duration: 2000});
     try {
       const up = await uploadMedia(file);
       const ts = ~~(Date.now()/1000);
-      const isEph = mode === 'ephemeral';
       const mediaText = type === 'image' ? `[img:${up.url}]` : `[voice:${up.url}]`;
+      // ALWAYS ephemeral=true for media — L2, 5-min self-destruct
       const opt = {
         from: profile?.username||profile?.address, from_address: profile?.address,
         to: peer.address, text: mediaText, timestamp: ts,
-        direction: 'sent', ephemeral: isEph, msg_type: isEph?'ephemeral':'regular',
+        direction: 'sent', ephemeral: true, msg_type: 'ephemeral',
         _opt: true, media_url: up.url, media_type: up.type
       };
       localMsgs.current = [...localMsgs.current, opt];
       setMsgs([...localMsgs.current]);
       lastJson.current = '';
-      await post('/api/message.send', { to: peer.address, text: mediaText, ephemeral: isEph });
+      await post('/api/message.send', { to: peer.address, text: mediaText, ephemeral: true });
       setImgPreview(null);
+      toast.success(type === 'image' ? '🖼 Image sent (L2 · 5min)' : '🎤 Voice sent (L2 · 5min)');
     } catch(e) {
       console.error('Media upload error:', e);
       toast.error('❌ ' + (e.message || 'Upload failed'));
@@ -941,8 +958,10 @@ const ChatView = ({ peer, onBack, profile }) => {
 
   const handleVoiceStop = async () => {
     const blob = await voice.stop();
-    if (!blob || blob.size < 1000) { toast.error('Too short'); return; }
-    const file = new File([blob], 'voice.webm', { type: blob.type });
+    if (!blob) { toast.error('Recording failed'); return; }
+    if (blob.size < 500) { toast.error('Too short — hold longer'); return; }
+    const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
+    const file = new File([blob], `voice.${ext}`, { type: blob.type });
     await sendMedia(file, 'voice');
   };
 
@@ -1019,12 +1038,15 @@ const ChatView = ({ peer, onBack, profile }) => {
       </div>}
       {/* Image preview before send */}
       {imgPreview && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-[#0a1a15] border-t border-emerald-900/30">
-          <img src={imgPreview.url} alt="preview" className="w-14 h-14 rounded-lg object-cover border border-emerald-900/30" />
-          <div className="flex-1 min-w-0"><p className="text-gray-400 text-xs">Send image?</p></div>
+        <div className="flex items-center gap-2 px-3 py-2 bg-[#0a1a15] border-t border-amber-900/30">
+          <img src={imgPreview.url} alt="preview" className="w-14 h-14 rounded-lg object-cover border border-amber-900/30" />
+          <div className="flex-1 min-w-0">
+            <p className="text-amber-400 text-[10px] font-semibold">⚡ L2 · Auto-delete 5 min</p>
+            <p className="text-gray-500 text-[10px]">Image will self-destruct</p>
+          </div>
           <button onClick={() => sendMedia(imgPreview.file, 'image')} disabled={uploading}
-            className="px-3 py-1.5 bg-emerald-600 text-white text-xs rounded-lg disabled:opacity-40">
-            {uploading ? '⏳' : '✓ Send'}
+            className="px-3 py-1.5 bg-amber-600 text-white text-xs rounded-lg disabled:opacity-40 font-semibold">
+            {uploading ? '⏳' : '⚡ Send'}
           </button>
           <button onClick={() => setImgPreview(null)} className="text-gray-600 hover:text-gray-400"><X className="w-4 h-4" /></button>
         </div>
@@ -1033,9 +1055,9 @@ const ChatView = ({ peer, onBack, profile }) => {
       {voice.recording && (
         <div className="flex items-center gap-3 px-4 py-2 bg-red-900/20 border-t border-red-900/30">
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-red-400 text-sm flex-1">Recording… {voice.seconds}s</span>
+          <span className="text-red-400 text-sm flex-1">🎤 {voice.seconds}s · <span className="text-amber-400 text-xs">⚡ L2</span></span>
           <button onClick={voice.cancel} className="text-gray-500 text-xs">Cancel</button>
-          <button onClick={handleVoiceStop} className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg">⏹ Stop</button>
+          <button onClick={handleVoiceStop} className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg">⏹ Send</button>
         </div>
       )}
       <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
@@ -1048,11 +1070,16 @@ const ChatView = ({ peer, onBack, profile }) => {
             className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-emerald-400 disabled:opacity-30">
             <FileImage className="w-5 h-5" />
           </button>
-          {/* Voice message */}
+          {/* Voice message — requires HTTPS; on HTTP shows helpful message */}
           <button
-            onMouseDown={voice.start} onTouchStart={voice.start}
+            onMouseDown={voice.start}
+            onMouseUp={voice.recording ? handleVoiceStop : undefined}
+            onTouchStart={e => { e.preventDefault(); voice.start(); }}
+            onTouchEnd={e => { e.preventDefault(); if(voice.recording) handleVoiceStop(); }}
             disabled={uploading}
-            className={`w-9 h-9 flex items-center justify-center disabled:opacity-30 ${voice.recording ? 'text-red-400' : 'text-gray-500 hover:text-emerald-400'}`}>
+            title={!navigator.mediaDevices ? 'Needs HTTPS — upload audio file via 📎' : 'Hold to record (L2 · 5min)'}
+            className={`w-9 h-9 flex items-center justify-center disabled:opacity-30 select-none
+              ${voice.recording ? 'text-red-400 scale-110' : 'text-gray-500 hover:text-amber-400'} transition-transform`}>
             {voice.recording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
           </button>
           <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key==='Enter'&&!e.shiftKey&&send()}
