@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# gevent monkey-patch — must be FIRST, before all imports
+try:
+    from gevent import monkey; monkey.patch_all()
+except ImportError:
+    pass  # fallback to standard threading if gevent not installed
 """
 LAC Node - SECURED VERSION + FIXED ENDPOINTS
 Анонімність + Захист від атак + Всі API endpoints
@@ -5270,7 +5275,14 @@ Supply: {sum(w.get('balance', 0) for w in S.wallets.values()):.2f} LAC
         print(f"⚠️ Anonymous Groups plugin not loaded: {e}")
         sys.stdout.flush()
     
-    app.run(host='0.0.0.0', port=args.port, debug=False, use_reloader=False, threaded=True)
+    try:
+        from gevent.pywsgi import WSGIServer
+        print(f"🚀 gevent WSGIServer on port {args.port} — async, handles 1000+ concurrent requests")
+        http_server = WSGIServer(('0.0.0.0', args.port), app)
+        http_server.serve_forever()
+    except ImportError:
+        print("⚠️ gevent not installed — fallback to threaded Flask")
+        app.run(host='0.0.0.0', port=args.port, debug=False, use_reloader=False, threaded=True)
 
 
 @app.route('/api/pruning/stats', methods=['GET'])

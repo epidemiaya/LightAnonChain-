@@ -1000,9 +1000,7 @@ const ChatView = ({ peer, onBack, profile }) => {
     try {
       const peer = encodeURIComponent(resolvedAddr.current);
       // Use long-poll when we have a baseline, else normal fetch
-      const url = usePoll && lastTs.current > 0
-        ? `/api/chat/poll?peer=${peer}&since=${lastTs.current}`
-        : `/api/chat?peer=${peer}`;
+      const url = `/api/chat?peer=${peer}`;
       const r = await get(url);
       if (r.peer_addr && r.peer_addr.startsWith('lac')) resolvedAddr.current = r.peer_addr;
       if (r.peer_online !== undefined) setPeerOnline(r.peer_online);
@@ -1016,23 +1014,11 @@ const ChatView = ({ peer, onBack, profile }) => {
     } catch {}
   };
 
-  // Long-poll loop: first load is immediate, polling starts after
+  // Simple polling every 1500ms
   useEffect(() => {
-    let active = true;
-    load(false); // initial fast load
-    const loop = async () => {
-      await new Promise(r => setTimeout(r, 600)); // wait for first render
-      while (active) {
-        if (!polling.current && !document.hidden) {
-          polling.current = true;
-          await load(true).catch(() => {});
-          polling.current = false;
-        }
-        if (active) await new Promise(r => setTimeout(r, 100));
-      }
-    };
-    loop();
-    return () => { active = false; };
+    load(false);
+    const i = setInterval(() => { if (!document.hidden) load(false); }, 1500);
+    return () => clearInterval(i);
   }, []);
   useEffect(() => { end.current?.scrollIntoView({behavior:'smooth'}); }, [msgs]);
 
