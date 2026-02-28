@@ -10,7 +10,8 @@ import {
   Clock, Hash, Award, Zap, Download, Upload, Search, X, Menu,
   RefreshCw, AlertTriangle, Check, Globe, Trash2, Star, Phone,
   Activity, Blocks, TrendingUp, QrCode, Network, Bell, Filter,
-  ChevronDown, Bookmark, Gift, Flame, Timer, Link2, UserPlus, ArrowUpRight, ArrowDownLeft, Skull
+  ChevronDown, Bookmark, Gift, Flame, Timer, Link2, UserPlus, ArrowUpRight, ArrowDownLeft, Skull,
+  Image, Mic, MicOff, Play, Pause, Volume2, FileImage
 } from 'lucide-react';
 
 // ─── API Layer ────────────────────────────────────────
@@ -647,6 +648,136 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
   );
 };
 
+
+// ━━━ MEDIA UTILS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
+const uploadMedia = async (file) => {
+  const seed = localStorage.getItem('lac_seed');
+  const fd = new FormData();
+  fd.append('file', file);
+  const r = await fetch(API_BASE_URL + '/api/media/upload', {
+    method: 'POST',
+    headers: { 'X-Seed': seed },
+    body: fd
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || 'Upload failed');
+  return d;
+};
+
+// Відображення картинки в повідомленні
+const MsgImage = ({ url }) => {
+  const [open, setOpen] = useState(false);
+  const full = API_BASE_URL + url;
+  return (
+    <>
+      <img src={full} alt="img" onClick={() => setOpen(true)}
+        className="max-w-[220px] max-h-[220px] rounded-xl object-cover cursor-pointer mt-1 border border-emerald-900/20"
+        loading="lazy" />
+      {open && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+          <img src={full} alt="img" className="max-w-full max-h-full rounded-xl object-contain" />
+        </div>
+      )}
+    </>
+  );
+};
+
+// Голосове повідомлення — плеєр
+const VoicePlayer = ({ url }) => {
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef(null);
+  const full = API_BASE_URL + url;
+
+  useEffect(() => {
+    const a = new Audio(full);
+    audioRef.current = a;
+    a.onloadedmetadata = () => setDuration(a.duration);
+    a.ontimeupdate = () => setProgress(a.currentTime / (a.duration || 1));
+    a.onended = () => { setPlaying(false); setProgress(0); };
+    return () => { a.pause(); a.src = ''; };
+  }, [full]);
+
+  const toggle = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (playing) { a.pause(); setPlaying(false); }
+    else { a.play(); setPlaying(true); }
+  };
+
+  const fmt = (s) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+
+  return (
+    <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-black/20 rounded-xl min-w-[180px]">
+      <button onClick={toggle} className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
+        {playing ? <Pause className="w-3.5 h-3.5 text-white" /> : <Play className="w-3.5 h-3.5 text-white ml-0.5" />}
+      </button>
+      <div className="flex-1">
+        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+          <div className="h-full bg-emerald-400 rounded-full transition-all" style={{width:`${progress*100}%`}} />
+        </div>
+        <p className="text-[9px] text-gray-500 mt-0.5">{fmt(duration * progress)} / {fmt(duration)}</p>
+      </div>
+      <Volume2 className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+    </div>
+  );
+};
+
+// Запис голосового повідомлення
+const useVoiceRecorder = () => {
+  const [recording, setRecording] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const mediaRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
+
+  const start = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg' });
+      chunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.start(100);
+      mediaRef.current = mr;
+      setRecording(true);
+      setSeconds(0);
+      timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
+    } catch(e) {
+      toast.error('Мікрофон недоступний: ' + e.message);
+    }
+  };
+
+  const stop = () => new Promise(resolve => {
+    const mr = mediaRef.current;
+    if (!mr) return resolve(null);
+    mr.onstop = () => {
+      const mime = mr.mimeType || 'audio/webm';
+      const blob = new Blob(chunksRef.current, { type: mime });
+      mr.stream.getTracks().forEach(t => t.stop());
+      resolve(blob);
+    };
+    mr.stop();
+    setRecording(false);
+    clearInterval(timerRef.current);
+  });
+
+  const cancel = () => {
+    const mr = mediaRef.current;
+    if (mr && mr.state !== 'inactive') {
+      mr.stream.getTracks().forEach(t => t.stop());
+      mr.stop();
+    }
+    setRecording(false);
+    setSeconds(0);
+    clearInterval(timerRef.current);
+  };
+
+  return { recording, seconds, start, stop, cancel };
+};
+
 // ━━━ CHAT VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const notifSound = (() => {
   try {
@@ -671,6 +802,10 @@ const ChatView = ({ peer, onBack, profile }) => {
   const [replyTo, setReplyTo] = useState(null); // {text, from} for reply
   const [reactTo, setReactTo] = useState(null); // msg index for emoji picker
   const [peerOnline, setPeerOnline] = useState(false);
+  const [imgPreview, setImgPreview] = useState(null); // {file, url} for image preview
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+  const voice = useVoiceRecorder();
   const end = useRef(null);
   const resolvedAddr = useRef(peer.address);
   const localMsgs = useRef([]); // client-side message store (source of truth)
@@ -748,6 +883,48 @@ const ChatView = ({ peer, onBack, profile }) => {
     }
   };
 
+  // Upload file then send message with media_url
+  const sendMedia = async (file, type) => {
+    if (uploading) return;
+    setUploading(true);
+    try {
+      const up = await uploadMedia(file);
+      const ts = ~~(Date.now()/1000);
+      const isEph = mode === 'ephemeral';
+      const mediaText = type === 'image' ? `[img:${up.url}]` : `[voice:${up.url}]`;
+      const opt = {
+        from: profile?.username||profile?.address, from_address: profile?.address,
+        to: peer.address, text: mediaText, timestamp: ts,
+        direction: 'sent', ephemeral: isEph, msg_type: isEph?'ephemeral':'regular',
+        _opt: true, media_url: up.url, media_type: up.type
+      };
+      localMsgs.current = [...localMsgs.current, opt];
+      setMsgs([...localMsgs.current]);
+      lastJson.current = '';
+      await post('/api/message.send', { to: peer.address, text: mediaText, ephemeral: isEph });
+      setImgPreview(null);
+    } catch(e) {
+      toast.error('Upload failed: ' + e.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleImagePick = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setImgPreview({ file, url });
+    e.target.value = '';
+  };
+
+  const handleVoiceStop = async () => {
+    const blob = await voice.stop();
+    if (!blob || blob.size < 1000) { toast.error('Too short'); return; }
+    const file = new File([blob], 'voice.webm', { type: blob.type });
+    await sendMedia(file, 'voice');
+  };
+
   const peerName = peer.name && peer.name.length < 30 ? peer.name : sAddr(peer.address);
   const myAddr = profile?.address;
 
@@ -779,7 +956,15 @@ const ChatView = ({ peer, onBack, profile }) => {
                 className={`max-w-[78%] px-3.5 py-2 rounded-2xl cursor-pointer active:opacity-80 ${burned?'bg-gray-900/50 border border-gray-800':mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
                 {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{m.from||sAddr(m.from_address)}</p>}
                 {m.reply_to && <div className={`text-[11px] px-2 py-1 rounded-lg mb-1.5 border-l-2 ${mine?'bg-emerald-800/30 border-emerald-400/40':'bg-gray-800/50 border-purple-400/40'}`}><p className={`font-medium text-[10px] ${mine?'text-emerald-300/70':'text-purple-400/70'}`}>{m.reply_to.from}</p><p className={`truncate ${mine?'text-emerald-200/50':'text-gray-400'}`}>{m.reply_to.text}</p></div>}
-                <p className={`text-[14px] leading-snug break-words ${burned?'text-gray-600 italic':''}`} style={{overflowWrap:'anywhere'}}>{m.text||m.message}</p>
+                {/* Media rendering */}
+                {(() => {
+                  const txt = m.text||m.message||'';
+                  const imgMatch = txt.match(/^\[img:(\/api\/media\/[^\]]+)\]$/);
+                  const voiceMatch = txt.match(/^\[voice:(\/api\/media\/[^\]]+)\]$/);
+                  if (imgMatch) return <MsgImage url={imgMatch[1]} />;
+                  if (voiceMatch) return <VoicePlayer url={voiceMatch[1]} />;
+                  return <p className={`text-[14px] leading-snug break-words ${burned?'text-gray-600 italic':''}`} style={{overflowWrap:'anywhere'}}>{txt}</p>;
+                })()}
                 {m.pol && <div className="flex items-center gap-1 mt-1 px-2 py-1 bg-blue-900/20 border border-blue-800/20 rounded-lg"><span className="text-[9px]">📍</span><span className="text-blue-400 text-[10px] font-medium">{m.pol.zone}</span><span className="text-blue-600 text-[9px]">verified</span></div>}
                 <div className={`flex items-center gap-1.5 mt-0.5 ${mine?'justify-end':''}`}>
                   {isEph && <span className="text-[9px] opacity-50">⏱</span>}
@@ -811,12 +996,49 @@ const ChatView = ({ peer, onBack, profile }) => {
         <div className="flex-1 border-l-2 border-emerald-500 pl-2 min-w-0"><p className="text-emerald-400 text-[10px] font-medium">{replyTo.from}</p><p className="text-gray-400 text-[11px] truncate">{replyTo.text}</p></div>
         <button onClick={() => setReplyTo(null)} className="text-gray-600 hover:text-gray-400 shrink-0"><X className="w-4 h-4" /></button>
       </div>}
+      {/* Image preview before send */}
+      {imgPreview && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-[#0a1a15] border-t border-emerald-900/30">
+          <img src={imgPreview.url} alt="preview" className="w-14 h-14 rounded-lg object-cover border border-emerald-900/30" />
+          <div className="flex-1 min-w-0"><p className="text-gray-400 text-xs">Send image?</p></div>
+          <button onClick={() => sendMedia(imgPreview.file, 'image')} disabled={uploading}
+            className="px-3 py-1.5 bg-emerald-600 text-white text-xs rounded-lg disabled:opacity-40">
+            {uploading ? '⏳' : '✓ Send'}
+          </button>
+          <button onClick={() => setImgPreview(null)} className="text-gray-600 hover:text-gray-400"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+      {/* Voice recording indicator */}
+      {voice.recording && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-red-900/20 border-t border-red-900/30">
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-red-400 text-sm flex-1">Recording… {voice.seconds}s</span>
+          <button onClick={voice.cancel} className="text-gray-500 text-xs">Cancel</button>
+          <button onClick={handleVoiceStop} className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg">⏹ Stop</button>
+        </div>
+      )}
       <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
+        {/* Hidden file input */}
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImagePick} />
         <div className="flex gap-2 items-end">
+          {/* Attach image */}
+          <button onClick={() => fileInputRef.current?.click()} disabled={uploading || voice.recording}
+            className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-emerald-400 disabled:opacity-30">
+            <Image className="w-5 h-5" />
+          </button>
+          {/* Voice message */}
+          <button
+            onMouseDown={voice.start} onTouchStart={voice.start}
+            disabled={uploading}
+            className={`w-9 h-9 flex items-center justify-center disabled:opacity-30 ${voice.recording ? 'text-red-400' : 'text-gray-500 hover:text-emerald-400'}`}>
+            {voice.recording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          </button>
           <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key==='Enter'&&!e.shiftKey&&send()}
             className="flex-1 bg-[#0a1a15] text-white px-4 py-2.5 rounded-2xl text-sm outline-none border border-emerald-900/30 focus:border-emerald-600/40 placeholder-gray-600"
-            placeholder={mode==='ephemeral'?'Ephemeral (5min)…':mode==='burn'?'🔥 Burn after read…':'Message…'} />
-          <button onClick={send} disabled={sending||!text.trim()} className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shrink-0 disabled:opacity-30 shadow-lg shadow-emerald-600/20">
+            placeholder={voice.recording ? '' : mode==='ephemeral'?'Ephemeral (5min)…':mode==='burn'?'🔥 Burn after read…':'Message…'}
+            disabled={voice.recording} />
+          <button onClick={send} disabled={sending||!text.trim()||uploading||voice.recording}
+            className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shrink-0 disabled:opacity-30 shadow-lg shadow-emerald-600/20">
             <Send className="w-4 h-4 text-white ml-0.5" />
           </button>
         </div>

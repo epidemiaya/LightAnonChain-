@@ -262,12 +262,33 @@ class LACPoETMiningV3:
             )
             weights.append(weight)
         
-        # Weighted random selection (WITH replacement - can win multiple times)
+        # Weighted random selection WITHOUT replacement per block
+        # Same address can win max 2 lottery slots (fair distribution)
+        MAX_LOTTERY_WINS_PER_ADDR = 2
+        addr_lottery_wins = Counter()
         winners = []
-        for _ in range(exact_count):
-            winner = random.choices(eligible, weights=weights, k=1)[0]
-            winners.append(winner)
-        
+        attempts = 0
+        max_attempts = exact_count * 10  # prevent infinite loop
+
+        while len(winners) < exact_count and attempts < max_attempts:
+            attempts += 1
+            if not eligible:
+                break
+            # Pick one weighted
+            pick = random.choices(eligible, weights=weights, k=1)[0]
+            if addr_lottery_wins[pick['address']] < MAX_LOTTERY_WINS_PER_ADDR:
+                winners.append(pick)
+                addr_lottery_wins[pick['address']] += 1
+            # If we keep failing, relax the cap
+            if attempts > exact_count * 5:
+                MAX_LOTTERY_WINS_PER_ADDR = 3
+
+        # Fallback: fill remaining with any miner
+        if len(winners) < exact_count and eligible:
+            needed = exact_count - len(winners)
+            extra = random.choices(eligible, weights=weights, k=needed)
+            winners.extend(extra)
+
         return winners
     
     def update_win_history(self, winners: List[str]):

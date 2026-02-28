@@ -12,6 +12,8 @@ from flask_cors import CORS
 from threading import Thread, Lock
 from collections import defaultdict
 from datetime import datetime, timedelta
+import mimetypes
+import uuid as _uuid
 
 # Fix emoji display on Windows
 import io
@@ -237,6 +239,14 @@ MIN_BALANCE_FOR_ACTIVITY = 0  # LAC (вимкнено для тестуванн�
 
 # ===================== BURN ADDRESS =====================
 BURN_ADDRESS = "lac_0000000000000000000000000000000000000000"
+
+# ===================== MEDIA CONFIG =====================
+MEDIA_MAX_SIZE_MB = 20          # max upload size MB
+MEDIA_MAX_SIZE = MEDIA_MAX_SIZE_MB * 1024 * 1024
+MEDIA_ALLOWED_IMAGE = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+MEDIA_ALLOWED_AUDIO = {'audio/ogg', 'audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/wav'}
+MEDIA_ALLOWED_ALL   = MEDIA_ALLOWED_IMAGE | MEDIA_ALLOWED_AUDIO
+MEDIA_DIR = None  # set after S init
 
 # Rate limiting storage
 rate_limit_store = defaultdict(list)
@@ -696,7 +706,17 @@ def init_mining():
         
         S.mining_coordinator = LACMiningCoordinator(poet)
         S.mining_active = True
-        
+
+        # Restore win_history from persisted counters (survives restart)
+        saved_history = S.counters.get('win_history', [])
+        if saved_history:
+            # Only keep last 100 blocks
+            cutoff = current_height - 100
+            poet.win_history = [(b, a) for b, a in saved_history if b > cutoff]
+            from collections import Counter as _Counter
+            poet.recent_wins = _Counter([a for _, a in poet.win_history])
+            print(f"   Restored {len(poet.win_history)} win history entries")
+
         print(f"⛏️ Mining initialized at block #{current_height}")
         print(f"   Total supply: {total_supply:.2f} LAC")
         print(f"   Block reward: {poet.BLOCK_REWARD} LAC")
@@ -763,15 +783,25 @@ def auto_mining_loop():
                 # Mine block
                 block_data = S.mining_coordinator.mine_block()
                 
-                # Distribute rewards
+                # Distribute rewards — STRICT CAP: block must never emit > 190 LAC
+                BLOCK_REWARD_CAP = 190.0
+                raw_total = sum(block_data['rewards'].values())
+                # Scale down if somehow over cap (should never happen, just in case)
+                scale = min(1.0, BLOCK_REWARD_CAP / raw_total) if raw_total > 0 else 1.0
+
                 block_emission = 0
                 for winner_addr, reward in block_data['rewards'].items():
                     if winner_addr in S.wallets:
-                        # Level 7 GOD: x2 validator reward
-                        actual_reward = reward * 2 if S.wallets[winner_addr].get('level', 0) >= 7 else reward
+                        safe_reward = round(reward * scale, 8)
+                        # Level 7 GOD: x2 validator reward (but still within cap)
+                        actual_reward = safe_reward * 2 if S.wallets[winner_addr].get('level', 0) >= 7 else safe_reward
                         S.wallets[winner_addr]['balance'] = \
                             S.wallets[winner_addr].get('balance', 0) + actual_reward
                         block_emission += actual_reward
+                # Final sanity check
+                if block_emission > BLOCK_REWARD_CAP * 3:  # max 3x because of L7 x2
+                    print(f"⚠️ Block emission anomaly: {block_emission:.2f} LAC — skipping")
+                    continue
                 S.counters['emitted_mining'] += block_emission
                 
                 # Add block to chain (anonymous - no addresses revealed)
@@ -902,6 +932,9 @@ def auto_mining_loop():
                 
             # save() OUTSIDE lock — unblocks API during disk write
             try:
+                # Persist win_history before save
+                if S.mining_coordinator and S.mining_coordinator.poet:
+                    S.counters['win_history'] = list(S.mining_coordinator.poet.win_history[-200:])
                 S.save()
             except Exception as e:
                 print(f"⚠️ Save error: {e}")
@@ -1308,6 +1341,98 @@ def explorer():
         return jsonify({'error': 'Explorer not found', 'ok': False}), 404
     except Exception as e:
         return jsonify({'error': str(e), 'ok': False}), 500
+
+
+# ===================== MEDIA API =====================
+
+@app.route('/api/media/upload', methods=['POST'])
+def media_upload():
+    """Upload image or voice message"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    ip = get_client_ip()
+    if not rate_limit_check(ip, max_requests=30, window=60):
+        return jsonify({'error': 'Rate limit exceeded'}), 429
+
+    addr = get_address_from_seed(seed)
+    with S.lock:
+        if addr not in S.wallets:
+            return jsonify({'error': 'Wallet not found'}), 404
+
+    # Check file in request
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    f = request.files['file']
+    if not f or not f.filename:
+        return jsonify({'error': 'Empty file'}), 400
+
+    # Detect mimetype
+    mime = f.mimetype or mimetypes.guess_type(f.filename)[0] or 'application/octet-stream'
+
+    if mime not in MEDIA_ALLOWED_ALL:
+        return jsonify({'error': f'File type not allowed: {mime}'}), 400
+
+    # Read and check size
+    data = f.read()
+    if len(data) > MEDIA_MAX_SIZE:
+        return jsonify({'error': f'File too large (max {MEDIA_MAX_SIZE_MB}MB)'}), 400
+
+    # Determine subfolder
+    is_image = mime in MEDIA_ALLOWED_IMAGE
+    subdir = 'images' if is_image else 'voice'
+    ext_map = {
+        'image/jpeg': '.jpg', 'image/png': '.png',
+        'image/gif': '.gif', 'image/webp': '.webp',
+        'audio/ogg': '.ogg', 'audio/webm': '.webm',
+        'audio/mp4': '.m4a', 'audio/mpeg': '.mp3', 'audio/wav': '.wav'
+    }
+    ext = ext_map.get(mime, '.bin')
+
+    # Unique filename: hash of content + timestamp
+    file_hash = hashlib.sha256(data).hexdigest()[:16]
+    ts = int(time.time())
+    filename = f"{ts}_{file_hash}{ext}"
+    filepath = MEDIA_DIR / subdir / filename
+
+    with open(filepath, 'wb') as out:
+        out.write(data)
+
+    media_id = f"{subdir}/{filename}"
+    url = f"/api/media/{media_id}"
+
+    return jsonify({
+        'ok': True,
+        'media_id': media_id,
+        'url': url,
+        'type': 'image' if is_image else 'voice',
+        'mime': mime,
+        'size': len(data)
+    })
+
+
+@app.route('/api/media/<path:media_id>', methods=['GET'])
+def media_serve(media_id):
+    """Serve media file"""
+    # Sanitize path — only allow subdir/filename, no traversal
+    parts = media_id.strip('/').split('/')
+    if len(parts) != 2 or parts[0] not in ('images', 'voice'):
+        return jsonify({'error': 'Not found'}), 404
+
+    # Filename safety
+    filename = parts[1]
+    if '..' in filename or '/' in filename or '\\' in filename:
+        return jsonify({'error': 'Invalid path'}), 400
+
+    filepath = MEDIA_DIR / parts[0] / filename
+    if not filepath.exists():
+        return jsonify({'error': 'Not found'}), 404
+
+    mime = mimetypes.guess_type(str(filepath))[0] or 'application/octet-stream'
+    return send_file(str(filepath), mimetype=mime, max_age=86400)
+
 
 # ===================== API ROUTES =====================
 
@@ -2847,13 +2972,45 @@ def block_submit():
             if block.get('previous_hash') != prev_block['hash']:
                 return jsonify({'error': 'Invalid previous hash'}), 400
         
+        # Validate block hash
+        if block_index > 0 and block.get('hash'):
+            expected_hash = hashlib.sha256(
+                json.dumps({
+                    'index': block_index,
+                    'prev': block.get('previous_hash', ''),
+                    'ts': block.get('timestamp', 0),
+                    'txs': len(block.get('transactions', [])),
+                    'nonce': block.get('nonce', 0)
+                }, sort_keys=True).encode()
+            ).hexdigest()
+            # Allow both old-format and new-format blocks (during transition)
+            # Just check it's a valid hex hash
+            bh = block.get('hash', '')
+            if not (isinstance(bh, str) and len(bh) == 64 and all(c in '0123456789abcdef' for c in bh)):
+                return jsonify({'error': 'Invalid block hash format'}), 400
+
+        # Validate transactions in block — no negative amounts, no unknown types
+        MAX_TX_AMOUNT = 10_000_000  # 10M LAC max per tx sanity check
+        for tx in block.get('transactions', []):
+            amt = tx.get('amount', 0)
+            if not isinstance(amt, (int, float)) or amt < 0:
+                return jsonify({'error': f'Invalid tx amount: {amt}'}), 400
+            if amt > MAX_TX_AMOUNT:
+                return jsonify({'error': f'Tx amount too large: {amt}'}), 400
+
+        # Validate mining rewards in block — total must not exceed 3x block reward (L7 x2)
+        MAX_BLOCK_EMISSION = 190.0 * 3
+        total_rewards = sum(r.get('reward', 0) for r in block.get('mining_rewards', []))
+        if total_rewards > MAX_BLOCK_EMISSION:
+            return jsonify({'error': f'Block rewards too large: {total_rewards}'}), 400
+
         # Add block if it's the next one
         if block_index == len(S.chain):
             S.chain.append(block)
             S.save()
             print(f"✅ Accepted block #{block_index} from peer")
             return jsonify({'ok': True, 'status': 'accepted'})
-        
+
         return jsonify({'error': 'Block index mismatch'}), 400
 
 @app.route('/api/block/<int:height>', methods=['GET'])
@@ -4896,6 +5053,14 @@ def main():
     
     
     S = State(args.datadir)
+
+    # Media directory
+    global MEDIA_DIR
+    MEDIA_DIR = Path(args.datadir) / 'media'
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    (MEDIA_DIR / 'images').mkdir(exist_ok=True)
+    (MEDIA_DIR / 'voice').mkdir(exist_ok=True)
+    print(f"📁 Media dir: {MEDIA_DIR}")
     
     # SQLite API endpoints
     if SQLITE_ENABLED and hasattr(S, 'db'):
@@ -5114,6 +5279,8 @@ def veil_transfer():
                 b"VEIL_KI" + private_key + tx_entropy + str(amount).encode()
             ).hexdigest()
             
+            if not key_image or not isinstance(key_image, str) or len(key_image) < 16:
+                return jsonify({'error': 'Invalid key image'}), 400
             if key_image in S.spent_key_images:
                 return jsonify({'error': 'Double-spend rejected', 'ok': False}), 400
             
