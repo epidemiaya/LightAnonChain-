@@ -410,6 +410,42 @@ const MainApp = ({ onLogout }) => {
   const reload = useCallback(async () => { try { setProfile(await get('/api/profile')); } catch {} }, []);
   useEffect(() => { reload(); const i = setInterval(reload, 10000); return () => clearInterval(i); }, [reload]);
 
+  // ── PWA Push Notifications setup ──
+  const lastMsgCount = useRef(0);
+  const notifEnabled = useRef(false);
+  const requestNotifPermission = useCallback(async () => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') { notifEnabled.current = true; return; }
+    if (Notification.permission !== 'denied') {
+      const p = await Notification.requestPermission();
+      notifEnabled.current = p === 'granted';
+    }
+  }, []);
+  useEffect(() => { requestNotifPermission(); }, []);
+
+  const sendPushNotif = useCallback((title, body) => {
+    if (!notifEnabled.current || document.visibilityState === 'visible') return;
+    try { new Notification(title, { body, icon: '/icon-192.png', badge: '/icon-192.png', silent: false }); } catch {}
+  }, []);
+
+  // ── Poll inbox for new messages, fire push if app in background ──
+  useEffect(() => {
+    const checkMsgs = async () => {
+      try {
+        const r = await get('/api/inbox');
+        const msgs = r.messages || [];
+        const incoming = msgs.filter(m => m.direction === 'received').length;
+        if (lastMsgCount.current > 0 && incoming > lastMsgCount.current) {
+          const newMsgs = msgs.filter(m => m.direction === 'received').slice(0, incoming - lastMsgCount.current);
+          newMsgs.forEach(m => sendPushNotif('💬 LAC — New message', `${m.from || 'Someone'}: ${(m.text||'').slice(0,80)}`));
+        }
+        lastMsgCount.current = incoming;
+      } catch {}
+    };
+    const i = setInterval(checkMsgs, 5000);
+    return () => clearInterval(i);
+  }, [sendPushNotif]);
+
   const handlePanic = () => {
     panicClicks.current += 1;
     if (panicTimer.current) clearTimeout(panicTimer.current);
@@ -1147,7 +1183,12 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
 
 const MiningMini = () => {
   const [d, setD] = useState(null);
-  useEffect(() => { get('/api/wallet/mining?limit=500').then(setD).catch(() => {}); }, []);
+  useEffect(() => {
+    const load = () => get('/api/wallet/mining?limit=500').then(setD).catch(() => {});
+    load();
+    const i = setInterval(load, 15000);
+    return () => clearInterval(i);
+  }, []);
   if (!d) return <p className="text-gray-600 text-xs">Loading…</p>;
   const earned = d.total_mined || 0;
   const mined = d.count || 0;
@@ -1548,7 +1589,12 @@ const DeadManSwitchView = ({ onBack, profile, onDone }) => {
 // ━━━ MINING ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const MiningView = ({ onBack, profile }) => {
   const [d, setD] = useState(null);
-  useEffect(() => { get('/api/wallet/mining?limit=50').then(setD).catch(()=>{}); }, []);
+  useEffect(() => {
+    const load = () => get('/api/wallet/mining?limit=50').then(setD).catch(()=>{});
+    load();
+    const i = setInterval(load, 15000);
+    return () => clearInterval(i);
+  }, []);
   const p = profile||{};
   const rewards = d?.mining_rewards || [];
   const earned = d?.total_mined || 0;
@@ -2297,6 +2343,19 @@ const ExploreTab = ({ onNav, onMenu }) => {
 };
 
 // ━━━ PROFILE TAB ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const NotifToggle = () => {
+  const [perm, setPerm] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
+  if (perm === 'unsupported') return null;
+  const request = async () => {
+    const p = await Notification.requestPermission();
+    setPerm(p);
+    if (p === 'granted') toast.success('🔔 Notifications enabled!');
+  };
+  if (perm === 'granted') return <span className="text-emerald-400 text-xs">🔔 Enabled</span>;
+  if (perm === 'denied') return <span className="text-red-400 text-xs">🔕 Blocked in browser settings</span>;
+  return <button onClick={request} className="text-amber-400 text-xs underline">Enable</button>;
+};
+
 const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
   const p = profile||{};
   const [upg, setUpg] = useState(false);
@@ -2339,6 +2398,7 @@ const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
           onClick={() => setLang(lang==='uk'?'en':'uk')} />
         <ListItem icon={<span className="text-lg">🤝</span>} title="Referral" sub="Invite friends, earn LAC"
           onClick={() => onNav({type:'referral'})} />
+          <ListItem icon={<Bell className="w-5 h-5 text-amber-500" />} title="Push Notifications" right={<NotifToggle />} />
         <div className="h-px bg-gray-800/30 my-2" />
         <ListItem icon={<LogOut className="w-5 h-5 text-red-400"/>} title={t('logout')} sub="Save seed first!" onClick={() => { if(confirm('Make sure seed is saved!')) onLogout(); }} />
       </div>

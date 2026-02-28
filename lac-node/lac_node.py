@@ -1189,6 +1189,16 @@ def auto_cleanup():
                     print(f"🧹 Removed {len(stale)} stale sessions")
                 # ===== END SESSION CLEANUP =====
                 
+                # ===== REACTIONS CLEANUP (older than 7 days) =====
+                week_ago = now - 604800
+                stale_rxn = [k for k, v in S.reactions.items()
+                             if int(k.split('|')[-1] or 0) < week_ago]
+                for k in stale_rxn:
+                    del S.reactions[k]
+                if stale_rxn:
+                    print(f"🧹 Cleaned {len(stale_rxn)} old reactions")
+                # ===== END REACTIONS CLEANUP =====
+                
                 # ===== DEAD MAN'S SWITCH CHECK =====
                 for addr, wallet in list(S.wallets.items()):
                     dms = wallet.get('dead_mans_switch')
@@ -1314,7 +1324,7 @@ def ping():
 def register():
     """Register new wallet"""
     ip = get_client_ip()
-    if not rate_limit_check(ip, max_requests=100, window=3600):
+    if not rate_limit_check(ip, max_requests=5, window=3600):
         return jsonify({'error': 'Rate limit exceeded'}), 429
     
     data = request.get_json() or {}
@@ -1901,6 +1911,9 @@ def send_message():
     
     if not to or not text:
         return jsonify({'error': 'Recipient and text required'}), 400
+    
+    if len(text) > 4000:
+        return jsonify({'error': 'Message too long (max 4000 chars)'}), 400
     
     from_addr = get_address_from_seed(seed)
     
@@ -2601,6 +2614,9 @@ def post_to_group():
     if not gid or not text:
         return jsonify({'error': 'Group ID and text required'}), 400
     
+    if len(text) > 4000:
+        return jsonify({'error': 'Message too long (max 4000 chars)'}), 400
+    
     from_addr = get_address_from_seed(seed)
     
     with S.lock:
@@ -2661,6 +2677,9 @@ def post_to_group():
                 return jsonify({'ok': True, 'post': existing})  # silent dedup
         
         group['posts'].append(post)
+        # Cap group posts at 1000 (keep last 1000)
+        if len(group['posts']) > 1000:
+            group['posts'] = group['posts'][-1000:]
         
         # L1 Blockchain groups: also write to blockchain
         if gtype == 'l1_blockchain':
@@ -3662,8 +3681,11 @@ def get_wallet_transactions():
         total_sent = 0
         total_burned = 0
         
-        # Scan all blocks
-        for block in S.chain:
+        # Scan blocks - limit to last 2000 for speed, full scan for "all" param
+        full_scan = request.args.get('full', '0') == '1'
+        blocks_to_scan = S.chain if full_scan else S.chain[-2000:]
+        
+        for block in blocks_to_scan:
             block_index = block['index']
             block_time = block['timestamp']
             
