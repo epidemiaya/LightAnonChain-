@@ -409,7 +409,7 @@ const MainApp = ({ onLogout }) => {
   const panicTimer = useRef(null);
 
   const reload = useCallback(async () => { try { setProfile(await get('/api/profile')); } catch {} }, []);
-  useEffect(() => { reload(); const i = setInterval(reload, 10000); return () => clearInterval(i); }, [reload]);
+  useEffect(() => { reload(); const i = setInterval(reload, 5000); return () => clearInterval(i); }, [reload]);
 
   // ── PWA Push Notifications setup ──
   const lastMsgCount = useRef(0);
@@ -652,32 +652,40 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
 // ━━━ MEDIA UTILS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-const uploadMedia = async (file) => {
+const uploadMedia = async (file, onProgress) => {
   const seed = localStorage.getItem('lac_seed');
   if (!seed) throw new Error('No seed');
   if (!file || file.size === 0) throw new Error('Empty file');
   if (file.size > 20 * 1024 * 1024) throw new Error('File too large (max 20MB)');
-  const fd = new FormData();
-  fd.append('file', file);
-  let r, d;
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
-    r = await fetch(API_BASE_URL + '/api/media/upload', {
-      method: 'POST',
-      headers: { 'X-Seed': seed },
-      body: fd,
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-    d = await r.json();
-  } catch(e) {
-    if (e.name === 'AbortError') throw new Error('Upload timeout (file too large?)');
-    throw new Error('Network error: ' + e.message);
-  }
-  if (!r.ok) throw new Error(d.error || `Upload failed (${r.status})`);
-  if (!d.url) throw new Error('No URL in response');
-  return d;
+
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round(e.loaded / e.total * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      try {
+        const d = JSON.parse(xhr.responseText);
+        if (xhr.status >= 400) return reject(new Error(d.error || `Upload failed (${xhr.status})`));
+        if (!d.url) return reject(new Error('No URL in response'));
+        resolve(d);
+      } catch(e) { reject(new Error('Invalid server response')); }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error — check connection'));
+    xhr.ontimeout = () => reject(new Error('Upload timeout'));
+    xhr.timeout = 60000; // 60s
+
+    xhr.open('POST', API_BASE_URL + '/api/media/upload');
+    xhr.setRequestHeader('X-Seed', seed);
+    xhr.send(fd);
+  });
 };
 
 // Відображення картинки в повідомленні
@@ -865,19 +873,45 @@ const ChatView = ({ peer, onBack, profile }) => {
     }
   };
 
-  const load = async () => {
+  const lastTs = useRef(0);
+  const polling = useRef(false);
+
+  const load = async (usePoll = false) => {
+    if (polling.current && usePoll) return; // prevent overlap
     try {
-      const r = await get('/api/chat?peer='+encodeURIComponent(resolvedAddr.current));
+      const peer = encodeURIComponent(resolvedAddr.current);
+      // Use long-poll when we have a baseline, else normal fetch
+      const url = usePoll && lastTs.current > 0
+        ? `/api/chat/poll?peer=${peer}&since=${lastTs.current}`
+        : `/api/chat?peer=${peer}`;
+      const r = await get(url);
       if (r.peer_addr && r.peer_addr.startsWith('lac')) resolvedAddr.current = r.peer_addr;
       if (r.peer_online !== undefined) setPeerOnline(r.peer_online);
-      // Play sound if new incoming messages
-      const incoming = (r.messages||[]).filter(m => m.direction === 'received').length;
+      if (r.poll_timeout) return; // no new messages, loop again
+      const msgs = r.messages || [];
+      const incoming = msgs.filter(m => m.direction === 'received').length;
       if (incoming > lastCount.current && lastCount.current > 0) { try { notifSound(); } catch {} }
       lastCount.current = incoming;
-      mergeServer(r.messages || []);
+      if (r.last_ts && r.last_ts > lastTs.current) lastTs.current = r.last_ts;
+      mergeServer(msgs);
     } catch {}
   };
-  useEffect(() => { load(); const i=setInterval(load,1500); return()=>clearInterval(i); }, []);
+
+  // Long-poll loop: fires immediately after each response
+  useEffect(() => {
+    let active = true;
+    load(false); // initial load
+    const loop = async () => {
+      while (active) {
+        polling.current = true;
+        await load(true);
+        polling.current = false;
+        if (active) await new Promise(r => setTimeout(r, 200)); // tiny gap
+      }
+    };
+    const t = setTimeout(loop, 500); // start polling after initial load
+    return () => { active = false; clearTimeout(t); };
+  }, []);
   useEffect(() => { end.current?.scrollIntoView({behavior:'smooth'}); }, [msgs]);
 
   const send = async () => {
@@ -916,9 +950,13 @@ const ChatView = ({ peer, onBack, profile }) => {
   const sendMedia = async (file, type) => {
     if (uploading) return;
     setUploading(true);
-    toast('⏳ Uploading...', {duration: 2000});
+    const [progressToast] = [toast('📤 0%', {duration: 60000})];
     try {
-      const up = await uploadMedia(file);
+      const up = await uploadMedia(file, (pct) => {
+        toast.dismiss(progressToast);
+        if (pct < 100) toast(`📤 ${pct}%`, {duration: 60000, id: 'upload-prog'});
+      });
+      toast.dismiss('upload-prog');
       const ts = ~~(Date.now()/1000);
       const mediaText = type === 'image' ? `[img:${up.url}]` : `[voice:${up.url}]`;
       // ALWAYS ephemeral=true for media — L2, 5-min self-destruct
@@ -936,7 +974,8 @@ const ChatView = ({ peer, onBack, profile }) => {
       toast.success(type === 'image' ? '🖼 Image sent (L2 · 5min)' : '🎤 Voice sent (L2 · 5min)');
     } catch(e) {
       console.error('Media upload error:', e);
-      toast.error('❌ ' + (e.message || 'Upload failed'));
+      toast.dismiss('upload-prog');
+      toast.error('❌ ' + (e.message || 'Upload failed'), {duration: 5000});
     } finally {
       setUploading(false);
     }

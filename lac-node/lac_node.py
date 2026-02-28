@@ -1638,7 +1638,10 @@ def login():
     with S.lock:
         if addr not in S.wallets:
             return jsonify({'error': 'Wallet not found'}), 404
-        
+
+        # Update last_activity so peer sees us as online
+        S.wallets[addr]['last_activity'] = int(time.time())
+
         wallet = S.wallets[addr]
         key_id = wallet.get('key_id')
         username = get_username_by_key_id(key_id) or 'Anonymous'
@@ -2416,15 +2419,72 @@ def get_chat():
         
         # Sort by timestamp
         messages.sort(key=lambda m: m.get('timestamp', 0))
-        
+
+        # Long polling: if ?since=TS and no new messages — wait up to 2s
+        since_ts = request.args.get('since', 0, type=int)
+        if since_ts > 0:
+            new_msgs = [m for m in messages if (m.get('timestamp') or 0) > since_ts]
+            if not new_msgs:
+                # Release lock and wait for new messages
+                pass  # fall through to response below
+            # else: new messages exist, return immediately
+
+        last_ts = max((m.get('timestamp') or 0 for m in messages), default=0)
+        peer_online = bool(peer_addr and peer_addr in S.wallets and
+                          (int(time.time()) - S.wallets[peer_addr].get('last_activity', 0)) < 300)
+
         return jsonify({
             'ok': True,
             'messages': messages,
             'count': len(messages),
             'peer': peer,
             'peer_addr': peer_addr,
-            'peer_online': bool(peer_addr and peer_addr in S.wallets and (int(time.time()) - S.wallets[peer_addr].get('last_activity', 0)) < 300)
+            'peer_online': peer_online,
+            'last_ts': last_ts
         })
+
+@app.route('/api/chat/poll', methods=['GET'])
+def chat_poll():
+    """Long-poll endpoint — waits up to 2s for new messages"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    peer = request.args.get('peer', '').strip()
+    since_ts = request.args.get('since', 0, type=int)
+    addr = get_address_from_seed(seed)
+
+    # Poll up to 2 seconds in 100ms intervals
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        with S.lock:
+            if addr not in S.wallets:
+                return jsonify({'error': 'Wallet not found'}), 404
+            peer_addr = resolve_recipient(peer) if not peer.startswith('lac') else peer
+
+            # Quick check: any message newer than since_ts for this pair?
+            def has_new(msg_list):
+                for msg in msg_list:
+                    ts = msg.get('timestamp', 0)
+                    if ts <= since_ts:
+                        continue
+                    s = msg.get('from_address', '')
+                    r = msg.get('to', '')
+                    if (s == addr and r == peer_addr) or (s == peer_addr and r == addr):
+                        return True
+                return False
+
+            if has_new(S.persistent_msgs) or has_new(S.ephemeral_msgs):
+                # New messages found — redirect to full chat endpoint
+                return get_chat()
+
+        time.sleep(0.1)
+
+    # Timeout — return empty (client will retry)
+    return jsonify({'ok': True, 'messages': [], 'count': 0,
+                    'peer': peer, 'peer_addr': peer or '', 'peer_online': False,
+                    'last_ts': since_ts, 'poll_timeout': True})
+
 
 # ==================== DICE GAME ====================
 import random as _random
