@@ -2241,73 +2241,69 @@ def message_react():
 
 @app.route('/api/inbox', methods=['GET'])
 def inbox():
-    """Get inbox messages (received AND sent)"""
+    """Lightweight inbox — returns conversation list with last message only"""
     seed = request.headers.get('X-Seed', '').strip()
-    
     if not validate_seed(seed):
         return jsonify({'error': 'Unauthorized'}), 401
-    
+
     addr = get_address_from_seed(seed)
-    
+
     with S.lock:
         if addr not in S.wallets:
             return jsonify({'error': 'Wallet not found'}), 404
-        
+
         wallet = S.wallets[addr]
         key_id = wallet.get('key_id')
         username = get_username_by_key_id(key_id) or 'Anonymous'
-        
-        # Get messages for this user (BOTH received AND sent) from BOTH stores
-        messages = []
-        
-        def scan_msgs(msg_list, msg_type):
+
+        # Build conversation map — only last message per peer
+        convos = {}  # peer_addr → {last_msg, unread_count}
+
+        def process(msg_list):
             for msg in msg_list:
-                # Received messages
-                if msg.get('to') == username or msg.get('to') == addr:
-                    messages.append({
-                        'from': msg.get('from'),
-                        'from_username': msg.get('from'),
-                        'message': msg.get('text'),
-                        'text': msg.get('text'),
-                        'timestamp': msg.get('timestamp'),
-                        'verified': msg.get('verified', False),
-                        'from_address': msg.get('from_address'),
-                        'to': msg.get('to'),
-                        'to_display': msg.get('to_display', msg.get('to')),
-                        'direction': 'received',
-                        'ephemeral': msg.get('ephemeral', msg_type == 'ephemeral'),
-                        'msg_type': msg_type
-                    })
-                # Sent messages
-                elif msg.get('from_address') == addr:
-                    messages.append({
-                        'from': username,
-                        'from_username': username,
-                        'to': msg.get('to'),
-                        'to_display': msg.get('to_display', msg.get('to')),
-                        'message': msg.get('text'),
-                        'text': msg.get('text'),
-                        'timestamp': msg.get('timestamp'),
-                        'verified': msg.get('verified', False),
-                        'from_address': addr,
-                        'direction': 'sent',
-                        'ephemeral': msg.get('ephemeral', msg_type == 'ephemeral'),
-                        'msg_type': msg_type
-                    })
-        
-        # Scan both stores
-        scan_msgs(S.persistent_msgs, 'regular')
-        scan_msgs(S.ephemeral_msgs, 'ephemeral')
-        
-        # Also get from recent blocks
-        if len(S.chain) > 0:
-            for block in S.chain[-10:]:
-                scan_msgs(block.get('ephemeral_msgs', []), 'ephemeral')
-        
-        return jsonify({
-            'ok': True,
-            'messages': messages,
-            'count': len(messages)
+                to = msg.get('to', '')
+                frm_addr = msg.get('from_address', '')
+                frm_name = msg.get('from', '')
+                ts = msg.get('timestamp', 0)
+
+                is_received = (to == addr or to == username)
+                is_sent = (frm_addr == addr)
+                if not is_received and not is_sent:
+                    continue
+
+                peer_addr = frm_addr if is_received else to
+                peer_name = frm_name if is_received else msg.get('to_display', to)
+                direction = 'received' if is_received else 'sent'
+
+                if peer_addr not in convos or ts > convos[peer_addr]['timestamp']:
+                    # Truncate text — don't send full content in list
+                    txt = (msg.get('text') or '')[:80]
+                    convos[peer_addr] = {
+                        'from': peer_name,
+                        'from_address': peer_addr,
+                        'to': to,
+                        'to_display': msg.get('to_display', to),
+                        'text': txt,
+                        'message': txt,
+                        'timestamp': ts,
+                        'direction': direction,
+                        'ephemeral': msg.get('ephemeral', False),
+                    }
+
+        # Copy under lock, process outside
+        p_copy = list(S.persistent_msgs)
+        e_copy = list(S.ephemeral_msgs)
+
+    # Process outside lock — no blocking
+    process(p_copy)
+    process(e_copy)
+
+    messages = sorted(convos.values(), key=lambda m: m.get('timestamp', 0), reverse=True)
+
+    return jsonify({
+        'ok': True,
+        'messages': messages,
+        'count': len(messages)
         })
 
 @app.route('/api/chat', methods=['GET'])
