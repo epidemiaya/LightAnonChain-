@@ -1201,18 +1201,16 @@ def auto_cleanup():
                     if now - m.get('timestamp', 0) < 300
                 ]
                 
-                # Delete media files referenced only in expired ephemeral messages
+                # Delete media files older than 7 minutes
+                # NOTE: collect URLs BEFORE deleting ephemeral msgs (order matters!)
                 if MEDIA_DIR:
                     import re as _re
                     active_urls = set()
-                    # Collect all media URLs still referenced in active messages
-                    for m in S.ephemeral_msgs:
+                    # Check ALL messages including ones not yet expired
+                    for m in list(S.ephemeral_msgs) + list(S.persistent_msgs):
                         for match in _re.findall(r'\[(?:img|voice):(/api/media/[^\]]+)\]', m.get('text','') or ''):
                             active_urls.add(match)
-                    for m in S.persistent_msgs:
-                        for match in _re.findall(r'\[(?:img|voice):(/api/media/[^\]]+)\]', m.get('text','') or ''):
-                            active_urls.add(match)
-                    # Delete files older than 6 minutes not in active_urls
+                    # Only delete files older than 7 min AND not referenced anywhere
                     deleted = 0
                     for subdir in ('images', 'voice'):
                         d = MEDIA_DIR / subdir
@@ -1221,7 +1219,7 @@ def auto_cleanup():
                             if not fp.is_file(): continue
                             age = now - fp.stat().st_mtime
                             url = f'/api/media/{subdir}/{fp.name}'
-                            if age > 360 and url not in active_urls:
+                            if age > 420 and url not in active_urls:
                                 try: fp.unlink(); deleted += 1
                                 except: pass
                     if deleted:

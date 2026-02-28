@@ -726,20 +726,27 @@ const uploadMedia = async (file, onProgress) => {
 // Відображення картинки в повідомленні
 const MsgImage = ({ url }) => {
   const [open, setOpen] = useState(false);
-  const [err, setErr] = useState(false);
+  const [retries, setRetries] = useState(0);
   const full = API_BASE_URL + url;
-  if (err) return <p className="text-gray-600 text-xs italic mt-1">🖼 Image expired</p>;
+  // Show expired only after 3 failed attempts
+  if (retries >= 3) return <p className="text-gray-600 text-xs italic mt-1">🖼 Image expired</p>;
+  const handleError = () => {
+    // Retry with cache-bust after short delay
+    setTimeout(() => setRetries(r => r + 1), 1500);
+  };
+  // Cache bust on retry
+  const src = retries > 0 ? `${full}?r=${retries}` : full;
   return (
     <>
       <div className="mt-1">
-        <img src={full} alt="img" onClick={() => setOpen(true)} onError={() => setErr(true)}
+        <img src={src} alt="img" onClick={() => setOpen(true)} onError={handleError}
           className="max-w-[220px] max-h-[220px] rounded-xl object-cover cursor-pointer border border-amber-900/20"
           loading="lazy" />
         <p className="text-amber-500/60 text-[9px] mt-0.5">⚡ L2 · auto-delete 5 min</p>
       </div>
       {open && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
-          <img src={full} alt="img" className="max-w-full max-h-full rounded-xl object-contain" />
+          <img src={src} alt="img" className="max-w-full max-h-full rounded-xl object-contain" />
         </div>
       )}
     </>
