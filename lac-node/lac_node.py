@@ -2404,13 +2404,18 @@ def get_chat():
                 messages.append(m_entry)
         
         burn_queue = []
-        
-        scan(S.persistent_msgs, 'regular')
-        scan(S.ephemeral_msgs, 'ephemeral')
-        
+
+        # Copy message lists under lock, scan outside (reduces lock hold time)
+        persistent_copy = list(S.persistent_msgs)
+        ephemeral_copy = list(S.ephemeral_msgs)
+        blocks_copy = [b.get('ephemeral_msgs', []) for b in S.chain[-10:]]
+
+        scan(persistent_copy, 'regular')
+        scan(ephemeral_copy, 'ephemeral')
+
         # Recent blocks
-        for block in S.chain[-10:]:
-            scan(block.get('ephemeral_msgs', []), 'ephemeral')
+        for block_msgs in blocks_copy:
+            scan(block_msgs, 'ephemeral')
         
         # Process burn queue — delete burned messages after 3 seconds
         now = int(time.time())
@@ -2454,35 +2459,39 @@ def chat_poll():
     since_ts = request.args.get('since', 0, type=int)
     addr = get_address_from_seed(seed)
 
-    # Poll up to 2 seconds in 100ms intervals
-    deadline = time.time() + 2.0
+    # Resolve peer once outside loop
+    peer_addr = resolve_recipient(peer) if not peer.startswith('lac') else peer
+
+    def has_new():
+        for msg in S.persistent_msgs:
+            if msg.get('timestamp', 0) > since_ts:
+                s = msg.get('from_address', '')
+                r = msg.get('to', '')
+                if (s == addr and r == peer_addr) or (s == peer_addr and r == addr):
+                    return True
+        for msg in S.ephemeral_msgs:
+            if msg.get('timestamp', 0) > since_ts:
+                s = msg.get('from_address', '')
+                r = msg.get('to', '')
+                if (s == addr and r == peer_addr) or (s == peer_addr and r == addr):
+                    return True
+        return False
+
+    # Poll max 1.5s in 50ms ticks — short enough to not block other requests
+    deadline = time.time() + 1.5
     while time.time() < deadline:
+        # Quick check WITHOUT holding lock long
+        found = False
         with S.lock:
             if addr not in S.wallets:
                 return jsonify({'error': 'Wallet not found'}), 404
-            peer_addr = resolve_recipient(peer) if not peer.startswith('lac') else peer
+            found = has_new()
+        if found:
+            return get_chat()
+        time.sleep(0.05)  # 50ms — release GIL between checks
 
-            # Quick check: any message newer than since_ts for this pair?
-            def has_new(msg_list):
-                for msg in msg_list:
-                    ts = msg.get('timestamp', 0)
-                    if ts <= since_ts:
-                        continue
-                    s = msg.get('from_address', '')
-                    r = msg.get('to', '')
-                    if (s == addr and r == peer_addr) or (s == peer_addr and r == addr):
-                        return True
-                return False
-
-            if has_new(S.persistent_msgs) or has_new(S.ephemeral_msgs):
-                # New messages found — redirect to full chat endpoint
-                return get_chat()
-
-        time.sleep(0.1)
-
-    # Timeout — return empty (client will retry)
     return jsonify({'ok': True, 'messages': [], 'count': 0,
-                    'peer': peer, 'peer_addr': peer or '', 'peer_online': False,
+                    'peer': peer, 'peer_addr': peer_addr or '', 'peer_online': False,
                     'last_ts': since_ts, 'poll_timeout': True})
 
 
@@ -5267,7 +5276,7 @@ Supply: {sum(w.get('balance', 0) for w in S.wallets.values()):.2f} LAC
         print(f"⚠️ Anonymous Groups plugin not loaded: {e}")
         sys.stdout.flush()
     
-    app.run(host='0.0.0.0', port=args.port, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=args.port, debug=False, use_reloader=False, threaded=True)
 
 
 @app.route('/api/pruning/stats', methods=['GET'])

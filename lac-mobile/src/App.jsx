@@ -409,7 +409,13 @@ const MainApp = ({ onLogout }) => {
   const panicTimer = useRef(null);
 
   const reload = useCallback(async () => { try { setProfile(await get('/api/profile')); } catch {} }, []);
-  useEffect(() => { reload(); const i = setInterval(reload, 5000); return () => clearInterval(i); }, [reload]);
+  useEffect(() => {
+    reload();
+    const i = setInterval(() => {
+      if (!document.hidden) reload(); // skip when tab is hidden
+    }, 5000);
+    return () => clearInterval(i);
+  }, [reload]);
 
   // ── PWA Push Notifications setup ──
   const lastMsgCount = useRef(0);
@@ -443,7 +449,9 @@ const MainApp = ({ onLogout }) => {
         lastMsgCount.current = incoming;
       } catch {}
     };
-    const i = setInterval(checkMsgs, 5000);
+    const i = setInterval(() => {
+      if (!document.hidden) checkMsgs();
+    }, 5000);
     return () => clearInterval(i);
   }, [sendPushNotif]);
 
@@ -592,7 +600,7 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
   const [groups, setGroups] = useState([]);
 
   const load = async () => { try { const [i,g] = await Promise.all([get('/api/inbox'),get('/api/groups')]); setMsgs(i.messages||[]); setGroups(g.groups||[]); } catch {} };
-  useEffect(() => { load(); const i = setInterval(load, 3000); return () => clearInterval(i); }, []);
+  useEffect(() => { load(); const i = setInterval(() => { if(!document.hidden) load(); }, 8000); return () => clearInterval(i); }, []);
 
   const convos = {};
   msgs.forEach(m => {
@@ -652,15 +660,42 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
 // ━━━ MEDIA UTILS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
+// Compress image before upload — iPhone photos can be 5-10MB
+const compressImage = (file, maxPx = 1280, quality = 0.82) => new Promise((resolve) => {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif') {
+    resolve(file); return; // don't compress gif/audio
+  }
+  const img = new window.Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    let { width: w, height: h } = img;
+    if (w <= maxPx && h <= maxPx) { resolve(file); return; } // already small
+    if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+    else { w = Math.round(w * maxPx / h); h = maxPx; }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    canvas.toBlob(blob => {
+      resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+    }, 'image/jpeg', quality);
+  };
+  img.onerror = () => resolve(file);
+  img.src = url;
+});
+
 const uploadMedia = async (file, onProgress) => {
   const seed = localStorage.getItem('lac_seed');
   if (!seed) throw new Error('No seed');
   if (!file || file.size === 0) throw new Error('Empty file');
   if (file.size > 20 * 1024 * 1024) throw new Error('File too large (max 20MB)');
 
+  // Compress image first (reduces iPhone 8MB → ~500KB)
+  const fileToSend = await compressImage(file);
+
   return new Promise((resolve, reject) => {
     const fd = new FormData();
-    fd.append('file', file);
+    fd.append('file', fileToSend);
     const xhr = new XMLHttpRequest();
 
     xhr.upload.onprogress = (e) => {
@@ -716,26 +751,59 @@ const VoicePlayer = ({ url }) => {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [loaded, setLoaded] = useState(false);
   const audioRef = useRef(null);
   const full = API_BASE_URL + url;
 
   useEffect(() => {
-    const a = new Audio(full);
+    const a = new Audio();
+    a.preload = 'metadata';
     audioRef.current = a;
-    a.onloadedmetadata = () => setDuration(a.duration);
-    a.ontimeupdate = () => setProgress(a.currentTime / (a.duration || 1));
-    a.onended = () => { setPlaying(false); setProgress(0); };
-    return () => { a.pause(); a.src = ''; };
+    const onMeta = () => {
+      // iOS Safari sometimes returns Infinity — retry after play attempt
+      if (a.duration && isFinite(a.duration)) {
+        setDuration(a.duration);
+        setLoaded(true);
+      }
+    };
+    const onTime = () => {
+      if (!isFinite(a.duration) || a.duration === 0) return;
+      setProgress(a.currentTime / a.duration);
+      if (!loaded) { setDuration(a.duration); setLoaded(true); }
+    };
+    const onEnd = () => { setPlaying(false); setProgress(0); };
+    a.addEventListener('loadedmetadata', onMeta);
+    a.addEventListener('durationchange', onMeta);
+    a.addEventListener('timeupdate', onTime);
+    a.addEventListener('ended', onEnd);
+    a.src = full; // set src AFTER listeners
+    return () => {
+      a.pause();
+      a.removeEventListener('loadedmetadata', onMeta);
+      a.removeEventListener('durationchange', onMeta);
+      a.removeEventListener('timeupdate', onTime);
+      a.removeEventListener('ended', onEnd);
+      a.src = '';
+    };
   }, [full]);
 
   const toggle = () => {
     const a = audioRef.current;
     if (!a) return;
-    if (playing) { a.pause(); setPlaying(false); }
-    else { a.play(); setPlaying(true); }
+    if (playing) {
+      a.pause(); setPlaying(false);
+    } else {
+      a.play().then(() => {
+        setPlaying(true);
+        // iOS: duration available only after playback starts
+        if (isFinite(a.duration) && a.duration > 0) setDuration(a.duration);
+      }).catch(() => {});
+    }
   };
 
-  const fmt = (s) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+  const fmt = (s) => isFinite(s) && s > 0
+    ? `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`
+    : '0:00';
 
   return (
     <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-black/20 rounded-xl min-w-[180px]">
@@ -813,6 +881,50 @@ const useVoiceRecorder = () => {
   };
 
   return { recording, seconds, start, stop, cancel };
+};
+
+// ━━━ MIC BUTTON — iOS/Android compatible hold-to-record ━━━━━━━━━━━━━━━
+// iOS Safari requires: no pointer-events conflicts, must call getUserMedia
+// directly in touch handler (not in async wrapper) for first permission request
+const MicButton = ({ recording, disabled, onStart, onStop }) => {
+  const pressRef = useRef(false);
+  const startRef = useRef(null);
+
+  const handleStart = (e) => {
+    e.preventDefault();
+    if (disabled || pressRef.current) return;
+    pressRef.current = true;
+    startRef.current = Date.now();
+    onStart();
+  };
+
+  const handleEnd = (e) => {
+    e.preventDefault();
+    if (!pressRef.current) return;
+    pressRef.current = false;
+    const held = Date.now() - (startRef.current || Date.now());
+    if (recording || held > 300) {
+      onStop();
+    }
+  };
+
+  return (
+    <button
+      onPointerDown={handleStart}
+      onPointerUp={handleEnd}
+      onPointerCancel={handleEnd}
+      onPointerLeave={handleEnd}
+      disabled={disabled}
+      title={!navigator.mediaDevices ? 'Upload audio via 📎' : recording ? 'Release to send' : 'Hold to record'}
+      style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+      className={`w-9 h-9 flex items-center justify-center disabled:opacity-30
+        ${recording ? 'text-red-400 scale-125' : 'text-gray-500 hover:text-amber-400'}
+        transition-all duration-150`}>
+      {recording
+        ? <span className="w-3.5 h-3.5 rounded-sm bg-red-500 animate-pulse" />
+        : <Mic className="w-5 h-5" />}
+    </button>
+  );
 };
 
 // ━━━ CHAT VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -897,20 +1009,23 @@ const ChatView = ({ peer, onBack, profile }) => {
     } catch {}
   };
 
-  // Long-poll loop: fires immediately after each response
+  // Long-poll loop: first load is immediate, polling starts after
   useEffect(() => {
     let active = true;
-    load(false); // initial load
+    load(false); // initial fast load
     const loop = async () => {
+      await new Promise(r => setTimeout(r, 600)); // wait for first render
       while (active) {
-        polling.current = true;
-        await load(true);
-        polling.current = false;
-        if (active) await new Promise(r => setTimeout(r, 200)); // tiny gap
+        if (!polling.current && !document.hidden) {
+          polling.current = true;
+          await load(true).catch(() => {});
+          polling.current = false;
+        }
+        if (active) await new Promise(r => setTimeout(r, 100));
       }
     };
-    const t = setTimeout(loop, 500); // start polling after initial load
-    return () => { active = false; clearTimeout(t); };
+    loop();
+    return () => { active = false; };
   }, []);
   useEffect(() => { end.current?.scrollIntoView({behavior:'smooth'}); }, [msgs]);
 
@@ -935,15 +1050,14 @@ const ChatView = ({ peer, onBack, profile }) => {
     setMsgs([...localMsgs.current]);
     lastJson.current = ''; // force next merge to update
     setSending(false); // unblock immediately
-    // Fire and forget — poll will confirm
-    try {
-      const res = await post('/api/message.send',{to:peer.address,text:txt,ephemeral:isEph,burn:isBurn,reply_to:reply});
-      if (res.to_address) resolvedAddr.current = res.to_address;
-    } catch(e) {
-      toast.error(e.message);
-      localMsgs.current = localMsgs.current.filter(m => m !== opt);
-      setMsgs([...localMsgs.current]);
-    }
+    // True fire & forget — UI already updated optimistically
+    post('/api/message.send',{to:peer.address,text:txt,ephemeral:isEph,burn:isBurn,reply_to:reply})
+      .then(res => { if (res.to_address) resolvedAddr.current = res.to_address; })
+      .catch(e => {
+        toast.error(e.message);
+        localMsgs.current = localMsgs.current.filter(m => m !== opt);
+        setMsgs([...localMsgs.current]);
+      });
   };
 
   // Upload file then send as L2 ephemeral (always — media is always 5-min self-destruct)
@@ -1110,17 +1224,12 @@ const ChatView = ({ peer, onBack, profile }) => {
             <FileImage className="w-5 h-5" />
           </button>
           {/* Voice message — requires HTTPS; on HTTP shows helpful message */}
-          <button
-            onMouseDown={voice.start}
-            onMouseUp={voice.recording ? handleVoiceStop : undefined}
-            onTouchStart={e => { e.preventDefault(); voice.start(); }}
-            onTouchEnd={e => { e.preventDefault(); if(voice.recording) handleVoiceStop(); }}
+          <MicButton
+            recording={voice.recording}
             disabled={uploading}
-            title={!navigator.mediaDevices ? 'Needs HTTPS — upload audio file via 📎' : 'Hold to record (L2 · 5min)'}
-            className={`w-9 h-9 flex items-center justify-center disabled:opacity-30 select-none
-              ${voice.recording ? 'text-red-400 scale-110' : 'text-gray-500 hover:text-amber-400'} transition-transform`}>
-            {voice.recording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-          </button>
+            onStart={voice.start}
+            onStop={handleVoiceStop}
+          />
           <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key==='Enter'&&!e.shiftKey&&send()}
             className="flex-1 bg-[#0a1a15] text-white px-4 py-2.5 rounded-2xl text-sm outline-none border border-emerald-900/30 focus:border-emerald-600/40 placeholder-gray-600"
             placeholder={voice.recording ? '' : mode==='ephemeral'?'Ephemeral (5min)…':mode==='burn'?'🔥 Burn after read…':'Message…'}
