@@ -6462,5 +6462,37 @@ def chain_stats():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+# ── Gunicorn entry point ──────────────────────────────────────────────────
+# When running via gunicorn, main() is never called.
+# We init State from environment variables instead.
+def _gunicorn_init():
+    """Auto-initialize when imported by gunicorn"""
+    import os
+    global S, MEDIA_DIR
+    if S is not None:
+        return  # already initialized
+    datadir = os.environ.get('LAC_DATADIR', '/root/LightAnonChain-/lac-node/data')
+    print(f"[gunicorn] Initializing LAC from {datadir}")
+    try:
+        setup_logging(datadir, debug=False)
+    except Exception:
+        pass
+    S = State(datadir)
+    MEDIA_DIR = Path(datadir) / 'media'
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    (MEDIA_DIR / 'images').mkdir(exist_ok=True)
+    (MEDIA_DIR / 'voice').mkdir(exist_ok=True)
+    try:
+        init_mining()
+        Thread(target=auto_mining_loop, daemon=True).start()
+        Thread(target=auto_cleanup, daemon=True).start()
+        print(f"[gunicorn] LAC ready — {len(S.chain)} blocks, {len(S.wallets)} wallets")
+    except Exception as e:
+        print(f"[gunicorn] Init warning: {e}")
+
+# Run init if imported (gunicorn), skip if __main__ (direct python run)
+if __name__ != '__main__':
+    _gunicorn_init()
+
 if __name__ == '__main__':
     main()
