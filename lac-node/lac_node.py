@@ -216,6 +216,7 @@ except Exception as e:
 
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024  # 25MB max upload
 CORS(app, 
      origins='*',
      supports_credentials=False,
@@ -1361,6 +1362,10 @@ def media_upload():
         if addr not in S.wallets:
             return jsonify({'error': 'Wallet not found'}), 404
 
+    # Guard: media dir must be initialized
+    if MEDIA_DIR is None:
+        return jsonify({'error': 'Media not ready'}), 503
+
     # Check file in request
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
@@ -1370,7 +1375,23 @@ def media_upload():
         return jsonify({'error': 'Empty file'}), 400
 
     # Detect mimetype
-    mime = f.mimetype or mimetypes.guess_type(f.filename)[0] or 'application/octet-stream'
+    # Detect mime — browsers sometimes send wrong/empty mime
+    mime = f.mimetype or ''
+    if not mime or mime == 'application/octet-stream':
+        mime = mimetypes.guess_type(f.filename or '')[0] or ''
+    # Extension-based fallback
+    fname_lower = (f.filename or '').lower()
+    if not mime or mime not in MEDIA_ALLOWED_ALL:
+        ext_mime = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+            '.gif': 'image/gif', '.webp': 'image/webp',
+            '.ogg': 'audio/ogg', '.webm': 'audio/webm',
+            '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4'
+        }
+        for ext, m in ext_mime.items():
+            if fname_lower.endswith(ext):
+                mime = m
+                break
 
     if mime not in MEDIA_ALLOWED_ALL:
         return jsonify({'error': f'File type not allowed: {mime}'}), 400

@@ -654,15 +654,24 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const uploadMedia = async (file) => {
   const seed = localStorage.getItem('lac_seed');
+  if (!seed) throw new Error('No seed');
+  if (!file || file.size === 0) throw new Error('Empty file');
+  if (file.size > 20 * 1024 * 1024) throw new Error('File too large (max 20MB)');
   const fd = new FormData();
   fd.append('file', file);
-  const r = await fetch(API_BASE_URL + '/api/media/upload', {
-    method: 'POST',
-    headers: { 'X-Seed': seed },
-    body: fd
-  });
-  const d = await r.json();
-  if (!r.ok) throw new Error(d.error || 'Upload failed');
+  let r, d;
+  try {
+    r = await fetch(API_BASE_URL + '/api/media/upload', {
+      method: 'POST',
+      headers: { 'X-Seed': seed },
+      body: fd
+    });
+    d = await r.json();
+  } catch(e) {
+    throw new Error('Network error: ' + e.message);
+  }
+  if (!r.ok) throw new Error(d.error || `Upload failed (${r.status})`);
+  if (!d.url) throw new Error('No URL in response');
   return d;
 };
 
@@ -735,6 +744,11 @@ const useVoiceRecorder = () => {
   const timerRef = useRef(null);
 
   const start = async () => {
+    // Check if getUserMedia is available (requires HTTPS or localhost)
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast.error('🎤 Мікрофон потребує HTTPS. Використай кнопку 📎 для завантаження аудіофайлу.');
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg' });
@@ -904,7 +918,8 @@ const ChatView = ({ peer, onBack, profile }) => {
       await post('/api/message.send', { to: peer.address, text: mediaText, ephemeral: isEph });
       setImgPreview(null);
     } catch(e) {
-      toast.error('Upload failed: ' + e.message);
+      console.error('Media upload error:', e);
+      toast.error('❌ ' + (e.message || 'Upload failed'));
     } finally {
       setUploading(false);
     }
@@ -913,9 +928,15 @@ const ChatView = ({ peer, onBack, profile }) => {
   const handleImagePick = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = '';
+    // Audio file — send directly
+    if (file.type.startsWith('audio/') || file.name.match(/\.(ogg|mp3|wav|m4a|webm)$/i)) {
+      sendMedia(file, 'voice');
+      return;
+    }
+    // Image — show preview first
     const url = URL.createObjectURL(file);
     setImgPreview({ file, url });
-    e.target.value = '';
   };
 
   const handleVoiceStop = async () => {
@@ -1019,12 +1040,13 @@ const ChatView = ({ peer, onBack, profile }) => {
       )}
       <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
         {/* Hidden file input */}
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImagePick} />
+        <input ref={fileInputRef} type="file" accept="image/*,audio/*" className="hidden" onChange={handleImagePick} />
         <div className="flex gap-2 items-end">
           {/* Attach image */}
           <button onClick={() => fileInputRef.current?.click()} disabled={uploading || voice.recording}
+            title="Attach image or audio file"
             className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-emerald-400 disabled:opacity-30">
-            <Image className="w-5 h-5" />
+            <FileImage className="w-5 h-5" />
           </button>
           {/* Voice message */}
           <button
