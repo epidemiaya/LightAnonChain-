@@ -2247,7 +2247,10 @@ def send_message():
             'timestamp': msg.get('timestamp', 0),
             'direction': 'received'
         }
-        ws_push_to_peers([to_addr, from_addr], 'new_message', push_data)
+        # to_address is the resolved recipient address
+        _recv_addr = to_address if to_address and to_address.startswith('lac') else None
+        if _recv_addr:
+            ws_push_to_peers([_recv_addr, from_addr], 'new_message', push_data)
 
         return jsonify({
             'ok': True,
