@@ -1087,7 +1087,7 @@ const ChatView = ({ peer, onBack, profile }) => {
   const mergeServer = (serverMsgs) => {
     const local = localMsgs.current;
     // Dedup key: direction + first 50 chars of text + timestamp in 5s window
-    const msgKey = m => (m.direction||'') + '|' + (m.text||'').slice(0,50) + '|' + Math.floor((m.timestamp||0)/5);
+    const msgKey = m => (m.direction||'') + '|' + (m.text||m.message||'').slice(0,50) + '|' + Math.floor((m.timestamp||0)/10);
     const serverIndex = new Set(serverMsgs.map(msgKey));
     // Remove optimistic msgs that server confirmed
     const surviving = local.filter(m => m._opt && !serverIndex.has(msgKey(m)));
@@ -1111,8 +1111,10 @@ const ChatView = ({ peer, onBack, profile }) => {
   const lastTs = useRef(0);
   const polling = useRef(false);
 
+  const loadingRef = useRef(false);
   const load = async (usePoll = false) => {
-    if (polling.current && usePoll) return; // prevent overlap
+    if (loadingRef.current) return; // prevent concurrent loads
+    loadingRef.current = true;
     try {
       const peer = encodeURIComponent(resolvedAddr.current);
       // Use long-poll when we have a baseline, else normal fetch
@@ -1128,11 +1130,16 @@ const ChatView = ({ peer, onBack, profile }) => {
       if (r.last_ts && r.last_ts > lastTs.current) lastTs.current = r.last_ts;
       mergeServer(msgs);
     } catch {}
+    finally { loadingRef.current = false; }
   };
 
-  // WebSocket: миттєве оновлення
+  // WebSocket: миттєве оновлення — з debounce щоб не тригерити двічі
+  const wsLoadTimer = useRef(null);
   useRealtimeSocket((msg) => {
-    if (msg.event === 'new_message') load(false);
+    if (msg.event === 'new_message') {
+      clearTimeout(wsLoadTimer.current);
+      wsLoadTimer.current = setTimeout(() => load(false), 100);
+    }
   });
 
   // Polling як fallback — 5s замість 1.5s
