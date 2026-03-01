@@ -263,7 +263,7 @@ const TabBar = ({ tabs, active, onChange }) => (
   </div>
 );
 
-const ListItem = ({ icon, title, sub, right, onClick, badge }) => (
+const ListItem = React.memo(({ icon, title, sub, right, onClick, badge }) => (
   <button onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-emerald-900/10 active:bg-emerald-900/20 transition border-b border-gray-800/30">
     <div className="w-11 h-11 rounded-full bg-[#0f2a22] flex items-center justify-center shrink-0">{icon}</div>
     <div className="flex-1 min-w-0 text-left">
@@ -272,7 +272,7 @@ const ListItem = ({ icon, title, sub, right, onClick, badge }) => (
     </div>
     {right || <ChevronRight className="w-4 h-4 text-gray-700 shrink-0" />}
   </button>
-);
+));
 
 const Empty = ({ emoji, text, sub }) => (
   <div className="flex flex-col items-center py-16 text-gray-600">
@@ -600,7 +600,7 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
   const [groups, setGroups] = useState([]);
 
   const load = async () => { try { const [i,g] = await Promise.all([get('/api/inbox'),get('/api/groups')]); setMsgs(i.messages||[]); setGroups(g.groups||[]); } catch {} };
-  useEffect(() => { load(); const i = setInterval(() => { if(!document.hidden) load(); }, 8000); return () => clearInterval(i); }, []);
+  useEffect(() => { load(); const i = setInterval(() => { if(!document.hidden) load(); }, 3000); return () => clearInterval(i); }, []);
 
   const convos = {};
   msgs.forEach(m => {
@@ -631,13 +631,25 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
       <div className="flex-1 overflow-y-auto">
         {sec === 'dm' ? (
           sorted.length === 0 ? <Empty emoji="💬" text={t('noMessages')} sub={t('startConvo')} /> :
-          sorted.map(c => (
+          sorted.map(c => {
+            const hasUnread = c.last?.unread === 1;
+            const preview = c.last?.text||c.last?.message||'';
+            // Show media preview
+            const previewText = preview.startsWith('[img:') ? '🖼 Image' :
+                                preview.startsWith('[voice:') ? '🎤 Voice' : preview;
+            return (
             <ListItem key={c.peer}
               icon={<User className="w-5 h-5 text-emerald-500" />}
-              title={c.name} sub={c.last?.text||c.last?.message||''}
-              right={<span className="text-gray-600 text-[11px]">{ago(c.last?.timestamp)}</span>}
+              title={c.name}
+              sub={previewText}
+              right={
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-gray-600 text-[11px]">{ago(c.last?.timestamp)}</span>
+                  {hasUnread && <span className="w-2 h-2 rounded-full bg-emerald-500 block" />}
+                </div>
+              }
               onClick={() => onNav({type:'chat',peer:{address:c.peer,name:c.name}})} />
-          ))
+          );})
         ) : (
           groups.length === 0 ? <Empty emoji="👥" text={t('noGroups')} sub={t('createGroup')} /> :
           groups.map(g => {
@@ -724,7 +736,7 @@ const uploadMedia = async (file, onProgress) => {
 };
 
 // Відображення картинки в повідомленні
-const MsgImage = ({ url }) => {
+const MsgImage = React.memo(({ url }) => {
   const [open, setOpen] = useState(false);
   const [retries, setRetries] = useState(0);
   const full = API_BASE_URL + url;
@@ -751,10 +763,10 @@ const MsgImage = ({ url }) => {
       )}
     </>
   );
-};
+});
 
 // Голосове повідомлення — плеєр
-const VoicePlayer = ({ url }) => {
+const VoicePlayer = React.memo(({ url }) => {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -826,7 +838,7 @@ const VoicePlayer = ({ url }) => {
       <Volume2 className="w-3.5 h-3.5 text-gray-500 shrink-0" />
     </div>
   );
-};
+});
 
 // Запис голосового повідомлення
 const useVoiceRecorder = () => {
@@ -893,7 +905,7 @@ const useVoiceRecorder = () => {
 // ━━━ MIC BUTTON — iOS/Android compatible hold-to-record ━━━━━━━━━━━━━━━
 // iOS Safari requires: no pointer-events conflicts, must call getUserMedia
 // directly in touch handler (not in async wrapper) for first permission request
-const MicButton = ({ recording, disabled, onStart, onStop }) => {
+const MicButton = React.memo(({ recording, disabled, onStart, onStop }) => {
   const pressRef = useRef(false);
   const startRef = useRef(null);
 
@@ -932,7 +944,7 @@ const MicButton = ({ recording, disabled, onStart, onStop }) => {
         : <Mic className="w-5 h-5" />}
     </button>
   );
-};
+});
 
 // ━━━ CHAT VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const notifSound = (() => {
@@ -1168,7 +1180,7 @@ const ChatView = ({ peer, onBack, profile }) => {
                   {isEph && <span className="text-[9px] opacity-50">⏱</span>}
                   {isBurn && !burned && <span className="text-[9px] text-red-400">🔥</span>}
                   <span className={`text-[10px] ${mine?'text-emerald-300/50':'text-gray-600'}`}>{ago(m.timestamp)}</span>
-                  {mine && <span className="text-[10px] text-emerald-300/60">{m._opt ? '⏳' : '✓'}</span>}
+                  {mine && <span className="text-[10px] text-emerald-300/60">{m._opt ? '⏳' : m._read ? '✓✓' : '✓'}</span>}
                 </div>
               </div>
               {/* Reactions display */}
@@ -1265,7 +1277,28 @@ const GroupView = ({ group, onBack, profile }) => {
   const gid = group.id || group.name;
   const localPosts = useRef([]);
   const lastJson = useRef('');
-  const sentKeys = useRef(new Set()); // track sent msg keys to prevent dups
+  const sentKeys = useRef(new Set());
+  const [imgPreview, setImgPreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const { recording, startRecording } = useVoiceRecorder(async (blob) => {
+    if (blob) await sendGroupMedia(blob, 'voice');
+  });
+
+  const sendGroupMedia = async (file, type) => {
+    setUploading(true);
+    try {
+      const up = await uploadMedia(file, () => {});
+      const tag = type === 'image' ? `[img:${up.url}]` : `[voice:${up.url}]`;
+      setImgPreview(null);
+      const ts = ~~(Date.now()/1000);
+      const opt = { from: profile?.username||'You', from_address: profile?.address, text: tag, message: tag, timestamp: ts, _opt: true };
+      localPosts.current = [...localPosts.current, opt];
+      setPosts([...localPosts.current]);
+      lastJson.current = '';
+      await post('/api/group.post', { group_id: gid, message: tag });
+    } catch(e) { toast.error(e.message); }
+    finally { setUploading(false); }
+  };
 
   // Stable key matching server's make_msg_key
   const postKey = p => {
@@ -1380,7 +1413,14 @@ const GroupView = ({ group, onBack, profile }) => {
               className={`max-w-[78%] px-3.5 py-2 rounded-2xl cursor-pointer active:opacity-80 ${mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
               {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{p.from||'Anon'}</p>}
               {p.reply_to && <div className={`text-[11px] px-2 py-1 rounded-lg mb-1.5 border-l-2 ${mine?'bg-emerald-800/30 border-emerald-400/40':'bg-gray-800/50 border-purple-400/40'}`}><p className={`font-medium text-[10px] ${mine?'text-emerald-300/70':'text-purple-400/70'}`}>{p.reply_to.from}</p><p className={`truncate ${mine?'text-emerald-200/50':'text-gray-400'}`}>{p.reply_to.text}</p></div>}
-              <p className="text-[14px] leading-snug break-words" style={{overflowWrap:'anywhere'}}>{p.text||p.message}</p>
+              {(() => {
+                const txt = p.text||p.message||'';
+                const imgM = txt.match(/\[img:(\/api\/media\/[^\]]+)\]/);
+                const voiceM = txt.match(/\[voice:(\/api\/media\/[^\]]+)\]/);
+                if (imgM) return <MsgImage url={imgM[1]} />;
+                if (voiceM) return <VoicePlayer url={voiceM[1]} />;
+                return <p className="text-[14px] leading-snug break-words" style={{overflowWrap:'anywhere'}}>{txt}</p>;
+              })()}
               <p className={`text-[10px] mt-0.5 ${mine?'text-emerald-300/50':'text-gray-600'}`}>{ago(p.timestamp)}</p>
             </div>
             {hasRxn && <div className="flex gap-1 mt-0.5 px-1">{Object.entries(rxn).map(([em,addrs]) =>
@@ -1399,8 +1439,31 @@ const GroupView = ({ group, onBack, profile }) => {
         <div className="flex-1 border-l-2 border-emerald-500 pl-2 min-w-0"><p className="text-emerald-400 text-[10px] font-medium">{replyTo.from}</p><p className="text-gray-400 text-[11px] truncate">{replyTo.text}</p></div>
         <button onClick={() => setReplyTo(null)} className="text-gray-600 hover:text-gray-400 shrink-0"><X className="w-4 h-4" /></button>
       </div>}
+      {imgPreview && (
+        <div className="px-3 py-2 bg-[#0a1a15] border-t border-emerald-900/30">
+          <div className="relative inline-block">
+            <img src={imgPreview.url} alt="preview" className="h-20 rounded-xl object-cover" />
+            <button onClick={() => setImgPreview(null)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-900 rounded-full flex items-center justify-center"><X className="w-3 h-3 text-gray-300" /></button>
+          </div>
+          <p className="text-amber-400/60 text-[10px] mt-1">⚡ L2 · auto-delete 5 min</p>
+          <button onClick={() => sendGroupMedia(imgPreview.file, 'image')}
+            className="mt-1 px-3 py-1 bg-emerald-600 rounded-lg text-white text-xs block">Send Image</button>
+        </div>
+      )}
       <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
         <div className="flex gap-2 items-end">
+          <label className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-gray-300 cursor-pointer shrink-0">
+            <ImageIcon className="w-5 h-5" />
+            <input type="file" accept="image/*" className="hidden" onChange={async e => {
+              const f = e.target.files?.[0]; if(!f) return;
+              const compressed = await compressImage(f);
+              setImgPreview({file: compressed, url: URL.createObjectURL(compressed)});
+              e.target.value='';
+            }} />
+          </label>
+          <MicButton recording={recording} disabled={uploading}
+            onStart={() => startRecording()}
+            onStop={async (blob) => { if(blob) await sendGroupMedia(blob,'voice'); }} />
           <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key==='Enter'&&!e.shiftKey&&send()}
             className="flex-1 bg-[#0a1a15] text-white px-4 py-2.5 rounded-2xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600" placeholder={t('message')+'…'} />
           <button onClick={send} disabled={sending||!text.trim()} className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shrink-0 disabled:opacity-30"><Send className="w-4 h-4 text-white ml-0.5" /></button>

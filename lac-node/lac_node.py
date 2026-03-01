@@ -1202,8 +1202,8 @@ def auto_cleanup():
                 now = int(time.time())
                 # Remove ephemeral DMs older than 5 minutes
                 S.ephemeral_msgs = [
-                    m for m in S.ephemeral_msgs 
-                    if now - m.get('timestamp', 0) < 300
+                    m for m in S.ephemeral_msgs
+                    if now - (m.get('_read_at') or m.get('timestamp', 0)) < 300
                 ]
                 
                 # Delete media files older than 7 minutes
@@ -2322,6 +2322,17 @@ def inbox():
 
     messages = sorted(convos.values(), key=lambda m: m.get('timestamp', 0), reverse=True)
 
+    # Add unread count — check last read timestamp per conversation
+    with S.lock:
+        reactions_copy = dict(S.reactions)
+    for conv in messages:
+        peer_a = conv.get('from_address', '')
+        read_key = f"read:{addr}:{peer_a}"
+        last_read = (reactions_copy.get(read_key) or {}).get('_ts', 0)
+        conv['last_read_ts'] = last_read
+        conv['unread'] = 1 if (conv.get('direction') == 'received' and
+                               conv.get('timestamp', 0) > last_read) else 0
+
     return jsonify({
         'ok': True,
         'messages': messages,
@@ -2440,6 +2451,15 @@ def get_chat():
         S.persistent_msgs = [m for m in S.persistent_msgs 
                              if not (m.get('_burned') and m.get('_burn_read_at', 0) < (now - 5))]
         
+        # Dedup by msg_key (same msg can be in persistent + blocks)
+        seen_keys = set()
+        unique_messages = []
+        for m in messages:
+            k = m.get('msg_key') or (str(m.get('from_address','')) + str(m.get('timestamp',0)) + str(m.get('text',''))[:20])
+            if k not in seen_keys:
+                seen_keys.add(k)
+                unique_messages.append(m)
+        messages = unique_messages
         # Sort by timestamp
         messages.sort(key=lambda m: m.get('timestamp', 0))
 
@@ -2455,6 +2475,18 @@ def get_chat():
         last_ts = max((m.get('timestamp') or 0 for m in messages), default=0)
         peer_online = bool(peer_addr and peer_addr in S.wallets and
                           (int(time.time()) - S.wallets[peer_addr].get('last_activity', 0)) < 300)
+
+        # Mark all received messages as read — store read timestamp
+        now_ts = int(time.time())
+        read_key = f"read:{addr}:{peer_addr}"
+        S.reactions[read_key] = {'_ts': now_ts}  # reuse reactions store for simplicity
+        # Also mark on individual ephemeral msgs — start timer from now
+        for raw_msg in S.ephemeral_msgs:
+            sender = raw_msg.get('from_address', '')
+            recipient = raw_msg.get('to', '')
+            is_for_me = (sender == peer_addr and (recipient == addr or recipient == wallet.get('username','')))
+            if is_for_me and not raw_msg.get('_read_at'):
+                raw_msg['_read_at'] = now_ts
 
         return jsonify({
             'ok': True,
@@ -2872,8 +2904,12 @@ def post_to_group():
     text = data.get('message', '').strip() or data.get('text', '').strip()
     reply_to = data.get('reply_to', None)  # {text, from}
     
-    if not gid or not text:
-        return jsonify({'error': 'Group ID and text required'}), 400
+    media_url = data.get('media_url', '').strip()  # optional media
+    if not gid or (not text and not media_url):
+        return jsonify({'error': 'Group ID and text or media required'}), 400
+    # If only media, text is the media embed
+    if not text and media_url:
+        text = media_url
     
     if len(text) > 4000:
         return jsonify({'error': 'Message too long (max 4000 chars)'}), 400
