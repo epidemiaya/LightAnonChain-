@@ -593,13 +593,26 @@ const MainApp = ({ onLogout }) => {
 };
 
 // ━━━ CHATS TAB ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const _cache = {};
+const cacheGet = (k) => _cache[k];
+const cacheSet = (k, v) => { _cache[k] = v; };
+
 const ChatsTab = ({ profile, onNav, onMenu }) => {
   const { t } = useT();
   const [sec, setSec] = useState('dm');
-  const [msgs, setMsgs] = useState([]);
-  const [groups, setGroups] = useState([]);
+  const [msgs, setMsgs] = useState(() => cacheGet('inbox') || []);
+  const [groups, setGroups] = useState(() => cacheGet('groups') || []);
+  const [loading, setLoading] = useState(!cacheGet('inbox'));
 
-  const load = async () => { try { const [i,g] = await Promise.all([get('/api/inbox'),get('/api/groups')]); setMsgs(i.messages||[]); setGroups(g.groups||[]); } catch {} };
+  const load = async () => {
+    try {
+      const [i,g] = await Promise.all([get('/api/inbox'),get('/api/groups')]);
+      const m = i.messages||[]; const gr = g.groups||[];
+      cacheSet('inbox', m); cacheSet('groups', gr);
+      setMsgs(m); setGroups(gr);
+    } catch {}
+    finally { setLoading(false); }
+  };
   useEffect(() => { load(); const i = setInterval(() => { if(!document.hidden) load(); }, 3000); return () => clearInterval(i); }, []);
 
   const convos = {};
@@ -630,6 +643,7 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
       </div>
       <div className="flex-1 overflow-y-auto">
         {sec === 'dm' ? (
+          loading ? <div className="space-y-0">{[1,2,3,4].map(i=><div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-900/50 animate-pulse"><div className="w-11 h-11 rounded-full bg-gray-800/60 shrink-0"/><div className="flex-1 space-y-2"><div className="h-3 bg-gray-800/60 rounded w-1/3"/><div className="h-2.5 bg-gray-800/40 rounded w-2/3"/></div></div>)}</div> :
           sorted.length === 0 ? <Empty emoji="💬" text={t('noMessages')} sub={t('startConvo')} /> :
           sorted.map(c => {
             const hasUnread = c.last?.unread === 1;
@@ -651,6 +665,7 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
               onClick={() => onNav({type:'chat',peer:{address:c.peer,name:c.name}})} />
           );})
         ) : (
+          loading ? <div className="space-y-0">{[1,2,3].map(i=><div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-900/50 animate-pulse"><div className="w-11 h-11 rounded-full bg-gray-800/60 shrink-0"/><div className="flex-1 space-y-2"><div className="h-3 bg-gray-800/60 rounded w-1/4"/><div className="h-2.5 bg-gray-800/40 rounded w-1/3"/></div></div>)}</div> :
           groups.length === 0 ? <Empty emoji="👥" text={t('noGroups')} sub={t('createGroup')} /> :
           groups.map(g => {
             const tb = {public:['emerald','🌍 Public'],private:['purple','🔒 Private'],l1_blockchain:['blue','⛓ L1'],l2_ephemeral:['amber','⚡ L2']}[g.type]||['emerald','🌍 Public'];
