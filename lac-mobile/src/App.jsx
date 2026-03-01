@@ -372,8 +372,37 @@ const LoginScreen = ({ onAuth }) => {
 
   const create = async () => {
     setLoading(true);
-    try { const s = mkSeed(); const r = await post('/api/register', { seed: s, ref: refCode }); if(r.ok){ setGen(s); localStorage.setItem('lac_address',r.address); if(r.ref_bonus) toast.success(`🎉 +${r.ref_bonus} LAC referral bonus!`); setMode('backup'); } }
-    catch(e){ toast.error(e.message); } finally { setLoading(false); }
+    try {
+      const s = mkSeed();
+      // Retry up to 3 times — mobile networks can be flaky
+      let r, lastErr;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          r = await post('/api/register', { seed: s, ref: refCode });
+          break;
+        } catch(e) {
+          lastErr = e;
+          if (attempt < 2) await new Promise(res => setTimeout(res, 1000));
+        }
+      }
+      if (!r) throw lastErr;
+      if (r.ok) {
+        setGen(s);
+        localStorage.setItem('lac_address', r.address);
+        localStorage.setItem('lac_seed', s);
+        if (r.ref_bonus) toast.success(`🎉 +${r.ref_bonus} LAC referral bonus!`);
+        setMode('backup');
+      } else {
+        toast.error(r.error || 'Registration failed');
+      }
+    } catch(e) {
+      const msg = e.message || 'Network error';
+      if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed')) {
+        toast.error('Connection error. Check your internet and try again.', {duration: 5000});
+      } else {
+        toast.error(msg, {duration: 4000});
+      }
+    } finally { setLoading(false); }
   };
 
   const login = async () => {
@@ -551,8 +580,8 @@ const MainApp = ({ onLogout }) => {
       pol: <PolView onBack={back} profile={profile} />,
     };
     return (
-      <div className="w-full h-screen bg-gradient-to-br from-gray-900 to-gray-950 flex items-center justify-center p-2 sm:p-4">
-        <div className="w-full max-w-md h-full max-h-[850px] bg-[#060f0c] rounded-3xl shadow-2xl shadow-emerald-900/20 overflow-hidden border border-emerald-900/30 flex flex-col relative">
+      <div className="w-full h-[100dvh] bg-[#060f0c] flex items-center justify-center sm:bg-gradient-to-br sm:from-gray-900 sm:to-gray-950 sm:p-4">
+        <div className="w-full h-full max-w-md sm:max-h-[850px] bg-[#060f0c] sm:rounded-3xl sm:shadow-2xl sm:shadow-emerald-900/20 overflow-hidden sm:border sm:border-emerald-900/30 flex flex-col relative">
           {screens[sub.type] || null}
         </div>
       </div>
@@ -572,8 +601,8 @@ const MainApp = ({ onLogout }) => {
   ];
 
   return (
-    <div className="w-full h-screen bg-gradient-to-br from-gray-900 to-gray-950 flex items-center justify-center p-2 sm:p-4">
-      <div className="w-full max-w-md h-full max-h-[850px] bg-[#060f0c] rounded-3xl shadow-2xl shadow-emerald-900/20 overflow-hidden border border-emerald-900/30 flex flex-col relative">
+    <div className="w-full h-[100dvh] bg-[#060f0c] flex items-center justify-center sm:bg-gradient-to-br sm:from-gray-900 sm:to-gray-950 sm:p-4">
+      <div className="w-full h-full max-w-md sm:max-h-[850px] bg-[#060f0c] sm:rounded-3xl sm:shadow-2xl sm:shadow-emerald-900/20 overflow-hidden sm:border sm:border-emerald-900/30 flex flex-col relative">
         <Toaster position="top-center" toastOptions={{style:{background:'#0f2a22',color:'#e5fff5',borderRadius:'14px',border:'1px solid rgba(14,230,138,.15)',fontSize:'13px'}}} />
 
         {/* Hamburger Menu Overlay */}
@@ -625,7 +654,7 @@ const MainApp = ({ onLogout }) => {
         </div>
 
         {/* Bottom Navigation */}
-        <nav className="bg-[#0a1510] border-t border-emerald-900/20 flex shrink-0">
+        <nav className="bg-[#0a1510] border-t border-emerald-900/20 flex shrink-0 pb-[env(safe-area-inset-bottom)]">
           {[
             { id: 'chats', icon: MessageCircle, label: t('chats') },
             { id: 'wallet', icon: Wallet, label: t('wallet') },
