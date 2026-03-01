@@ -2176,13 +2176,25 @@ def send_message():
             else:
                 msg['e2e'] = False
         
-        if ephemeral:
-            S.ephemeral_msgs.append(msg)
-        else:
-            S.persistent_msgs.append(msg)
-            # Cap: keep last 5000 messages to prevent unbounded growth
-            if len(S.persistent_msgs) > 5000:
-                S.persistent_msgs = S.persistent_msgs[-5000:]
+        # Dedup: reject if identical message in last 5 seconds (double-send protection)
+        msg_sig = (msg.get('from_address','')) + '|' + text[:50] + '|' + str(msg.get('to',''))
+        now_ts = int(time.time())
+        is_dup = False
+        check_list = S.ephemeral_msgs if ephemeral else S.persistent_msgs
+        for existing in check_list[-50:]:  # check last 50 only
+            if (existing.get('from_address','') + '|' + (existing.get('text',''))[:50] + '|' + str(existing.get('to','')) == msg_sig
+                    and abs((existing.get('timestamp',0)) - now_ts) < 5):
+                is_dup = True
+                break
+
+        if not is_dup:
+            if ephemeral:
+                S.ephemeral_msgs.append(msg)
+            else:
+                S.persistent_msgs.append(msg)
+                # Cap: keep last 5000 messages to prevent unbounded growth
+                if len(S.persistent_msgs) > 5000:
+                    S.persistent_msgs = S.persistent_msgs[-5000:]
         
         # Charge fee
         from_wallet['balance'] -= MIN_MSG_FEE
@@ -2199,6 +2211,13 @@ def send_message():
             'to_display': to_display
         })
 
+def make_msg_key(msg):
+    """Stable msg_key: addr|text40|ts3 (timestamp rounded to 3s bucket)"""
+    addr = msg.get('from_address', '')
+    text = (msg.get('text') or msg.get('message') or '')[:40]
+    ts = int((msg.get('timestamp') or 0) // 3) * 3
+    return f"{addr}|{text}|{ts}"
+
 @app.route('/api/message.react', methods=['POST'])
 def message_react():
     """Add or remove emoji reaction to a message"""
@@ -2208,7 +2227,7 @@ def message_react():
     
     addr = get_address_from_seed(seed)
     data = request.get_json() or {}
-    msg_key = data.get('msg_key', '').strip()  # text|timestamp identifier
+    msg_key = data.get('msg_key', '').strip()  # stable key from client
     emoji = data.get('emoji', '').strip()
     
     if not msg_key or not emoji:
@@ -2384,8 +2403,8 @@ def get_chat():
                     'msg_type': msg_type,
                     'burn': msg.get('burn', False),
                     'reply_to': msg.get('reply_to', None),
-                    'msg_key': f"{(msg.get('text',''))[:30]}|{msg.get('timestamp',0)}",
-                    'reactions': S.reactions.get(f"{(msg.get('text',''))[:30]}|{msg.get('timestamp',0)}", {})
+                    'msg_key': make_msg_key(msg),
+                    'reactions': S.reactions.get(make_msg_key(msg), {})
                 }
                 
                 # Burn after read: if recipient reads a burn message, mark it
@@ -2819,13 +2838,15 @@ def group_posts():
         if not group:
             return jsonify({'error': 'Group not found'}), 404
         
-        # Enrich posts with reactions
+        # Enrich posts with reactions using stable key
         enriched_posts = []
         for p in group.get('posts', []):
             ep = dict(p)
-            msg_key = (p.get('text', '') or p.get('message', ''))[:30] + '|' + str(p.get('timestamp', 0))
-            ep['msg_key'] = msg_key
-            ep['reactions'] = S.reactions.get(msg_key, {})
+            mk = make_msg_key(p)
+            ep['msg_key'] = mk
+            # Also check legacy key format for backwards compat
+            legacy_key = (p.get('text', '') or p.get('message', ''))[:30] + '|' + str(p.get('timestamp', 0))
+            ep['reactions'] = S.reactions.get(mk, S.reactions.get(legacy_key, {}))
             enriched_posts.append(ep)
         
         return jsonify({
@@ -2916,6 +2937,7 @@ def post_to_group():
                 abs(existing.get('timestamp', 0) - int(time.time())) < 5):
                 return jsonify({'ok': True, 'post': existing})  # silent dedup
         
+        post['msg_key'] = make_msg_key(post)
         group['posts'].append(post)
         # Cap group posts at 1000 (keep last 1000)
         if len(group['posts']) > 1000:

@@ -971,20 +971,21 @@ const ChatView = ({ peer, onBack, profile }) => {
   // Merge server data into local store without losing optimistic messages
   const mergeServer = (serverMsgs) => {
     const local = localMsgs.current;
-    // Build a dedup index: text + rough timestamp (10sec window)
-    const serverIndex = new Set(serverMsgs.map(m => m.text + '|' + Math.floor((m.timestamp||0)/10)));
-    // Keep unconfirmed optimistic messages ONLY if server doesn't have a match
-    const surviving = local.filter(m => m._opt && !serverIndex.has(m.text + '|' + Math.floor((m.timestamp||0)/10)));
-    // Merge, dedup server msgs by text+timestamp, and sort
+    // Dedup key: direction + first 50 chars of text + timestamp in 5s window
+    const msgKey = m => (m.direction||'') + '|' + (m.text||'').slice(0,50) + '|' + Math.floor((m.timestamp||0)/5);
+    const serverIndex = new Set(serverMsgs.map(msgKey));
+    // Remove optimistic msgs that server confirmed
+    const surviving = local.filter(m => m._opt && !serverIndex.has(msgKey(m)));
+    // Dedup server msgs themselves
     const seen = new Set();
     const deduped = serverMsgs.filter(m => {
-      const k = m.text + '|' + (m.timestamp||0) + '|' + (m.direction||'');
+      const k = msgKey(m);
       if (seen.has(k)) return false;
       seen.add(k);
       return true;
     });
     const merged = [...deduped, ...surviving].sort((a,b) => (a.timestamp||0) - (b.timestamp||0));
-    const json = JSON.stringify(merged.map(m => m.text + (m._opt?'_p':'') + m.timestamp));
+    const json = JSON.stringify(merged.map(m => msgKey(m) + (m._opt?'_p':'')));
     if (json !== lastJson.current) {
       lastJson.current = json;
       localMsgs.current = merged;
@@ -1133,7 +1134,18 @@ const ChatView = ({ peer, onBack, profile }) => {
           const hasRxn = Object.keys(rxn).length > 0;
           const doReact = async (emoji) => {
             setReactTo(null);
-            try { await post('/api/message.react', { msg_key: m.msg_key, emoji }); load(); } catch {}
+            // Optimistic update
+            setMsgs(prev => prev.map(msg => {
+              if (msg.msg_key !== m.msg_key) return msg;
+              const rxn = {...(msg.reactions||{})};
+              const myAddr = profile?.address || '';
+              if (!rxn[emoji]) rxn[emoji] = [];
+              const idx = rxn[emoji].indexOf(myAddr);
+              if (idx>=0) rxn[emoji].splice(idx,1); else rxn[emoji].push(myAddr);
+              if (!rxn[emoji].length) delete rxn[emoji];
+              return {...msg, reactions: rxn};
+            }));
+            try { await post('/api/message.react', { msg_key: m.msg_key, emoji }); } catch {}
           };
           return (
             <div key={i} className={`flex flex-col ${mine?'items-end':'items-start'}`}>
@@ -1253,13 +1265,31 @@ const GroupView = ({ group, onBack, profile }) => {
   const gid = group.id || group.name;
   const localPosts = useRef([]);
   const lastJson = useRef('');
+  const sentKeys = useRef(new Set()); // track sent msg keys to prevent dups
+
+  // Stable key matching server's make_msg_key
+  const postKey = p => {
+    const addr = p.from_address || '';
+    const txt = (p.text||p.message||'').slice(0,40);
+    const ts = Math.floor((p.timestamp||0)/3)*3;
+    return p.msg_key || `${addr}|${txt}|${ts}`;
+  };
 
   const mergeServer = (serverPosts) => {
     const local = localPosts.current;
-    const serverKeys = new Set(serverPosts.map(p => (p.text||p.message) + '|' + (p.timestamp||0)));
-    const surviving = local.filter(p => p._opt && !serverKeys.has(p.text + '|' + p.timestamp));
-    const merged = [...serverPosts, ...surviving].sort((a,b) => (a.timestamp||0) - (b.timestamp||0));
-    const json = JSON.stringify(merged.map(p => (p.text||p.message) + (p._opt?'_p':'') + p.timestamp));
+    const serverKeys = new Set(serverPosts.map(postKey));
+    // Remove optimistic msgs that server confirmed
+    const surviving = local.filter(p => p._opt && !serverKeys.has(postKey(p)));
+    // Dedup server posts by stable key
+    const seen = new Set();
+    const deduped = serverPosts.filter(p => {
+      const k = postKey(p);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    const merged = [...deduped, ...surviving].sort((a,b) => (a.timestamp||0) - (b.timestamp||0));
+    const json = JSON.stringify(merged.map(p => postKey(p) + (p._opt?'_o':'')));
     if (json !== lastJson.current) {
       lastJson.current = json;
       localPosts.current = merged;
@@ -1268,36 +1298,63 @@ const GroupView = ({ group, onBack, profile }) => {
   };
 
   const load = async () => {
-    try { mergeServer((await get('/api/group/posts?group_id='+encodeURIComponent(gid))).posts||[]); } catch {}
+    try {
+      const r = await get('/api/group/posts?group_id='+encodeURIComponent(gid));
+      mergeServer(r.posts||[]);
+    } catch {}
   };
-  useEffect(() => { load(); const i=setInterval(load,1500); return()=>clearInterval(i); }, []);
+  useEffect(() => { load(); const i=setInterval(()=>{if(!document.hidden)load();},1500); return()=>clearInterval(i); }, []);
   useEffect(() => { end.current?.scrollIntoView({behavior:'smooth'}); }, [posts]);
 
   const send = async () => {
     if(!text.trim()||sending) return;
     const txt = text.trim();
     const reply = replyTo ? { text: replyTo.text?.slice(0,100), from: replyTo.from } : null;
-    setSending(true);
+    // Prevent double-send
+    const sendKey = txt + '|' + ~~(Date.now()/5000);
+    if (sentKeys.current.has(sendKey)) return;
+    sentKeys.current.add(sendKey);
+    setTimeout(() => sentKeys.current.delete(sendKey), 10000);
+
     setText('');
     setReplyTo(null);
+    setSending(true);
     const ts = ~~(Date.now()/1000);
-    const opt = { from: profile?.username||'You', from_address: profile?.address, text: txt, message: txt, timestamp: ts, _opt: true, reply_to: reply };
+    const opt = {
+      from: profile?.username||'You', from_address: profile?.address,
+      text: txt, message: txt, timestamp: ts, _opt: true, reply_to: reply
+    };
     localPosts.current = [...localPosts.current, opt];
     setPosts([...localPosts.current]);
     lastJson.current = '';
-    setSending(false);
-    try { await post('/api/group.post',{group_id:gid,message:txt,reply_to:reply}); }
-    catch(e) {
+
+    try {
+      await post('/api/group.post',{group_id:gid,message:txt,reply_to:reply});
+    } catch(e) {
       toast.error(e.message);
       localPosts.current = localPosts.current.filter(p => p !== opt);
       setPosts([...localPosts.current]);
+    } finally {
+      setSending(false);
     }
   };
 
   const doReact = async (p, emoji) => {
     setReactTo(null);
-    const msgKey = (p.text||p.message||'').slice(0,30) + '|' + (p.timestamp||0);
-    try { await post('/api/message.react', { msg_key: msgKey, emoji }); load(); } catch {}
+    const mk = postKey(p);
+    // Optimistic reaction update
+    setPosts(prev => prev.map(post => {
+      if (postKey(post) !== mk) return post;
+      const rxn = {...(post.reactions||{})};
+      const myAddr = profile?.address || '';
+      if (!rxn[emoji]) rxn[emoji] = [];
+      const idx = rxn[emoji].indexOf(myAddr);
+      if (idx >= 0) rxn[emoji].splice(idx,1);
+      else rxn[emoji].push(myAddr);
+      if (!rxn[emoji].length) delete rxn[emoji];
+      return {...post, reactions: rxn};
+    }));
+    try { await post('/api/message.react', { msg_key: mk, emoji }); } catch {}
   };
 
   return (
@@ -1315,8 +1372,9 @@ const GroupView = ({ group, onBack, profile }) => {
         {posts.map((p,i) => { const mine=p.from_address===profile?.address;
           const rxn = p.reactions || {};
           const hasRxn = Object.keys(rxn).length > 0;
+          const stableKey = postKey(p) + (p._opt?'_o':'');
           return (
-          <div key={i} className={`flex flex-col ${mine?'items-end':'items-start'}`}>
+          <div key={stableKey} className={`flex flex-col ${mine?'items-end':'items-start'}`}>
             <div onClick={() => setReplyTo({text:p.text||p.message, from:p.from||'Anon'})}
               onContextMenu={(e) => { e.preventDefault(); setReactTo(reactTo===i?null:i); }}
               className={`max-w-[78%] px-3.5 py-2 rounded-2xl cursor-pointer active:opacity-80 ${mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
