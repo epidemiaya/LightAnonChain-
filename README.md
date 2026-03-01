@@ -5,8 +5,17 @@
 > *"Privacy that expires"* — the only blockchain where your data doesn't exist forever.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Status: Testnet](https://img.shields.io/badge/Status-Testnet-yellow.svg)]()
+[![Status: Beta Testnet](https://img.shields.io/badge/Status-Beta%20Testnet-orange.svg)]()
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)]()
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-lac--beta.uk-emerald.svg)](https://lac-beta.uk)
+
+---
+
+## 🚀 Live Beta
+
+**Try it now:** [https://lac-beta.uk](https://lac-beta.uk)
+
+No installation. Works in browser. Add to Home Screen on iOS/Android for app-like experience.
 
 ---
 
@@ -49,9 +58,11 @@ Anonymous asset storage. Deposit LAC → receive secret key → withdraw from an
 
 ### 💬 Encrypted Messaging
 Two layers of private communication:
-- **Regular messages** — persistent, not stored on-chain (Telegram-like)
+- **Regular messages** — persistent, E2E encrypted (Ed25519 + X25519 + XSalsa20-Poly1305)
 - **Ephemeral L2 messages** — self-destruct after 5 minutes, hash recorded then deleted
 - **🔥 Burn after read** — destroyed the moment recipient opens them
+- **Group chats** — public, private, L1 blockchain, L2 ephemeral types
+- **Voice messages & images** — media with automatic L2 cleanup
 
 ### 💀 Dead Man's Switch
 If you don't log in for X days, automatic actions trigger:
@@ -74,9 +85,11 @@ Schedule future payments. "Send 1000 LAC to @alice in 360 blocks (~1 hour)." Fun
 ┌─────────────────────────────────────────┐
 │           LAC Mobile App (PWA)          │
 │    React + Tailwind · Telegram-like UI  │
+│    PWA · Service Worker · Offline cache │
 ├─────────────────────────────────────────┤
 │             LAC Node (Python)           │
-│  Flask API · PoET Mining · Ring Sigs    │
+│  gevent WSGIServer · 1000+ concurrent   │
+│  PoET Mining · Ring Sigs · E2E Crypto   │
 ├──────────┬──────────┬───────────────────┤
 │  L3 Full │ L2 Hash  │  L1 Commitment    │
 │  30 days │ 90 days  │  Forever          │
@@ -94,9 +107,9 @@ Schedule future payments. "Send 1000 LAC to @alice in 360 blocks (~1 hour)." Fun
 
 ```bash
 cd lac-node
-pip install flask cryptography
+pip install flask cryptography gevent
 python lac_node.py
-# Node starts on http://localhost:5000
+# Node starts on http://localhost:38400
 ```
 
 ### Run the mobile app
@@ -110,19 +123,20 @@ npm run dev
 
 ### View the explorer
 
-Open `explorer/explorer.html` in a browser (it connects to the local node automatically).
+Open `explorer/explorer.html` in a browser (connects to local node automatically).
 
 ## Project Structure
 
 ```
 LightAnonChain/
 ├── lac-node/
-│   ├── lac_node.py          # Main node (5100+ lines)
+│   ├── lac_node.py          # Main node (6500+ lines)
 │   ├── lac_timelock.py      # Time-lock transaction module
 │   ├── lac_zero_history.py  # Zero-History deletion engine
 │   └── requirements.txt
 ├── lac-mobile/
-│   ├── src/App.jsx          # Full mobile app (1600+ lines)
+│   ├── src/App.jsx          # Full mobile app (2900+ lines)
+│   ├── vite.config.js       # PWA + code splitting config
 │   ├── package.json
 │   └── ...
 ├── explorer/
@@ -160,12 +174,20 @@ LightAnonChain/
 - [x] Time-Lock transactions
 - [x] Mobile web app (Telegram-like UI)
 - [x] Block explorer
+- [x] PWA — Add to Home Screen (iOS & Android)
+- [x] Public beta testnet → [lac-beta.uk](https://lac-beta.uk)
+- [x] Let's Encrypt SSL
+- [x] gevent async server (1000+ concurrent users)
+- [x] Voice messages & image sharing
+- [x] Group chats (public / private / L1 / L2 ephemeral)
+- [x] E2E encryption (Ed25519 + X25519 + XSalsa20-Poly1305)
+- [x] Read receipts + unread indicators
 - [ ] WebSocket real-time messaging
 - [ ] Multi-node peer discovery & sync
-- [ ] PWA (Add to Home Screen)
-- [ ] Public testnet deployment
+- [ ] Mobile app (App Store / Google Play)
+- [ ] Username marketplace (on-chain)
 - [ ] Security audit
-- [ ] Mainnet launch
+- [ ] Mainnet launch Q2 2025
 
 ## Use Cases
 
