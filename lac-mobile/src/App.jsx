@@ -28,6 +28,59 @@ const api = async (path, opts = {}) => {
 const post = (p, b) => api(p, { method: 'POST', body: b });
 const get = (p) => api(p);
 
+// ─── WebSocket hook — real-time push with polling fallback ───────
+const useRealtimeSocket = (onMessage) => {
+  const wsRef = useRef(null);
+  const reconnectRef = useRef(null);
+  const aliveRef = useRef(true);
+
+  const connect = () => {
+    const seed = localStorage.getItem('lac_seed');
+    if (!seed || !aliveRef.current) return;
+
+    // wss:// for https, ws:// for http
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${location.host}/ws?seed=${encodeURIComponent(seed)}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      // Keep-alive ping every 25s
+      const ping = setInterval(() => {
+        if (ws.readyState === 1) ws.send('ping');
+        else clearInterval(ping);
+      }, 25000);
+    };
+
+    ws.onmessage = (e) => {
+      if (e.data === 'pong') return;
+      try {
+        const msg = JSON.parse(e.data);
+        onMessage && onMessage(msg);
+      } catch {}
+    };
+
+    ws.onclose = () => {
+      if (!aliveRef.current) return;
+      // Reconnect after 3s
+      reconnectRef.current = setTimeout(connect, 3000);
+    };
+
+    ws.onerror = () => ws.close();
+  };
+
+  useEffect(() => {
+    aliveRef.current = true;
+    connect();
+    return () => {
+      aliveRef.current = false;
+      clearTimeout(reconnectRef.current);
+      wsRef.current?.close();
+    };
+  }, []);
+
+  return wsRef;
+};
+
 // ─── Utils ────────────────────────────────────────────
 const sAddr = (a) => a ? `${a.slice(0,8)}…${a.slice(-4)}` : '';
 const ago = (ts) => { if (!ts) return ''; const s = ~~(Date.now()/1000-ts); return s<60?'now':s<3600?~~(s/60)+'m':s<86400?~~(s/3600)+'h':~~(s/86400)+'d'; };
@@ -613,7 +666,13 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
     } catch {}
     finally { setLoading(false); }
   };
-  useEffect(() => { load(); const i = setInterval(() => { if(!document.hidden) load(); }, 3000); return () => clearInterval(i); }, []);
+  useRealtimeSocket((msg) => {
+    if (msg.event === 'new_message' || msg.event === 'new_group_post') {
+      load();
+    }
+  });
+
+  useEffect(() => { load(); const i = setInterval(() => { if(!document.hidden) load(); }, 8000); return () => clearInterval(i); }, []);
 
   const convos = {};
   msgs.forEach(m => {
@@ -1042,10 +1101,15 @@ const ChatView = ({ peer, onBack, profile }) => {
     } catch {}
   };
 
-  // Simple polling every 1500ms
+  // WebSocket: миттєве оновлення
+  useRealtimeSocket((msg) => {
+    if (msg.event === 'new_message') load(false);
+  });
+
+  // Polling як fallback — 5s замість 1.5s
   useEffect(() => {
     load(false);
-    const i = setInterval(() => { if (!document.hidden) load(false); }, 1500);
+    const i = setInterval(() => { if (!document.hidden) load(false); }, 5000);
     return () => clearInterval(i);
   }, []);
   useEffect(() => { end.current?.scrollIntoView({behavior:'smooth'}); }, [msgs]);
@@ -1351,7 +1415,13 @@ const GroupView = ({ group, onBack, profile }) => {
       mergeServer(r.posts||[]);
     } catch {}
   };
-  useEffect(() => { load(); const i=setInterval(()=>{if(!document.hidden)load();},1500); return()=>clearInterval(i); }, []);
+  useRealtimeSocket((msg) => {
+    if (msg.event === 'new_group_post' && msg.data?.group_id === gid) {
+      load();
+    }
+  });
+
+  useEffect(() => { load(); const i=setInterval(()=>{if(!document.hidden)load();},5000); return()=>clearInterval(i); }, []);
   useEffect(() => { end.current?.scrollIntoView({behavior:'smooth'}); }, [posts]);
 
   const send = async () => {

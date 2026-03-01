@@ -258,6 +258,42 @@ MEDIA_DIR = None  # set after S init
 rate_limit_store = defaultdict(list)
 rate_limit_lock = Lock()
 
+# ===================== WS STORE =====================
+import threading as _threading
+_ws_clients = {}
+_ws_lock = _threading.Lock()
+
+def ws_subscribe(addr, ws):
+    with _ws_lock:
+        if addr not in _ws_clients:
+            _ws_clients[addr] = set()
+        _ws_clients[addr].add(ws)
+
+def ws_unsubscribe(addr, ws):
+    with _ws_lock:
+        if addr in _ws_clients:
+            _ws_clients[addr].discard(ws)
+
+def ws_push(addr, event, data):
+    import json
+    payload = json.dumps({'event': event, 'data': data})
+    with _ws_lock:
+        clients = set(_ws_clients.get(addr, set()))
+    dead = set()
+    for ws in clients:
+        try:
+            ws.send(payload)
+        except Exception:
+            dead.add(ws)
+    if dead:
+        with _ws_lock:
+            if addr in _ws_clients:
+                _ws_clients[addr] -= dead
+
+def ws_push_to_peers(addr_list, event, data):
+    for addr in addr_list:
+        ws_push(addr, event, data)
+
 # ===================== STATE =====================
 class State:
     def __init__(self, datadir):
@@ -2202,7 +2238,17 @@ def send_message():
         from_wallet['msg_count'] = from_wallet.get('msg_count', 0) + 1
         
         S.save_msgs()  # FAST: only messages, not entire chain
-        
+
+        # Push real-time notification to receiver and sender
+        push_data = {
+            'from': from_wallet.get('username', from_addr[:8]),
+            'from_address': from_addr,
+            'text': text[:100],
+            'timestamp': msg.get('timestamp', 0),
+            'direction': 'received'
+        }
+        ws_push_to_peers([to_addr, from_addr], 'new_message', push_data)
+
         return jsonify({
             'ok': True,
             'message_id': hashlib.sha256(json.dumps(msg).encode()).hexdigest()[:16],
@@ -2975,6 +3021,17 @@ def post_to_group():
         
         post['msg_key'] = make_msg_key(post)
         group['posts'].append(post)
+
+        # Push to all group members
+        push_data = {
+            'group_id': gid,
+            'from': username,
+            'from_address': from_addr,
+            'text': text[:100],
+            'timestamp': post['timestamp']
+        }
+        members_snap = list(group.get('members', []))
+        ws_push_to_peers(members_snap, 'new_group_post', push_data)
         # Cap group posts at 1000 (keep last 1000)
         if len(group['posts']) > 1000:
             group['posts'] = group['posts'][-1000:]
@@ -5335,11 +5392,54 @@ Supply: {sum(w.get('balance', 0) for w in S.wallets.values()):.2f} LAC
     
     try:
         from gevent.pywsgi import WSGIServer
-        print(f"🚀 gevent WSGIServer on port {args.port} — async, handles 1000+ concurrent requests")
-        http_server = WSGIServer(('0.0.0.0', args.port), app)
+        from geventwebsocket.handler import WebSocketHandler
+        from geventwebsocket import WebSocketError
+
+        @app.route('/ws')
+        def websocket_handler():
+            """WebSocket endpoint — real-time push for messages"""
+            ws = request.environ.get('wsgi.websocket')
+            if not ws:
+                return 'WebSocket required', 400
+
+            seed = request.args.get('seed', '').strip()
+            if not validate_seed(seed):
+                ws.send('{"error":"Unauthorized"}')
+                ws.close()
+                return ''
+
+            addr = get_address_from_seed(seed)
+            ws_subscribe(addr, ws)
+
+            # Update last_activity
+            with S.lock:
+                if addr in S.wallets:
+                    S.wallets[addr]['last_activity'] = int(time.time())
+
+            try:
+                while not ws.closed:
+                    # Keep alive — client sends ping every 30s
+                    msg = ws.receive()
+                    if msg is None:
+                        break
+                    if msg == 'ping':
+                        ws.send('pong')
+                        # Update activity on ping
+                        with S.lock:
+                            if addr in S.wallets:
+                                S.wallets[addr]['last_activity'] = int(time.time())
+            except WebSocketError:
+                pass
+            finally:
+                ws_unsubscribe(addr, ws)
+
+            return ''
+
+        print(f"🚀 gevent WSGIServer on port {args.port} — async + WebSocket realtime")
+        http_server = WSGIServer(('0.0.0.0', args.port), app, handler_class=WebSocketHandler)
         http_server.serve_forever()
-    except ImportError:
-        print("⚠️ gevent not installed — fallback to threaded Flask")
+    except ImportError as e:
+        print(f"⚠️ gevent-websocket not installed ({e}) — fallback to threaded Flask")
         app.run(host='0.0.0.0', port=args.port, debug=False, use_reloader=False, threaded=True)
 
 
