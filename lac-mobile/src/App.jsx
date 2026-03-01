@@ -1453,7 +1453,7 @@ const GroupView = ({ group, onBack, profile }) => {
       <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
         <div className="flex gap-2 items-end">
           <label className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-gray-300 cursor-pointer shrink-0">
-            <ImageIcon className="w-5 h-5" />
+            <Image className="w-5 h-5" />
             <input type="file" accept="image/*" className="hidden" onChange={async e => {
               const f = e.target.files?.[0]; if(!f) return;
               const compressed = await compressImage(f);
