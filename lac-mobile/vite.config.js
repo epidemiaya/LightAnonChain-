@@ -45,18 +45,27 @@ export default defineConfig({
       },
     }),
   ],
+  optimizeDeps: {
+    include: [
+      '@noble/hashes/sha256',
+      '@noble/hashes/ripemd160',
+      '@scure/base',
+      '@noble/secp256k1',
+    ],
+  },
   build: {
     rollupOptions: {
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
           ui: ['lucide-react', 'react-hot-toast'],
+          crypto: ['@noble/secp256k1', '@noble/hashes', '@scure/base', '@scure/bip32', '@scure/bip39'],
         },
       },
     },
     minify: 'esbuild',
-    target: 'es2015',
-    chunkSizeWarningLimit: 600,
+    target: 'es2020',
+    chunkSizeWarningLimit: 800,
   },
   server: {
     port: 5173,
