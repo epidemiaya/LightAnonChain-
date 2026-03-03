@@ -13,6 +13,10 @@ import {
   ChevronDown, Bookmark, Gift, Flame, Timer, Link2, UserPlus, ArrowUpRight, ArrowDownLeft, Skull,
   Image, Mic, MicOff, Play, Pause, Volume2, FileImage, Bitcoin
 } from 'lucide-react';
+import { sha256 } from '@noble/hashes/sha256';
+import { ripemd160 } from '@noble/hashes/ripemd160';
+import { bech32 } from '@scure/base';
+import * as secp256k1lib from '@noble/secp256k1';
 
 // ─── API Layer ────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -352,25 +356,7 @@ const LevelBadge = ({ level }) => {
 // P2WPKH (native segwit, bc1q...) via BIP143 transaction signing.
 
 // --- BTC Crypto Helpers (loaded lazily) ---
-let _btcCrypto = null;
-const loadBtcCrypto = async () => {
-  if (_btcCrypto) return _btcCrypto;
-  const [hashMod, sha256Mod, ripemd160Mod, baseMod, secp256k1Mod] = await Promise.all([
-    import('@noble/hashes/sha256'),
-    import('@noble/hashes/sha256'),
-    import('@noble/hashes/ripemd160'),
-    import('@scure/base'),
-    import('@noble/secp256k1'),
-  ]);
-  const sha256fn = sha256Mod.sha256;
-  const ripemd160fn = ripemd160Mod.ripemd160;
-  const bech32lib = baseMod.bech32;
-  // Support both v1/v2 and v3 of @noble/secp256k1
-  const secpLib = secp256k1Mod.secp256k1 || secp256k1Mod;
-
-  _btcCrypto = { sha256fn, ripemd160fn, bech32lib, secpLib };
-  return _btcCrypto;
-};
+const loadBtcCrypto = async () => ({ sha256fn: sha256, ripemd160fn: ripemd160, bech32lib: bech32, secpLib: secp256k1lib.secp256k1 || secp256k1lib });
 
 // Byte helpers
 const btcConcat = (...a) => { const t=a.reduce((s,x)=>s+x.length,0); const r=new Uint8Array(t); let o=0; for(const x of a){r.set(x,o);o+=x.length;} return r; };
