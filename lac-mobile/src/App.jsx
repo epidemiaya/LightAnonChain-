@@ -301,7 +301,7 @@ const Input = ({ value, onChange, placeholder, mono, type = 'text', right }) => 
 );
 
 const Badge = ({ children, color = 'emerald' }) => {
-  const c = { emerald: 'bg-emerald-900/40 text-emerald-400 border-emerald-700/30', purple: 'bg-purple-900/40 text-purple-400 border-purple-700/30', amber: 'bg-amber-900/40 text-amber-400 border-amber-700/30', red: 'bg-red-900/40 text-red-400 border-red-700/30', gray: 'bg-gray-800 text-gray-400 border-gray-700' };
+  const c = { emerald: 'bg-emerald-900/40 text-emerald-400 border-emerald-700/30', purple: 'bg-purple-900/40 text-purple-400 border-purple-700/30', amber: 'bg-amber-900/40 text-amber-400 border-amber-700/30', red: 'bg-red-900/40 text-red-400 border-red-700/30', gray: 'bg-gray-800 text-gray-400 border-gray-700', blue: 'bg-blue-900/40 text-blue-400 border-blue-700/30' };
   return <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${c[color]}`}>{children}</span>;
 };
 
@@ -684,9 +684,10 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
   const [sec, setSec] = useState('dm');
   const [msgs, setMsgs] = useState(() => cacheGet('inbox') || []);
   const [groups, setGroups] = useState(() => cacheGet('groups') || []);
-  const [loading, setLoading] = useState(!cacheGet('inbox'));
+  const [loading, setLoading] = useState(false);
 
-  const load = async () => {
+  const load = async (silent = false) => {
+    if (!silent && !cacheGet('inbox')) setLoading(true);
     try {
       const [i,g] = await Promise.all([get('/api/inbox'),get('/api/groups')]);
       const m = i.messages||[]; const gr = g.groups||[];
@@ -695,13 +696,30 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
     } catch {}
     finally { setLoading(false); }
   };
+
   useRealtimeSocket((msg) => {
-    if (msg.event === 'new_message' || msg.event === 'new_group_post') {
-      load();
+    if (msg.event === 'new_message') {
+      if (msg.from) {
+        setMsgs(prev => {
+          const now = Date.now() / 1000;
+          const newMsg = { from: msg.from, from_address: msg.from, text: msg.text||'', timestamp: now, direction: 'received', unread: 1 };
+          const filtered = prev.filter(m => (m.from_address||m.from) !== msg.from);
+          return [newMsg, ...filtered];
+        });
+      }
+      load(true);
+    }
+    if (msg.event === 'new_group_post') {
+      setGroups(prev => prev.map(g => g.id === msg.group_id ? {...g, post_count: (g.post_count||0)+1} : g));
+      load(true);
     }
   });
 
-  useEffect(() => { load(); const i = setInterval(() => { if(!document.hidden) load(); }, 12000); return () => clearInterval(i); }, []);
+  useEffect(() => {
+    load();
+    const i = setInterval(() => { if(!document.hidden) load(true); }, 12000);
+    return () => clearInterval(i);
+  }, []);
 
   const convos = {};
   msgs.forEach(m => {
