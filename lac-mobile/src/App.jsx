@@ -495,7 +495,7 @@ const MainApp = ({ onLogout }) => {
     reload();
     const i = setInterval(() => {
       if (!document.hidden) reload(); // skip when tab is hidden
-    }, 5000);
+    }, 10000); // 10s — profile changes rarely
     return () => clearInterval(i);
   }, [reload]);
 
@@ -533,7 +533,7 @@ const MainApp = ({ onLogout }) => {
     };
     const i = setInterval(() => {
       if (!document.hidden) checkMsgs();
-    }, 5000);
+    }, 20000); // 20s — WS handles real-time, this is fallback push only
     return () => clearInterval(i);
   }, [sendPushNotif]);
 
@@ -701,7 +701,7 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
     }
   });
 
-  useEffect(() => { load(); const i = setInterval(() => { if(!document.hidden) load(); }, 8000); return () => clearInterval(i); }, []);
+  useEffect(() => { load(); const i = setInterval(() => { if(!document.hidden) load(); }, 12000); return () => clearInterval(i); }, []);
 
   const convos = {};
   msgs.forEach(m => {
@@ -1135,17 +1135,22 @@ const ChatView = ({ peer, onBack, profile }) => {
 
   // WebSocket: миттєве оновлення — з debounce щоб не тригерити двічі
   const wsLoadTimer = useRef(null);
+  const wsConnected = useRef(false);
   useRealtimeSocket((msg) => {
+    wsConnected.current = true;
     if (msg.event === 'new_message') {
       clearTimeout(wsLoadTimer.current);
       wsLoadTimer.current = setTimeout(() => load(false), 100);
     }
   });
 
-  // Polling як fallback — 5s замість 1.5s
+  // Polling як fallback — тільки коли WS не підключений
   useEffect(() => {
     load(false);
-    const i = setInterval(() => { if (!document.hidden) load(false); }, 5000);
+    const i = setInterval(() => {
+      // Slow poll if WS is alive (WS handles real-time), fast poll as fallback
+      if (!document.hidden) load(false);
+    }, wsConnected.current ? 15000 : 5000);
     return () => clearInterval(i);
   }, []);
   useEffect(() => { end.current?.scrollIntoView({behavior:'smooth'}); }, [msgs]);
@@ -1457,7 +1462,7 @@ const GroupView = ({ group, onBack, profile }) => {
     }
   });
 
-  useEffect(() => { load(); const i=setInterval(()=>{if(!document.hidden)load();},5000); return()=>clearInterval(i); }, []);
+  useEffect(() => { load(); const i=setInterval(()=>{if(!document.hidden)load();},10000); return()=>clearInterval(i); }, []);
   useEffect(() => { end.current?.scrollIntoView({behavior:'smooth'}); }, [posts]);
 
   const send = async () => {
@@ -1754,6 +1759,7 @@ const ReferralView = ({ onBack }) => {
 const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
   const p = profile || {};
   const { t } = useT();
+  const [txOpen, setTxOpen] = useState(false); // collapsed by default — saves load
   return (
     <div className="h-full overflow-y-auto pb-4">
       {/* Header */}
@@ -1823,13 +1829,19 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
         </Card>
       </div>
 
-      {/* Recent TXs */}
+      {/* Recent TXs — collapsible, lazy-loaded */}
       <div className="mx-4 mt-3">
-        <div className="flex items-center justify-between mb-1.5">
+        <button
+          onClick={() => setTxOpen(o => !o)}
+          className="w-full flex items-center justify-between py-2 px-1"
+        >
           <span className="text-gray-500 text-xs font-medium">{t('recentTx')}</span>
-          <button onClick={() => onNav({type:'txs'})} className="text-emerald-500 text-[11px]">{t('viewAll')}</button>
-        </div>
-        <RecentTxs />
+          <div className="flex items-center gap-2">
+            <button onClick={e => { e.stopPropagation(); onNav({type:'txs'}); }} className="text-emerald-500 text-[11px]">{t('viewAll')}</button>
+            <ChevronDown className={`w-4 h-4 text-gray-600 transition-transform ${txOpen ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
+        {txOpen && <RecentTxs />}
       </div>
     </div>
   );
@@ -2790,71 +2802,68 @@ const PolView = ({ onBack, profile }) => {
 const DashboardView = ({ onBack }) => {
   const [s, setS] = useState(null);
   const { t } = useT();
-  useEffect(() => { get('/api/stats').then(setS).catch(()=>{}); }, []);
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={'📊 '+t('dashboard')} onBack={onBack} />
+  useEffect(() => { get("/api/stats").then(setS).catch(()=>{}); }, []);
+
+  const buildLevels = (dist) => {
+    const all = {};
+    for (let i = 0; i <= 7; i++) all["L"+i] = 0;
+    if (dist) Object.entries(dist).forEach(([k, v]) => { const norm = k.startsWith("L") ? k : "L"+k; all[norm] = (all[norm]||0) + v; });
+    return all;
+  };
+  const levelNames = ["Newbie","Starter","Active","Trusted","Expert","Validator","Priority","⚡ GOD"];
+  const levelColors = ["text-gray-400","text-emerald-400","text-teal-400","text-cyan-400","text-amber-400","text-red-400","text-purple-400","text-yellow-300"];
+
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={"📊 "+t("dashboard")} onBack={onBack} />
     <div className="flex-1 overflow-y-auto p-4">
-      {!s?<p className="text-gray-600 text-center py-8">{t('loading')}</p>:<>
-        {/* FORMULA: Emitted - Burned = On Wallets + STASH */}
+      {!s ? <p className="text-gray-600 text-center py-8">{t("loading")}</p> : <>
         <Card gradient="bg-gradient-to-br from-emerald-900/20 to-[#0f1f18] border-emerald-800/15" className="mb-3">
-          <p className="text-white text-sm font-semibold mb-3">💰 {t('supply')}</p>
-          {/* Main balance */}
-          <div className="bg-[#060f0c] rounded-xl p-3 mb-3 border border-emerald-900/20">
-            <p className="text-[9px] text-gray-600 uppercase">💼 {t('onWallets')}</p>
+          <p className="text-white text-sm font-semibold mb-3">💰 {t("supply")}</p>
+          <div className="bg-[#060f0c] rounded-xl p-3 mb-2 border border-emerald-900/20">
+            <p className="text-[9px] text-gray-600 uppercase mb-0.5">💼 {t("onWallets")}</p>
             <p className="text-emerald-400 text-2xl font-bold">{fmt(s.on_wallets||s.circulating_supply||0)} <span className="text-sm text-gray-600">LAC</span></p>
           </div>
-          {/* Emission */}
-          <div className="mb-2">
-            <div className="flex justify-between items-center mb-1"><p className="text-[10px] text-blue-400 font-semibold uppercase">✨ {t('totalEmitted')||'Emitted'}</p><p className="text-blue-400 font-bold text-sm">{fmt(s.total_emitted||s.total_mined_emission||0)} LAC</p></div>
-            <div className="space-y-0.5 pl-3">
-              {(s.emitted_mining||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">⛏️ {t('mining')}</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_mining)} LAC</span></div>}
-              {(s.emitted_faucet||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🚰 {t('faucet')}</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_faucet)} LAC</span></div>}
-              {(s.emitted_dice||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🎲 {t('dice')} wins</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_dice)} LAC</span></div>}
-              {(s.emitted_referral||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🤝 Referral</span><span className="text-gray-400 text-[10px]">{fmt(s.emitted_referral)} LAC</span></div>}
-            </div>
+          <div className="flex justify-between items-center py-2 border-b border-gray-800/30">
+            <p className="text-[11px] text-blue-400 font-semibold">✨ {t("totalEmitted")||"Total Emitted"}</p>
+            <p className="text-blue-400 font-bold text-sm">{fmt(s.total_emitted||s.total_mined_emission||0)} LAC</p>
           </div>
-          {/* Burns */}
-          <div className="mb-2">
-            <div className="flex justify-between items-center mb-1"><p className="text-[10px] text-red-400 font-semibold uppercase">🔥 {t('burnedForever')}</p><p className="text-red-400 font-bold text-sm">{fmt(s.total_burned||0)} LAC</p></div>
-            <div className="space-y-0.5 pl-3">
-              {(s.burned_dice||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🎲 {t('dice')}</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_dice)} LAC</span></div>}
-              {(s.burned_levels||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">⬆️ Levels</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_levels)} LAC</span></div>}
-              {(s.burned_username||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">👤 {t('usernames')}</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_username)} LAC</span></div>}
-              {(s.burned_fees||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">💸 {t('fee')||'Fees'}</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_fees)} LAC</span></div>}
-              {(s.burned_dms||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">💀 DMS</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_dms)} LAC</span></div>}
-              {(s.burned_other||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">🔥 Other</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_other)} LAC</span></div>}
-              {(s.burned_historical||0) > 0 && <div className="flex justify-between"><span className="text-gray-600 text-[10px]">📜 Other/Untracked</span><span className="text-gray-400 text-[10px]">{fmt(s.burned_historical)} LAC</span></div>}
-            </div>
+          <div className="flex justify-between items-center py-2 border-b border-gray-800/30">
+            <p className="text-[11px] text-red-400 font-semibold">🔥 {t("burnedForever")}</p>
+            <p className="text-red-400 font-bold text-sm">{fmt(s.total_burned||0)} LAC</p>
           </div>
-          {/* STASH */}
-          {(s.stash_pool_balance||0) > 0 && <div className="flex justify-between items-center pt-2 border-t border-gray-800/30"><p className="text-[10px] text-amber-400 font-semibold">🎒 {t('inStash')}</p><p className="text-amber-400 font-bold text-sm">{fmt(s.stash_pool_balance)} LAC</p></div>}
+          {(s.stash_pool_balance||0) > 0 && (
+            <div className="flex justify-between items-center pt-2">
+              <p className="text-[11px] text-amber-400 font-semibold">🎒 {t("inStash")}</p>
+              <p className="text-amber-400 font-bold text-sm">{fmt(s.stash_pool_balance)} LAC</p>
+            </div>
+          )}
         </Card>
-        {/* Network */}
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <StatBox icon="⛓" label={t('blocks')} value={fmt(s.total_blocks)} />
-          <StatBox icon="👛" label={t('wallets')} value={fmt(s.total_wallets)} />
-          <StatBox icon="📝" label={t('txCount')||'TX'} value={fmt(s.all_tx_count||0)} />
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <StatBox icon="⛓" label={t("blocks")} value={fmt(s.total_blocks)} />
+          <StatBox icon="👛" label={t("wallets")} value={fmt(s.total_wallets)} />
         </div>
-        {/* Transaction breakdown */}
-        <Card className="mb-3"><p className="text-white text-sm font-semibold mb-2">{t('allTimeTx')}</p>
-          <div className="grid grid-cols-3 gap-2">
-            <StatBox label={'💸 '+t('normal')} value={s.all_normal||0} small />
-            <StatBox label="👻 VEIL" value={s.all_veil||0} color="text-purple-400" small />
-            <StatBox label="🎒 STASH" value={s.all_stash||0} color="text-amber-400" small />
-            <StatBox label={'🎲 '+t('dice')} value={s.all_dice||0} color="text-yellow-400" small />
-            <StatBox label="⏰ TimeLock" value={s.all_timelock||0} color="text-blue-400" small />
-            <StatBox label="💀 DMS" value={s.all_dms||0} color="text-red-400" small />
-            <StatBox label={'🔥 '+t('burns')} value={s.all_burn||0} color="text-red-400" small />
-            <StatBox label={'👤 '+t('usernames')} value={s.all_username||0} small />
-            <StatBox label={'🚰 '+t('faucet')} value={s.all_faucet||0} small />
-          </div>
-          {s.all_l2_messages > 0 && <p className="text-purple-400/50 text-[10px] mt-2 text-center">+ {s.all_l2_messages} {t('l2encrypted')}</p>}
+        {s.top_balances && (
+          <Card className="mb-3">
+            <p className="text-white text-sm font-semibold mb-2">🏆 {t("topBalances")}</p>
+            {s.top_balances.slice(0,5).map((b,i) => (
+              <div key={i} className="flex justify-between py-1.5 border-b border-gray-800/20">
+                <span className="text-gray-500 text-xs">#{i+1}</span>
+                <span className="text-emerald-400 text-xs font-mono">{fmt(b)} LAC</span>
+              </div>
+            ))}
+          </Card>
+        )}
+        <Card>
+          <p className="text-white text-sm font-semibold mb-2">📊 {t("levelDist")}</p>
+          {Object.entries(buildLevels(s.level_distribution)).map(([k, v], i) => (
+            <div key={k} className="flex justify-between items-center py-1.5 border-b border-gray-800/20 last:border-0">
+              <div className="flex items-center gap-2">
+                <span className={"text-xs font-bold "+levelColors[i]}>{k}</span>
+                <span className="text-gray-600 text-[10px]">{levelNames[i]}</span>
+              </div>
+              <span className="text-white text-xs">{v} {t("walletsCount")}</span>
+            </div>
+          ))}
         </Card>
-        {s.top_balances && <Card className="mb-3"><p className="text-white text-sm font-semibold mb-2">🏆 {t('topBalances')}</p>
-          {s.top_balances.slice(0,5).map((b,i) => <div key={i} className="flex justify-between py-1 border-b border-gray-800/20"><span className="text-gray-500 text-xs">#{i+1}</span><span className="text-emerald-400 text-xs">{fmt(b)} LAC</span></div>)}
-        </Card>}
-        {s.level_distribution && <Card><p className="text-white text-sm font-semibold mb-2">📊 {t('levelDist')}</p>
-          {Object.entries(s.level_distribution).sort().map(([k,v]) => <div key={k} className="flex justify-between py-1 border-b border-gray-800/20"><span className="text-gray-500 text-xs">{k}</span><span className="text-white text-xs">{v} {t('walletsCount')}</span></div>)}
-        </Card>}
       </>}
     </div></div>);
 };
@@ -2887,8 +2896,8 @@ const ExplorerView = ({ onBack }) => {
         const hd = await get('/api/chain/height');
         setH(hd.height||0);
         const height = hd.height||0;
-        // Load last 1000 blocks (or all if chain < 1000)
-        const start = Math.max(0, height - 1000);
+        // Load last 200 blocks (full history available in separate explorer)
+        const start = Math.max(0, height - 200);
         const bd = await get(`/api/blocks/range?start=${start}&end=${height}`);
         setBlocks((bd.blocks||[]).reverse());
       } catch {}
@@ -2936,9 +2945,9 @@ const ExplorerView = ({ onBack }) => {
       </div></div>);
   }
 
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="⛓ Explorer" onBack={onBack} right={<Badge>#{h} · {blocks.length} blocks</Badge>} />
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="⛓ Explorer" onBack={onBack} right={<Badge>#{h} · last 200</Badge>} />
     <div className="flex-1 overflow-y-auto p-4">
-      {loading?<p className="text-gray-600 text-center py-8">Loading 1000 blocks…</p>:
+      {loading?<p className="text-gray-600 text-center py-8">Loading blocks…</p>:
         blocks.length===0?<p className="text-gray-600 text-center py-8">No blocks</p>:
         blocks.map(b => {
           const txs = (b.transactions||[]).filter(t => t.type!=='mining_reward' && t.type!=='poet_reward');
