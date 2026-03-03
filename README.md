@@ -37,6 +37,8 @@ LAC combines **anonymous transactions** (ring signatures, stealth addresses) wit
 | Mobile-first design | ❌ | ❌ | ❌ | ✅ | ✅ |
 | Anonymous DeFi (STASH) | ❌ | Partial | ✅ | ❌ | ✅ |
 | Post-quantum encryption | ❌ | ❌ | ❌ | ❌ | ✅ (Kyber-768) |
+| Bitcoin SPV wallet | ❌ | ❌ | ❌ | ❌ | ✅ |
+| BTC ↔ LAC Atomic Swaps | ❌ | ❌ | ❌ | ❌ | 🔜 |
 
 **No other blockchain deletes your data.** Monero hides it. Zcash encrypts it. LAC destroys it.
 
@@ -75,6 +77,30 @@ All actions recorded on-chain anonymously. No other blockchain has this.
 
 ### ⛏️ PoET Consensus
 Proof of Elapsed Time — fair mining without GPU advantage. 19 winners per block, rewards distributed proportionally. CPU-friendly, energy-efficient.
+
+
+### ₿ Bitcoin SPV Wallet (built-in)
+Non-custodial Bitcoin wallet built directly into the LAC mobile app — no separate app needed.
+
+- **Keys derived locally** from your LAC seed via `SHA256(SHA256("LAC-BTC-WALLET-v1:" + seed))` — never transmitted anywhere
+- **P2WPKH** native segwit addresses (`bc1q...`), BIP143 signing
+- Send, receive, UTXO management, fee estimation (slow / mid / fast)
+- Blockchain data via Blockstream Esplora public API — only your address is visible, not your key
+- Transaction signing fully in-browser using `@noble/secp256k1`
+- **One seed phrase covers both wallets** — back up once, recover everything
+
+### ⚡ BTC ↔ LAC Atomic Swaps *(coming soon)*
+Trustless cross-chain exchange using Hash Time-Lock Contracts (HTLC). No exchange, no KYC, no custodian.
+
+```
+1. Alice generates secret S, locks BTC on Bitcoin with hash(S) + timelock
+2. Bob sees hash(S), locks LAC on LAC chain with same hash + timelock
+3. Alice reveals S → claims LAC
+4. Bob sees S on-chain → claims BTC
+5. If either party disappears → both get refunds after timelock
+```
+
+LAC Time-Lock transactions are already live on-chain — atomic swaps add the P2P coordination layer.
 
 ### ⏰ Time-Lock Transactions
 Schedule future payments. "Send 1000 LAC to @alice in 360 blocks (~1 hour)." Funds locked until target block.
@@ -135,7 +161,7 @@ LightAnonChain/
 │   ├── lac_zero_history.py  # Zero-History deletion engine
 │   └── requirements.txt
 ├── lac-mobile/
-│   ├── src/App.jsx          # Full mobile app (2900+ lines)
+│   ├── src/App.jsx          # Full mobile app (3500+ lines)
 │   ├── vite.config.js       # PWA + code splitting config
 │   ├── package.json
 │   └── ...
@@ -154,7 +180,7 @@ LightAnonChain/
 
 | Parameter | Value |
 |-----------|-------|
-| Max Supply | ~184M LAC (100-year emission) |
+| Max Supply | ~1840M LAC (100-year emission) |
 | Block Time | ~10 seconds |
 | Initial Reward | 190 LAC/block |
 | Halving | Gradual reduction over 100 years |
@@ -182,7 +208,10 @@ LightAnonChain/
 - [x] Group chats (public / private / L1 / L2 ephemeral)
 - [x] E2E encryption (Ed25519 + X25519 + XSalsa20-Poly1305)
 - [x] Read receipts + unread indicators
-- [ ] WebSocket real-time messaging
+- [x] WebSocket real-time messaging
+- [x] Bitcoin SPV wallet (non-custodial, local keys, Esplora API)
+- [x] Level 7 ⚡ GOD — top-tier validator status
+- [ ] BTC ↔ LAC Atomic Swaps (HTLC, trustless, P2P)
 - [ ] Multi-node peer discovery & sync
 - [ ] Mobile app (App Store / Google Play)
 - [ ] Username marketplace (on-chain)
@@ -193,11 +222,13 @@ LightAnonChain/
 
 **Journalists & Activists** — send documents that self-destruct. Dead Man's Switch releases information if you go silent.
 
-**Crypto Privacy** — VEIL transfers with ring signatures. STASH pool breaks any on-chain link. Zero-History means evidence doesn't exist after 90 days.
+**Crypto Privacy** — VEIL transfers with ring signatures. STASH pool breaks any on-chain link. Zero-History means evidence doesn't exist after 90 days. Bitcoin wallet shares one seed with LAC — one backup covers everything.
 
 **Inheritance** — Dead Man's Switch transfers funds to heirs without lawyers, notaries, or trusted third parties.
 
 **Private Communication** — end-to-end encrypted messages with burn-after-read. Not stored on servers, not stored on blockchain.
+
+**Cross-chain** — Atomic swaps let you exchange BTC ↔ LAC directly, peer-to-peer, with no exchange, no KYC, no custodian.
 
 ## Contributing
 
@@ -211,7 +242,9 @@ LAC is in active development. Contributions welcome:
 
 ## Security
 
-This is testnet software. **Do not use for real funds.** The protocol has not been formally audited. If you discover a vulnerability, please open an issue or contact us directly.
+This is testnet software. **Do not use for real funds.** The protocol has not been formally audited. The Bitcoin wallet derives private keys locally and never transmits them. Blockchain data is fetched from Blockstream Esplora over HTTPS. Your LAC seed phrase controls both your LAC and Bitcoin wallets — keep it safe.
+
+If you discover a vulnerability, please open an issue or contact us directly.
 
 ## License
 
