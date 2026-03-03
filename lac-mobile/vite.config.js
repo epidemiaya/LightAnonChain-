@@ -1,43 +1,22 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/lac-beta\.uk\/api\/(profile|inbox|groups)/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 },
-              networkTimeoutSeconds: 3,
-            },
-          },
-          {
-            urlPattern: /^https:\/\/lac-beta\.uk\/api\/media\//,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'media-cache',
-              expiration: { maxEntries: 200, maxAgeSeconds: 300 },
-            },
-          },
-        ],
-      },
+      includeAssets: ['/favicon.ico', '/robots.txt', '/apple-touch-icon.png'],
       manifest: {
-        name: 'LAC — LightAnonChain',
+        name: 'LAC Mobile',
         short_name: 'LAC',
-        description: 'Privacy-first blockchain messenger',
-        start_url: '/',
+        description: 'Light Anonymous Chain — mobile testnet console',
+        theme_color: '#111827',
+        background_color: '#0b1020',
         display: 'standalone',
-        background_color: '#060f0c',
-        theme_color: '#10b981',
-        orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
@@ -45,10 +24,10 @@ export default defineConfig({
       },
     }),
   ],
+  // ✅ FIX: avoid subpath specifiers that are not exported by @noble/hashes@2.0.1
   optimizeDeps: {
     include: [
-      '@noble/hashes/sha256',
-      '@noble/hashes/ripemd160',
+      '@noble/hashes',
       '@scure/base',
       '@noble/secp256k1',
     ],
@@ -77,4 +56,4 @@ export default defineConfig({
       },
     },
   },
-})
+});
