@@ -988,11 +988,8 @@ def auto_mining_loop():
                     if activated:
                         print(f"⏰ Activated {len(activated)} time-locked TX")
                 
-                # Blockchain pruning (automatic)
-                if S.pruning and S.pruning.should_prune(len(S.chain)):
-                    prune_stats = S.pruning.prune_old_blocks()
-                    if prune_stats.get('pruned'):
-                        print(f"🗜️ Pruned {prune_stats['blocks_pruned']} blocks, saved {prune_stats['mb_saved']} MB")
+                # Blockchain pruning scheduled — runs OUTSIDE lock below
+                _do_pruning = S.pruning and S.pruning.should_prune(len(S.chain))
                 
                 
                 # ===================== ZERO-HISTORY: ADD BLOCK =====================
@@ -1013,6 +1010,15 @@ def auto_mining_loop():
                 S.save()
             except Exception as e:
                 print(f"⚠️ Save error: {e}")
+            
+            # Pruning OUTSIDE lock — can take several seconds
+            if _do_pruning:
+                try:
+                    prune_stats = S.pruning.prune_old_blocks()
+                    if prune_stats.get('pruned'):
+                        print(f"🗜️ Pruned {prune_stats['blocks_pruned']} blocks, saved {prune_stats['mb_saved']} MB")
+                except Exception as e:
+                    print(f"⚠️ Pruning error: {e}")
                 
             with S.lock:
                 print(f"\n⛏️ Block #{len(S.chain)-1} mined!")
