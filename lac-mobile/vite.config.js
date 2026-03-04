@@ -24,24 +24,12 @@ export default defineConfig({
       },
     }),
   ],
-  optimizeDeps: {
-    include: [
-      '@noble/hashes/sha256',
-      '@noble/hashes/ripemd160',
-      '@scure/base',
-      '@noble/secp256k1',
-    ],
-    esbuildOptions: {
-      target: 'es2020',
-    },
-  },
   build: {
     rollupOptions: {
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
           ui: ['lucide-react', 'react-hot-toast'],
-          crypto: ['@noble/secp256k1', '@noble/hashes', '@scure/base'],
         },
       },
     },

@@ -13,10 +13,55 @@ import {
   ChevronDown, Bookmark, Gift, Flame, Timer, Link2, UserPlus, ArrowUpRight, ArrowDownLeft, Skull,
   Image, Mic, MicOff, Play, Pause, Volume2, FileImage, Bitcoin
 } from 'lucide-react';
-import { sha256 } from '@noble/hashes/sha256';
-import { ripemd160 } from '@noble/hashes/ripemd160';
-import { bech32 } from '@scure/base';
-import * as secp256k1lib from '@noble/secp256k1';
+// ─── Bitcoin crypto — inline to avoid Rollup subpath issues ─────────────────
+// sha256 via Web Crypto API (built-in browser, zero deps)
+const _sha256 = async (data) => new Uint8Array(await crypto.subtle.digest('SHA-256', data instanceof Uint8Array ? data : new Uint8Array(data)));
+const _sha256sync = (data) => { throw new Error('use async sha256'); };
+
+// ripemd160 — tiny pure-JS impl (no external dep needed)
+const _ripemd160 = (() => {
+  const RL=(x,n)=>(x<<n)|(x>>>32-n);
+  const F=(j,x,y,z)=>j<16?x^y^z:j<32?(x&y)|(~x&z):j<48?(x|~y)^z:j<64?(x&z)|(y&~z):x^(y|~z);
+  const K=[0,0x5A827999,0x6ED9EBA1,0x8F1BBCDC,0xA953FD4E];
+  const KK=[0x50A28BE6,0x5C4DD124,0x6D703EF3,0x7A6D76E9,0];
+  const R=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,7,4,13,1,10,6,15,3,12,0,9,5,2,14,11,8,3,10,14,4,9,15,8,1,2,7,0,6,13,11,5,12,1,9,11,10,0,8,12,4,13,3,7,15,14,5,6,2,4,0,5,9,7,12,2,10,14,1,3,8,11,6,15,13];
+  const RR=[5,14,7,0,9,2,11,4,13,6,15,8,1,10,3,12,6,11,3,7,0,13,5,10,14,15,8,12,4,9,1,2,15,5,1,3,7,14,6,9,11,8,12,2,10,0,4,13,8,6,4,1,3,11,15,0,5,12,2,13,9,7,10,14,12,15,10,4,1,5,8,7,6,2,13,14,0,3,9,11];
+  const S=[11,14,15,12,5,8,7,9,11,13,14,15,6,7,9,8,7,6,8,13,11,9,7,15,7,12,15,9,11,7,13,12,11,13,6,7,14,9,13,15,14,8,13,6,5,12,7,5,11,12,14,15,14,15,9,8,9,14,5,6,8,6,5,12,9,15,5,11,6,8,13,12,5,12,13,14,11,8,5,6];
+  const SS=[8,9,9,11,13,15,15,5,7,7,8,11,14,14,12,6,9,13,15,7,12,8,9,11,7,7,12,7,6,15,13,11,9,7,15,11,8,6,6,14,12,13,5,14,13,13,7,5,15,5,8,11,14,14,6,14,6,9,12,9,12,5,15,8,8,5,12,9,12,5,14,6,8,13,6,5,15,13,11,11];
+  return (msg) => {
+    const m8=msg instanceof Uint8Array?msg:new Uint8Array(msg);
+    const bits=m8.length*8;
+    const padded=new Uint8Array(m8.length+1+((55-m8.length)%64+64)%64+8);
+    padded.set(m8); padded[m8.length]=0x80;
+    const dv=new DataView(padded.buffer);
+    dv.setUint32(padded.length-8,bits>>>0,true);
+    dv.setUint32(padded.length-4,Math.floor(bits/2**32)>>>0,true);
+    let [h0,h1,h2,h3,h4]=[0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476,0xC3D2E1F0];
+    for(let i=0;i<padded.length;i+=64){
+      const W=Array.from({length:16},(_,j)=>dv.getUint32(i+j*4,true));
+      let [a,b,c,d,e,aa,bb,cc,dd,ee]=[h0,h1,h2,h3,h4,h0,h1,h2,h3,h4];
+      for(let j=0;j<80;j++){
+        let T=(RL(a+F(j,b,c,d)+W[R[j]]+K[j>>4],S[j])+e)>>>0; [a,e,d,c,b]=[e,d,RL(c,10),b,T];
+        T=(RL(aa+F(79-j,bb,cc,dd)+W[RR[j]]+KK[j>>4],SS[j])+ee)>>>0; [aa,ee,dd,cc,bb]=[ee,dd,RL(cc,10),bb,T];
+      }
+      [h0,h1,h2,h3,h4]=[(h1+c+dd)>>>0,(h2+d+ee)>>>0,(h3+e+aa)>>>0,(h4+a+bb)>>>0,(h0+b+cc)>>>0];
+    }
+    const out=new Uint8Array(20); const ov=new DataView(out.buffer);
+    [h0,h1,h2,h3,h4].forEach((h,i)=>ov.setUint32(i*4,h,true));
+    return out;
+  };
+})();
+
+// bech32 — minimal inline encoder for P2WPKH (bc1q addresses)
+const _bech32 = (() => {
+  const CHARSET='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  const GEN=[0x3b6a57b2,0x26508e6d,0x1ea119fa,0x3d4233dd,0x2a1462b3];
+  const polymod=(v)=>{let c=1;for(const d of v){const b=c>>25;c=((c&0x1ffffff)<<5)^d;for(let i=0;i<5;i++)if((b>>i)&1)c^=GEN[i];}return c;};
+  const hrpExpand=(hrp)=>{const r=[];for(const c of hrp)r.push(c.charCodeAt(0)>>5);r.push(0);for(const c of hrp)r.push(c.charCodeAt(0)&31);return r;};
+  const createChecksum=(hrp,data)=>{const v=[...hrpExpand(hrp),...data,0,0,0,0,0,0];const p=polymod(v)^1;return Array.from({length:6},(_,i)=>(p>>(5*(5-i)))&31);};
+  const convertbits=(data,frombits,tobits,pad=true)=>{let acc=0,bits=0;const r=[];for(const v of data){acc=(acc<<frombits)|v;bits+=frombits;while(bits>=tobits){bits-=tobits;r.push((acc>>bits)&((1<<tobits)-1));}}if(pad&&bits>0)r.push((acc<<(tobits-bits))&((1<<tobits)-1));return r;};
+  return {encode:(hrp,data)=>{const d=convertbits(data,8,5);const combined=[...d,...createChecksum(hrp,d)];return hrp+'1'+combined.map(i=>CHARSET[i]).join('');}};
+})();
 
 // ─── API Layer ────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -363,7 +408,19 @@ const LevelBadge = ({ level }) => {
 // P2WPKH (native segwit, bc1q...) via BIP143 transaction signing.
 
 // --- BTC Crypto Helpers (loaded lazily) ---
-const loadBtcCrypto = async () => ({ sha256fn: sha256, ripemd160fn: ripemd160, bech32lib: bech32, secpLib: secp256k1lib.secp256k1 || secp256k1lib });
+const loadBtcCrypto = async () => {
+  // lazy-load secp256k1 only (the one dep we actually need for signing)
+  const secp = await import('https://cdn.jsdelivr.net/npm/@noble/secp256k1@1.7.1/lib/index.js').catch(async () => {
+    // fallback: try local if CDN fails
+    return await import('@noble/secp256k1');
+  });
+  return {
+    sha256fn: async (data) => _sha256(data),
+    ripemd160fn: (data) => _ripemd160(data),
+    bech32lib: _bech32,
+    secpLib: secp.secp256k1 || secp,
+  };
+};
 
 // Byte helpers
 const btcConcat = (...a) => { const t=a.reduce((s,x)=>s+x.length,0); const r=new Uint8Array(t); let o=0; for(const x of a){r.set(x,o);o+=x.length;} return r; };
