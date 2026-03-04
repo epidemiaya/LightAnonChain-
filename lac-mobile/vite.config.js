@@ -24,13 +24,16 @@ export default defineConfig({
       },
     }),
   ],
-  // ✅ FIX: avoid subpath specifiers that are not exported by @noble/hashes@2.0.1
   optimizeDeps: {
     include: [
-      '@noble/hashes',
+      '@noble/hashes/sha256',
+      '@noble/hashes/ripemd160',
       '@scure/base',
       '@noble/secp256k1',
     ],
+    esbuildOptions: {
+      target: 'es2020',
+    },
   },
   build: {
     rollupOptions: {
@@ -38,7 +41,7 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom'],
           ui: ['lucide-react', 'react-hot-toast'],
-          crypto: ['@noble/secp256k1', '@noble/hashes', '@scure/base', '@scure/bip32', '@scure/bip39'],
+          crypto: ['@noble/secp256k1', '@noble/hashes', '@scure/base'],
         },
       },
     },
