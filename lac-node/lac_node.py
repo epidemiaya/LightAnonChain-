@@ -14,7 +14,7 @@ from typing import Optional
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-from threading import Thread, Lock
+from threading import RLock, Thread, Lock
 from collections import defaultdict
 from datetime import datetime, timedelta
 import mimetypes
@@ -376,7 +376,8 @@ class State:
         else:
             self.zero_history = None
         
-        self.lock = Lock()
+        self.lock = RLock()  # RLock allows re-entry from same thread
+        self._cache = {}   # in-memory cache: key -> (data, expires_at)
         
         # Stability: StateManager for atomic writes
         if STABILITY_ENABLED:
@@ -699,6 +700,37 @@ class State:
             print(f"⚠️ save_groups error: {e}")
 
 S = None
+
+# ─── In-memory cache helpers ─────────────────────────────────────────────────
+import time as _time
+
+def _cache_get(key):
+    """Get cached value if not expired"""
+    if not S or not hasattr(S, '_cache'):
+        return None
+    entry = S._cache.get(key)
+    if entry and _time.time() < entry[1]:
+        return entry[0]
+    return None
+
+def _cache_set(key, value, ttl=5):
+    """Store value in cache with TTL seconds"""
+    if S and hasattr(S, '_cache'):
+        S._cache[key] = (value, _time.time() + ttl)
+
+def _cache_del(key):
+    """Invalidate cache key"""
+    if S and hasattr(S, '_cache'):
+        S._cache.pop(key, None)
+
+def _cache_del_prefix(prefix):
+    """Invalidate all keys with prefix"""
+    if S and hasattr(S, '_cache'):
+        keys = [k for k in S._cache if k.startswith(prefix)]
+        for k in keys:
+            del S._cache[k]
+
+# ─────────────────────────────────────────────────────────────────────────────
 ws_sync = None  # WebSocket sync instance
 stability = None
 rate_limiter = None
@@ -781,6 +813,7 @@ def auto_mining_loop():
             
             with S.lock:
                 # Register ONLY ACTIVE (logged-in) eligible miners
+                # NOTE: lock is held during mining — keep this block fast
                 eligible_miners = []
                 
                 print(f"🔍 Checking miners:")
@@ -1706,6 +1739,12 @@ def profile():
     
     addr = get_address_from_seed(seed)
     
+    # Cache check — profile changes rarely
+    ck = 'profile:' + addr
+    cached = _cache_get(ck)
+    if cached:
+        return jsonify(cached)
+    
     with S.lock:
         if addr not in S.wallets:
             return jsonify({'error': 'Wallet not found'}), 404
@@ -1721,7 +1760,7 @@ def profile():
         # Dead Man's Switch info
         dms = wallet.get('dead_mans_switch')
         
-        return jsonify({
+        data = {
             'ok': True,
             'address': addr,
             'username': username,
@@ -1732,7 +1771,9 @@ def profile():
             'created_at': wallet.get('created_at', 0),
             'dms_active': dms is not None and dms.get('enabled', False),
             'dms_days': dms.get('timeout_days', 0) if dms else 0
-        })
+        }
+        _cache_set(ck, data, ttl=5)
+        return jsonify(data)
 
 
 
@@ -2781,6 +2822,11 @@ def groups():
     if validate_seed(seed):
         current_addr = get_address_from_seed(seed)
     
+    ck = 'groups:' + (current_addr or 'anon')
+    cached = _cache_get(ck)
+    if cached:
+        return jsonify(cached)
+    
     with S.lock:
         groups_list = []
         for gid, group in S.groups.items():
@@ -2803,10 +2849,9 @@ def groups():
             }
             groups_list.append(group_data)
         
-        return jsonify({
-            'ok': True,
-            'groups': groups_list
-        })
+        result = {'ok': True, 'groups': groups_list}
+        _cache_set(ck, result, ttl=10)
+        return jsonify(result)
 
 @app.route('/api/group.delete', methods=['POST'])
 def delete_group():
