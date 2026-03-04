@@ -642,10 +642,16 @@ class State:
             print(f"⚠️ No validators registered! Need L5/L6 wallets with sufficient balance")
             sys.stdout.flush()
     
-    def save(self):
+    def save(self, force_chain=False):
+        # chain.json is 78MB+ — save only every 30 blocks to reduce disk I/O
+        # All other data (wallets, balances) saved every block as usual
+        current_height = len(self.chain)
+        save_chain = force_chain or (current_height % 30 == 0)
+        
         if STABILITY_ENABLED and self.state_manager:
             # Atomic writes - zero data loss
-            self.state_manager.save_atomic('chain.json', self.chain)
+            if save_chain:
+                self.state_manager.save_atomic('chain.json', self.chain)
             self.state_manager.save_atomic('wallets.json', self.wallets)
             self.state_manager.save_atomic('usernames.json', self.usernames)
             self.state_manager.save_atomic('groups.json', self.groups)
@@ -657,8 +663,9 @@ class State:
             self.state_manager.save_atomic('reactions.json', self.reactions)
         else:
             # Fallback
-            with open(self.datadir / 'chain.json', 'w') as f:
-                json.dump(self.chain, f, indent=2)
+            if save_chain:
+                with open(self.datadir / 'chain.json', 'w') as f:
+                    json.dump(self.chain, f, indent=2)
             with open(self.datadir / 'wallets.json', 'w') as f:
                 json.dump(self.wallets, f, indent=2)
             with open(self.datadir / 'usernames.json', 'w') as f:
@@ -988,8 +995,11 @@ def auto_mining_loop():
                     if activated:
                         print(f"⏰ Activated {len(activated)} time-locked TX")
                 
-                # Blockchain pruning scheduled — runs OUTSIDE lock below
-                _do_pruning = S.pruning and S.pruning.should_prune(len(S.chain))
+                # Blockchain pruning (automatic)
+                if S.pruning and S.pruning.should_prune(len(S.chain)):
+                    prune_stats = S.pruning.prune_old_blocks()
+                    if prune_stats.get('pruned'):
+                        print(f"🗜️ Pruned {prune_stats['blocks_pruned']} blocks, saved {prune_stats['mb_saved']} MB")
                 
                 
                 # ===================== ZERO-HISTORY: ADD BLOCK =====================
@@ -1010,15 +1020,6 @@ def auto_mining_loop():
                 S.save()
             except Exception as e:
                 print(f"⚠️ Save error: {e}")
-            
-            # Pruning OUTSIDE lock — can take several seconds
-            if _do_pruning:
-                try:
-                    prune_stats = S.pruning.prune_old_blocks()
-                    if prune_stats.get('pruned'):
-                        print(f"🗜️ Pruned {prune_stats['blocks_pruned']} blocks, saved {prune_stats['mb_saved']} MB")
-                except Exception as e:
-                    print(f"⚠️ Pruning error: {e}")
                 
             with S.lock:
                 print(f"\n⛏️ Block #{len(S.chain)-1} mined!")
