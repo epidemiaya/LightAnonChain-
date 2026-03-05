@@ -52,16 +52,16 @@ const _ripemd160 = (() => {
   };
 })();
 
-// bech32/bech32m — minimal inline implementation (BIP173/BIP350) with the same surface as @scure/base
-// Provides: encode(hrp, words), decode(addr, limit), toWords(bytes), fromWords(words)
+// bech32 — minimal inline encoder/decoder for SegWit (bc1...) and Taproot decode safety
 const _bech32 = (() => {
   const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-  const CHARKEY = (() => {
-    const m = Object.create(null);
+  const CHARSET_REV = (() => {
+    const m = {};
     for (let i = 0; i < CHARSET.length; i++) m[CHARSET[i]] = i;
     return m;
   })();
   const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+
   const polymod = (values) => {
     let chk = 1;
     for (const v of values) {
@@ -71,84 +71,86 @@ const _bech32 = (() => {
     }
     return chk >>> 0;
   };
+
   const hrpExpand = (hrp) => {
     const out = [];
-    for (const c of hrp) out.push(c.charCodeAt(0) >>> 5);
+    for (const ch of hrp) out.push(ch.charCodeAt(0) >>> 5);
     out.push(0);
-    for (const c of hrp) out.push(c.charCodeAt(0) & 31);
+    for (const ch of hrp) out.push(ch.charCodeAt(0) & 31);
     return out;
   };
-  const createChecksum = (hrp, words, specConstant) => {
-    const v = [...hrpExpand(hrp), ...words, 0, 0, 0, 0, 0, 0];
-    const pm = polymod(v) ^ specConstant;
-    return Array.from({ length: 6 }, (_, i) => (pm >>> (5 * (5 - i))) & 31);
+
+  const createChecksum = (hrp, data5) => {
+    const v = [...hrpExpand(hrp), ...data5, 0, 0, 0, 0, 0, 0];
+    const p = polymod(v) ^ 1;
+    return Array.from({ length: 6 }, (_, i) => (p >>> (5 * (5 - i))) & 31);
   };
-  const verifyChecksum = (hrp, words) => {
-    const pm = polymod([...hrpExpand(hrp), ...words]);
-    if (pm === 1) return 'bech32';
-    if (pm === 0x2bc830a3) return 'bech32m';
-    return null;
-  };
-  const convertBits = (data, fromBits, toBits, pad) => {
+
+  const verifyChecksum = (hrp, data5) => polymod([...hrpExpand(hrp), ...data5]) === 1;
+
+  const convertbits = (data, frombits, tobits, pad = true) => {
     let acc = 0;
     let bits = 0;
     const ret = [];
-    const maxv = (1 << toBits) - 1;
+    const maxv = (1 << tobits) - 1;
     for (const value of data) {
-      if (value < 0 || (value >>> fromBits) !== 0) return null;
-      acc = (acc << fromBits) | value;
-      bits += fromBits;
-      while (bits >= toBits) {
-        bits -= toBits;
-        ret.push((acc >>> bits) & maxv);
+      if (value < 0 || (value >> frombits) !== 0) return null;
+      acc = (acc << frombits) | value;
+      bits += frombits;
+      while (bits >= tobits) {
+        bits -= tobits;
+        ret.push((acc >> bits) & maxv);
       }
     }
     if (pad) {
-      if (bits > 0) ret.push((acc << (toBits - bits)) & maxv);
+      if (bits > 0) ret.push((acc << (tobits - bits)) & maxv);
     } else {
-      if (bits >= fromBits) return null;
-      if (((acc << (toBits - bits)) & maxv) !== 0) return null;
+      if (bits >= frombits) return null;
+      if (((acc << (tobits - bits)) & maxv) !== 0) return null;
     }
     return ret;
   };
 
-  const toWords = (bytes) => {
-    const w = convertBits(bytes, 8, 5, true);
-    if (!w) throw new Error('bech32.toWords failed');
-    return w;
-  };
+  const toWords = (bytes) => convertbits(bytes, 8, 5, true);
   const fromWords = (words) => {
-    const b = convertBits(words, 5, 8, false);
-    if (!b) throw new Error('bech32.fromWords failed');
-    return new Uint8Array(b);
+    const b = convertbits(words, 5, 8, false);
+    return b ? new Uint8Array(b) : null;
   };
 
-  const encode = (hrp, words) => {
-    const spec = 1; // bech32
-    const combined = [...words, ...createChecksum(hrp, words, spec)];
-    return `${hrp}1${combined.map((i) => CHARSET[i]).join('')}`;
+  const encode = (hrp, words5) => {
+    if (!Array.isArray(words5) && !(words5 instanceof Uint8Array)) throw new Error('bech32 encode: words must be array');
+    const data = Array.from(words5);
+    const combined = [...data, ...createChecksum(hrp, data)];
+    return hrp + '1' + combined.map((v) => CHARSET[v]).join('');
   };
 
   const decode = (addr, limit = 90) => {
-    if (typeof addr !== 'string' || addr.length < 8 || addr.length > limit) throw new Error('Invalid bech32 length');
-    const lower = addr.toLowerCase();
-    if (addr !== lower && addr !== addr.toUpperCase()) throw new Error('Mixed case');
-    const pos = lower.lastIndexOf('1');
-    if (pos < 1 || pos + 7 > lower.length) throw new Error('Invalid separator position');
-    const hrp = lower.slice(0, pos);
-    const dataPart = lower.slice(pos + 1);
-    const words = [];
+    if (typeof addr !== 'string') throw new Error('bech32 decode: address must be string');
+    const a = addr.toLowerCase();
+    if (a.length < 8 || a.length > limit) throw new Error('Invalid bech32 length');
+    const pos = a.lastIndexOf('1');
+    if (pos < 1 || pos + 7 > a.length) throw new Error('Invalid bech32 separator');
+    const hrp = a.slice(0, pos);
+    const dataPart = a.slice(pos + 1);
+    const data = [];
     for (const ch of dataPart) {
-      const v = CHARKEY[ch];
+      const v = CHARSET_REV[ch];
       if (v === undefined) throw new Error('Invalid bech32 character');
-      words.push(v);
+      data.push(v);
     }
-    const spec = verifyChecksum(hrp, words);
-    if (!spec) throw new Error('Invalid checksum');
-    return { hrp, words: words.slice(0, -6), spec };
+    if (!verifyChecksum(hrp, data)) throw new Error('Invalid bech32 checksum');
+    return { prefix: hrp, words: data.slice(0, -6) };
   };
 
-  return { encode, decode, toWords, fromWords };
+  // SegWit v0 (bc1q...) address (bech32 checksum constant 1)
+  const encodeSegwitV0 = (hrp, program) => {
+    if (!(program instanceof Uint8Array)) program = new Uint8Array(program);
+    const words = toWords(program);
+    if (!words) throw new Error('bech32: convertbits failed');
+    return encode(hrp, [0, ...words]); // witness version 0 + program words
+  };
+
+  return { encode, decode, toWords, fromWords, encodeSegwitV0 };
 })();
 
 // ─── API Layer ────────────────────────────────────────
@@ -636,8 +638,7 @@ const BitcoinWalletTab = ({ onMenu }) => {
         const pubKeyHash = ripemd160fn(sha256fn(pubKey));   // HASH160, 20 bytes
 
         // P2WPKH bech32 address (bc1q...)
-        const words = bech32lib.toWords(pubKeyHash);
-        const address = bech32lib.encode('bc', new Uint8Array([0, ...words]));
+        const address = bech32lib.encodeSegwitV0('bc', pubKeyHash);
 
         setKeys({ privKey, pubKey, pubKeyHash, address });
       } catch(e) {
