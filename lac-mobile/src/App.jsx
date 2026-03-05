@@ -52,28 +52,25 @@ const _ripemd160 = (() => {
   };
 })();
 
-// bech32 — minimal BIP-173 helpers (encode/decode + toWords/fromWords)
+// bech32/bech32m — minimal inline implementation (BIP173/BIP350) with the same surface as @scure/base
+// Provides: encode(hrp, words), decode(addr, limit), toWords(bytes), fromWords(words)
 const _bech32 = (() => {
   const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-  const CHARSET_REV = (() => {
+  const CHARKEY = (() => {
     const m = Object.create(null);
     for (let i = 0; i < CHARSET.length; i++) m[CHARSET[i]] = i;
     return m;
   })();
   const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
-
   const polymod = (values) => {
     let chk = 1;
     for (const v of values) {
       const top = chk >>> 25;
       chk = ((chk & 0x1ffffff) << 5) ^ v;
-      for (let i = 0; i < 5; i++) {
-        if ((top >>> i) & 1) chk ^= GEN[i];
-      }
+      for (let i = 0; i < 5; i++) if ((top >>> i) & 1) chk ^= GEN[i];
     }
     return chk >>> 0;
   };
-
   const hrpExpand = (hrp) => {
     const out = [];
     for (const c of hrp) out.push(c.charCodeAt(0) >>> 5);
@@ -81,66 +78,74 @@ const _bech32 = (() => {
     for (const c of hrp) out.push(c.charCodeAt(0) & 31);
     return out;
   };
-
-  const createChecksum = (hrp, data) => {
-    const v = [...hrpExpand(hrp), ...data, 0, 0, 0, 0, 0, 0];
-    const p = polymod(v) ^ 1;
-    return Array.from({ length: 6 }, (_, i) => (p >>> (5 * (5 - i))) & 31);
+  const createChecksum = (hrp, words, specConstant) => {
+    const v = [...hrpExpand(hrp), ...words, 0, 0, 0, 0, 0, 0];
+    const pm = polymod(v) ^ specConstant;
+    return Array.from({ length: 6 }, (_, i) => (pm >>> (5 * (5 - i))) & 31);
   };
-
-  const verifyChecksum = (hrp, data) => polymod([...hrpExpand(hrp), ...data]) === 1;
-
-  const convertbits = (data, frombits, tobits, pad = true) => {
+  const verifyChecksum = (hrp, words) => {
+    const pm = polymod([...hrpExpand(hrp), ...words]);
+    if (pm === 1) return 'bech32';
+    if (pm === 0x2bc830a3) return 'bech32m';
+    return null;
+  };
+  const convertBits = (data, fromBits, toBits, pad) => {
     let acc = 0;
     let bits = 0;
     const ret = [];
-    const maxv = (1 << tobits) - 1;
+    const maxv = (1 << toBits) - 1;
     for (const value of data) {
-      if (value < 0 || (value >>> frombits) !== 0) return null;
-      acc = (acc << frombits) | value;
-      bits += frombits;
-      while (bits >= tobits) {
-        bits -= tobits;
+      if (value < 0 || (value >>> fromBits) !== 0) return null;
+      acc = (acc << fromBits) | value;
+      bits += fromBits;
+      while (bits >= toBits) {
+        bits -= toBits;
         ret.push((acc >>> bits) & maxv);
       }
     }
     if (pad) {
-      if (bits > 0) ret.push((acc << (tobits - bits)) & maxv);
+      if (bits > 0) ret.push((acc << (toBits - bits)) & maxv);
     } else {
-      if (bits >= frombits) return null;
-      if (((acc << (tobits - bits)) & maxv) !== 0) return null;
+      if (bits >= fromBits) return null;
+      if (((acc << (toBits - bits)) & maxv) !== 0) return null;
     }
     return ret;
   };
 
-  const toWords = (bytes) => convertbits(bytes, 8, 5, true);
+  const toWords = (bytes) => {
+    const w = convertBits(bytes, 8, 5, true);
+    if (!w) throw new Error('bech32.toWords failed');
+    return w;
+  };
   const fromWords = (words) => {
-    const res = convertbits(words, 5, 8, false);
-    if (!res) throw new Error('Invalid bech32 words');
-    return new Uint8Array(res);
+    const b = convertBits(words, 5, 8, false);
+    if (!b) throw new Error('bech32.fromWords failed');
+    return new Uint8Array(b);
   };
 
   const encode = (hrp, words) => {
-    const combined = [...words, ...createChecksum(hrp, words)];
-    return hrp + '1' + combined.map((v) => CHARSET[v]).join('');
+    const spec = 1; // bech32
+    const combined = [...words, ...createChecksum(hrp, words, spec)];
+    return `${hrp}1${combined.map((i) => CHARSET[i]).join('')}`;
   };
 
-  const decode = (addr, _limit = 90) => {
-    if (typeof addr !== 'string') throw new Error('Invalid bech32 string');
-    if (addr.length < 8) throw new Error('Bech32 string too short');
-    const a = addr.toLowerCase();
-    const pos = a.lastIndexOf('1');
-    if (pos < 1 || pos + 7 > a.length) throw new Error('Invalid bech32 separator');
-    const hrp = a.slice(0, pos);
-    const dataPart = a.slice(pos + 1);
+  const decode = (addr, limit = 90) => {
+    if (typeof addr !== 'string' || addr.length < 8 || addr.length > limit) throw new Error('Invalid bech32 length');
+    const lower = addr.toLowerCase();
+    if (addr !== lower && addr !== addr.toUpperCase()) throw new Error('Mixed case');
+    const pos = lower.lastIndexOf('1');
+    if (pos < 1 || pos + 7 > lower.length) throw new Error('Invalid separator position');
+    const hrp = lower.slice(0, pos);
+    const dataPart = lower.slice(pos + 1);
     const words = [];
     for (const ch of dataPart) {
-      const v = CHARSET_REV[ch];
+      const v = CHARKEY[ch];
       if (v === undefined) throw new Error('Invalid bech32 character');
       words.push(v);
     }
-    if (!verifyChecksum(hrp, words)) throw new Error('Invalid bech32 checksum');
-    return { prefix: hrp, words };
+    const spec = verifyChecksum(hrp, words);
+    if (!spec) throw new Error('Invalid checksum');
+    return { hrp, words: words.slice(0, -6), spec };
   };
 
   return { encode, decode, toWords, fromWords };
@@ -494,34 +499,27 @@ const LevelBadge = ({ level }) => {
 
 // --- BTC Crypto Helpers (loaded lazily) ---
 const loadBtcCrypto = async () => {
-  // Use local deps only (no CDN), so builds are deterministic.
-  const mod = await import('@noble/secp256k1');
-  const secp = mod.secp256k1 || mod;
-
-  if (!secp || (!secp.getPublicKey && !secp.sign)) {
-    throw new Error('secp256k1 library not available');
-  }
-
+  // lazy-load secp256k1 only (the one dep we actually need for signing)
+  const secp = await import('https://cdn.jsdelivr.net/npm/@noble/secp256k1@1.7.1/lib/index.js').catch(async () => {
+    // fallback: try local if CDN fails
+    return await import('@noble/secp256k1');
+  });
   return {
     sha256fn: async (data) => _sha256(data),
     ripemd160fn: (data) => _ripemd160(data),
     bech32lib: _bech32,
-    secpLib: secp,
+    secpLib: secp.secp256k1 || secp,
   };
 };
 
 // Byte helpers
-
 const btcConcat = (...a) => { const t=a.reduce((s,x)=>s+x.length,0); const r=new Uint8Array(t); let o=0; for(const x of a){r.set(x,o);o+=x.length;} return r; };
 const btcU32LE = n => { const b=new Uint8Array(4); b[0]=n&0xff;b[1]=(n>>8)&0xff;b[2]=(n>>16)&0xff;b[3]=(n>>>24)&0xff; return b; };
 const btcU64LE = n => { const b=new Uint8Array(8); const v=BigInt(n); for(let i=0;i<8;i++) b[i]=Number((v>>BigInt(i*8))&255n); return b; };
 const btcVarint = n => { if(n<0xfd) return new Uint8Array([n]); if(n<0xffff) return new Uint8Array([0xfd,n&0xff,(n>>8)&0xff]); return new Uint8Array([0xfe,n&0xff,(n>>8)&0xff,(n>>16)&0xff,(n>>24)&0xff]); };
 const btcHexToBytes = h => { const b=new Uint8Array(h.length/2); for(let i=0;i<h.length;i+=2) b[i/2]=parseInt(h.slice(i,i+2),16); return b; };
 const btcBytesToHex = b => Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
-const btcDsha256 = async (data, sha256fn) => {
-  const h1 = await sha256fn(data);
-  return await sha256fn(h1);
-};
+const btcDsha256 = (data, sha256fn) => sha256fn(sha256fn(data));
 const btcFmtSat = n => { const btc = n/1e8; return btc >= 0.001 ? btc.toFixed(6)+' BTC' : (n)+' sat'; };
 const BTC_API = 'https://blockstream.info/api';
 
@@ -567,10 +565,10 @@ const btcBuildTx = async (privKey, pubKey, pubKeyHash, utxos, toAddr, amountSat,
     value: u.value
   }));
 
-  const hashPrevouts = await btcDsha256(btcConcat(...inputs.map(i => btcConcat(i.txidBytes, i.vout))), sha256fn);
-  const hashSequence = await btcDsha256(btcConcat(...inputs.map(i => i.seq)), sha256fn);
+  const hashPrevouts = btcDsha256(btcConcat(...inputs.map(i => btcConcat(i.txidBytes, i.vout))), sha256fn);
+  const hashSequence = btcDsha256(btcConcat(...inputs.map(i => i.seq)), sha256fn);
   const outputsBytes = btcConcat(...outputs.map(o => btcConcat(btcU64LE(o.value), btcVarint(o.script.length), o.script)));
-  const hashOutputs = await btcDsha256(outputsBytes, sha256fn);
+  const hashOutputs = btcDsha256(outputsBytes, sha256fn);
 
   const ver = btcU32LE(1);
   const lt = btcU32LE(0);
@@ -581,7 +579,7 @@ const btcBuildTx = async (privKey, pubKey, pubKeyHash, utxos, toAddr, amountSat,
   const witnesses = [];
   for (const inp of inputs) {
     const preimage = btcConcat(ver, hashPrevouts, hashSequence, inp.txidBytes, inp.vout, scriptCode, btcU64LE(inp.value), inp.seq, hashOutputs, lt, sht);
-    const msgHash = await btcDsha256(preimage, sha256fn);
+    const msgHash = btcDsha256(preimage, sha256fn);
     let derSig;
     try {
       const sig = secpLib.sign(msgHash, privKey, { lowS: true });
@@ -627,25 +625,18 @@ const BitcoinWalletTab = ({ onMenu }) => {
         // Deterministic derivation: privKey = SHA256(SHA256("LAC-BTC-WALLET-v1:" + lacSeed))
         const prefix = 'LAC-BTC-WALLET-v1:';
         const combined = new TextEncoder().encode(prefix + lacSeed);
-
-        // IMPORTANT: sha256fn is async (WebCrypto). Always await it.
-        const h1 = await sha256fn(combined);
-        let privKey = await sha256fn(h1);
+        let privKey = sha256fn(sha256fn(combined));
 
         // Validate key (must be in secp256k1 range — virtually always true for SHA256 output)
         // Ensure non-zero: double-hash again if somehow zero (cryptographically impossible but safe)
         const isValidKey = (k) => { for(const b of k) if(b!==0) return true; return false; };
-        if (!isValidKey(privKey)) privKey = await sha256fn(privKey);
+        if (!isValidKey(privKey)) privKey = sha256fn(privKey);
 
         const pubKey = secpLib.getPublicKey(privKey, true); // compressed 33 bytes
-
-        // HASH160(pubkey) = RIPEMD160(SHA256(pubkey)) — SHA256 is async here
-        const pubHash = await sha256fn(pubKey);
-        const pubKeyHash = ripemd160fn(pubHash);   // 20 bytes
+        const pubKeyHash = ripemd160fn(sha256fn(pubKey));   // HASH160, 20 bytes
 
         // P2WPKH bech32 address (bc1q...)
         const words = bech32lib.toWords(pubKeyHash);
-          if (!words) throw new Error('bech32 convertbits failed');
         const address = bech32lib.encode('bc', new Uint8Array([0, ...words]));
 
         setKeys({ privKey, pubKey, pubKeyHash, address });
