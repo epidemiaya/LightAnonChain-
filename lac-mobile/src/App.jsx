@@ -52,15 +52,98 @@ const _ripemd160 = (() => {
   };
 })();
 
-// bech32 — minimal inline encoder for P2WPKH (bc1q addresses)
+// bech32 — minimal BIP-173 helpers (encode/decode + toWords/fromWords)
 const _bech32 = (() => {
-  const CHARSET='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-  const GEN=[0x3b6a57b2,0x26508e6d,0x1ea119fa,0x3d4233dd,0x2a1462b3];
-  const polymod=(v)=>{let c=1;for(const d of v){const b=c>>25;c=((c&0x1ffffff)<<5)^d;for(let i=0;i<5;i++)if((b>>i)&1)c^=GEN[i];}return c;};
-  const hrpExpand=(hrp)=>{const r=[];for(const c of hrp)r.push(c.charCodeAt(0)>>5);r.push(0);for(const c of hrp)r.push(c.charCodeAt(0)&31);return r;};
-  const createChecksum=(hrp,data)=>{const v=[...hrpExpand(hrp),...data,0,0,0,0,0,0];const p=polymod(v)^1;return Array.from({length:6},(_,i)=>(p>>(5*(5-i)))&31);};
-  const convertbits=(data,frombits,tobits,pad=true)=>{let acc=0,bits=0;const r=[];for(const v of data){acc=(acc<<frombits)|v;bits+=frombits;while(bits>=tobits){bits-=tobits;r.push((acc>>bits)&((1<<tobits)-1));}}if(pad&&bits>0)r.push((acc<<(tobits-bits))&((1<<tobits)-1));return r;};
-  return {encode:(hrp,data)=>{const d=convertbits(data,8,5);const combined=[...d,...createChecksum(hrp,d)];return hrp+'1'+combined.map(i=>CHARSET[i]).join('');}};
+  const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  const CHARSET_REV = (() => {
+    const m = Object.create(null);
+    for (let i = 0; i < CHARSET.length; i++) m[CHARSET[i]] = i;
+    return m;
+  })();
+  const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+
+  const polymod = (values) => {
+    let chk = 1;
+    for (const v of values) {
+      const top = chk >>> 25;
+      chk = ((chk & 0x1ffffff) << 5) ^ v;
+      for (let i = 0; i < 5; i++) {
+        if ((top >>> i) & 1) chk ^= GEN[i];
+      }
+    }
+    return chk >>> 0;
+  };
+
+  const hrpExpand = (hrp) => {
+    const out = [];
+    for (const c of hrp) out.push(c.charCodeAt(0) >>> 5);
+    out.push(0);
+    for (const c of hrp) out.push(c.charCodeAt(0) & 31);
+    return out;
+  };
+
+  const createChecksum = (hrp, data) => {
+    const v = [...hrpExpand(hrp), ...data, 0, 0, 0, 0, 0, 0];
+    const p = polymod(v) ^ 1;
+    return Array.from({ length: 6 }, (_, i) => (p >>> (5 * (5 - i))) & 31);
+  };
+
+  const verifyChecksum = (hrp, data) => polymod([...hrpExpand(hrp), ...data]) === 1;
+
+  const convertbits = (data, frombits, tobits, pad = true) => {
+    let acc = 0;
+    let bits = 0;
+    const ret = [];
+    const maxv = (1 << tobits) - 1;
+    for (const value of data) {
+      if (value < 0 || (value >>> frombits) !== 0) return null;
+      acc = (acc << frombits) | value;
+      bits += frombits;
+      while (bits >= tobits) {
+        bits -= tobits;
+        ret.push((acc >>> bits) & maxv);
+      }
+    }
+    if (pad) {
+      if (bits > 0) ret.push((acc << (tobits - bits)) & maxv);
+    } else {
+      if (bits >= frombits) return null;
+      if (((acc << (tobits - bits)) & maxv) !== 0) return null;
+    }
+    return ret;
+  };
+
+  const toWords = (bytes) => convertbits(bytes, 8, 5, true);
+  const fromWords = (words) => {
+    const res = convertbits(words, 5, 8, false);
+    if (!res) throw new Error('Invalid bech32 words');
+    return new Uint8Array(res);
+  };
+
+  const encode = (hrp, words) => {
+    const combined = [...words, ...createChecksum(hrp, words)];
+    return hrp + '1' + combined.map((v) => CHARSET[v]).join('');
+  };
+
+  const decode = (addr, _limit = 90) => {
+    if (typeof addr !== 'string') throw new Error('Invalid bech32 string');
+    if (addr.length < 8) throw new Error('Bech32 string too short');
+    const a = addr.toLowerCase();
+    const pos = a.lastIndexOf('1');
+    if (pos < 1 || pos + 7 > a.length) throw new Error('Invalid bech32 separator');
+    const hrp = a.slice(0, pos);
+    const dataPart = a.slice(pos + 1);
+    const words = [];
+    for (const ch of dataPart) {
+      const v = CHARSET_REV[ch];
+      if (v === undefined) throw new Error('Invalid bech32 character');
+      words.push(v);
+    }
+    if (!verifyChecksum(hrp, words)) throw new Error('Invalid bech32 checksum');
+    return { prefix: hrp, words };
+  };
+
+  return { encode, decode, toWords, fromWords };
 })();
 
 // ─── API Layer ────────────────────────────────────────
@@ -411,20 +494,24 @@ const LevelBadge = ({ level }) => {
 
 // --- BTC Crypto Helpers (loaded lazily) ---
 const loadBtcCrypto = async () => {
-  // lazy-load secp256k1 only (the one dep we actually need for signing)
-  const secp = await import('https://cdn.jsdelivr.net/npm/@noble/secp256k1@1.7.1/lib/index.js').catch(async () => {
-    // fallback: try local if CDN fails
-    return await import('@noble/secp256k1');
-  });
+  // Use local deps only (no CDN), so builds are deterministic.
+  const mod = await import('@noble/secp256k1');
+  const secp = mod.secp256k1 || mod;
+
+  if (!secp || (!secp.getPublicKey && !secp.sign)) {
+    throw new Error('secp256k1 library not available');
+  }
+
   return {
     sha256fn: async (data) => _sha256(data),
     ripemd160fn: (data) => _ripemd160(data),
     bech32lib: _bech32,
-    secpLib: secp.secp256k1 || secp,
+    secpLib: secp,
   };
 };
 
 // Byte helpers
+
 const btcConcat = (...a) => { const t=a.reduce((s,x)=>s+x.length,0); const r=new Uint8Array(t); let o=0; for(const x of a){r.set(x,o);o+=x.length;} return r; };
 const btcU32LE = n => { const b=new Uint8Array(4); b[0]=n&0xff;b[1]=(n>>8)&0xff;b[2]=(n>>16)&0xff;b[3]=(n>>>24)&0xff; return b; };
 const btcU64LE = n => { const b=new Uint8Array(8); const v=BigInt(n); for(let i=0;i<8;i++) b[i]=Number((v>>BigInt(i*8))&255n); return b; };
