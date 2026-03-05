@@ -431,7 +431,10 @@ const btcU64LE = n => { const b=new Uint8Array(8); const v=BigInt(n); for(let i=
 const btcVarint = n => { if(n<0xfd) return new Uint8Array([n]); if(n<0xffff) return new Uint8Array([0xfd,n&0xff,(n>>8)&0xff]); return new Uint8Array([0xfe,n&0xff,(n>>8)&0xff,(n>>16)&0xff,(n>>24)&0xff]); };
 const btcHexToBytes = h => { const b=new Uint8Array(h.length/2); for(let i=0;i<h.length;i+=2) b[i/2]=parseInt(h.slice(i,i+2),16); return b; };
 const btcBytesToHex = b => Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
-const btcDsha256 = (data, sha256fn) => sha256fn(sha256fn(data));
+const btcDsha256 = async (data, sha256fn) => {
+  const h1 = await sha256fn(data);
+  return await sha256fn(h1);
+};
 const btcFmtSat = n => { const btc = n/1e8; return btc >= 0.001 ? btc.toFixed(6)+' BTC' : (n)+' sat'; };
 const BTC_API = 'https://blockstream.info/api';
 
@@ -477,10 +480,10 @@ const btcBuildTx = async (privKey, pubKey, pubKeyHash, utxos, toAddr, amountSat,
     value: u.value
   }));
 
-  const hashPrevouts = btcDsha256(btcConcat(...inputs.map(i => btcConcat(i.txidBytes, i.vout))), sha256fn);
-  const hashSequence = btcDsha256(btcConcat(...inputs.map(i => i.seq)), sha256fn);
+  const hashPrevouts = await btcDsha256(btcConcat(...inputs.map(i => btcConcat(i.txidBytes, i.vout))), sha256fn);
+  const hashSequence = await btcDsha256(btcConcat(...inputs.map(i => i.seq)), sha256fn);
   const outputsBytes = btcConcat(...outputs.map(o => btcConcat(btcU64LE(o.value), btcVarint(o.script.length), o.script)));
-  const hashOutputs = btcDsha256(outputsBytes, sha256fn);
+  const hashOutputs = await btcDsha256(outputsBytes, sha256fn);
 
   const ver = btcU32LE(1);
   const lt = btcU32LE(0);
@@ -491,7 +494,7 @@ const btcBuildTx = async (privKey, pubKey, pubKeyHash, utxos, toAddr, amountSat,
   const witnesses = [];
   for (const inp of inputs) {
     const preimage = btcConcat(ver, hashPrevouts, hashSequence, inp.txidBytes, inp.vout, scriptCode, btcU64LE(inp.value), inp.seq, hashOutputs, lt, sht);
-    const msgHash = btcDsha256(preimage, sha256fn);
+    const msgHash = await btcDsha256(preimage, sha256fn);
     let derSig;
     try {
       const sig = secpLib.sign(msgHash, privKey, { lowS: true });
@@ -537,15 +540,21 @@ const BitcoinWalletTab = ({ onMenu }) => {
         // Deterministic derivation: privKey = SHA256(SHA256("LAC-BTC-WALLET-v1:" + lacSeed))
         const prefix = 'LAC-BTC-WALLET-v1:';
         const combined = new TextEncoder().encode(prefix + lacSeed);
-        let privKey = sha256fn(sha256fn(combined));
+
+        // IMPORTANT: sha256fn is async (WebCrypto). Always await it.
+        const h1 = await sha256fn(combined);
+        let privKey = await sha256fn(h1);
 
         // Validate key (must be in secp256k1 range — virtually always true for SHA256 output)
         // Ensure non-zero: double-hash again if somehow zero (cryptographically impossible but safe)
         const isValidKey = (k) => { for(const b of k) if(b!==0) return true; return false; };
-        if (!isValidKey(privKey)) privKey = sha256fn(privKey);
+        if (!isValidKey(privKey)) privKey = await sha256fn(privKey);
 
         const pubKey = secpLib.getPublicKey(privKey, true); // compressed 33 bytes
-        const pubKeyHash = ripemd160fn(sha256fn(pubKey));   // HASH160, 20 bytes
+
+        // HASH160(pubkey) = RIPEMD160(SHA256(pubkey)) — SHA256 is async here
+        const pubHash = await sha256fn(pubKey);
+        const pubKeyHash = ripemd160fn(pubHash);   // 20 bytes
 
         // P2WPKH bech32 address (bc1q...)
         const words = bech32lib.toWords(pubKeyHash);
