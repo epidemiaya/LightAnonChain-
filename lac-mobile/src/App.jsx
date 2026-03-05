@@ -1279,7 +1279,7 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
           loading ? <div className="space-y-0">{[1,2,3].map(i=><div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-900/50 animate-pulse"><div className="w-11 h-11 rounded-full bg-gray-800/60 shrink-0"/><div className="flex-1 space-y-2"><div className="h-3 bg-gray-800/60 rounded w-1/4"/><div className="h-2.5 bg-gray-800/40 rounded w-1/3"/></div></div>)}</div> :
           groups.length === 0 ? <Empty emoji="👥" text={t('noGroups')} sub={t('createGroup')} /> :
           [...groups].sort((a,b) => (b.last_post_ts||b.created_at||0) - (a.last_post_ts||a.created_at||0)).map(g => {
-            const tb = {public:['emerald','🌍 Public'],private:['purple','🔒 Private'],l1_blockchain:['blue','⛓ L1 Chain'],l2_ephemeral:['amber','⚡ L2 Ephemeral']}[g.type]||['gray', g.type||'Unknown'];
+            const tb = {public:['emerald','🌍 Public'],private:['purple','🔒 Private'],l1_blockchain:['blue','⛓ L1 Chain'],l2_ephemeral:['amber','⚡ L2 Ephemeral']}[g.type]||['gray', g.type||'Group'];
             return (
             <ListItem key={g.id||g.name}
               icon={<Users className="w-5 h-5 text-purple-400" />}
