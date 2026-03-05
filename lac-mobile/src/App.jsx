@@ -1,4 +1,4 @@
-/**
+// bump/**
  * LAC Mobile v8 — Full-featured Privacy Blockchain App
  * Telegram-like design with all LAC features
  */
