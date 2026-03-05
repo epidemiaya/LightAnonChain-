@@ -642,16 +642,10 @@ class State:
             print(f"⚠️ No validators registered! Need L5/L6 wallets with sufficient balance")
             sys.stdout.flush()
     
-    def save(self, force_chain=False):
-        # chain.json is 78MB+ — save only every 30 blocks to reduce disk I/O
-        # All other data (wallets, balances) saved every block as usual
-        current_height = len(self.chain)
-        save_chain = force_chain or (current_height % 30 == 0)
-        
+    def save(self):
         if STABILITY_ENABLED and self.state_manager:
             # Atomic writes - zero data loss
-            if save_chain:
-                self.state_manager.save_atomic('chain.json', self.chain)
+            self.state_manager.save_atomic('chain.json', self.chain)
             self.state_manager.save_atomic('wallets.json', self.wallets)
             self.state_manager.save_atomic('usernames.json', self.usernames)
             self.state_manager.save_atomic('groups.json', self.groups)
@@ -663,9 +657,8 @@ class State:
             self.state_manager.save_atomic('reactions.json', self.reactions)
         else:
             # Fallback
-            if save_chain:
-                with open(self.datadir / 'chain.json', 'w') as f:
-                    json.dump(self.chain, f, indent=2)
+            with open(self.datadir / 'chain.json', 'w') as f:
+                json.dump(self.chain, f, indent=2)
             with open(self.datadir / 'wallets.json', 'w') as f:
                 json.dump(self.wallets, f, indent=2)
             with open(self.datadir / 'usernames.json', 'w') as f:
@@ -2844,13 +2837,17 @@ def groups():
             if gtype == 'private' and current_addr and current_addr not in members:
                 continue
             
+            posts = group.get('posts', [])
+            last_post_ts = max((p.get('timestamp', 0) for p in posts), default=0) if posts else group.get('created_at', 0)
             group_data = {
                 'id': gid,
                 'name': group.get('name', 'Unknown'),
                 'type': gtype,
-                'post_count': len(group.get('posts', [])),
+                'post_count': len(posts),
                 'member_count': len(members),
                 'creator': group.get('creator'),
+                'created_at': group.get('created_at', 0),
+                'last_post_ts': last_post_ts,
                 'is_creator': current_addr == group.get('creator') if current_addr else False,
                 'is_member': current_addr in members if current_addr else False
             }

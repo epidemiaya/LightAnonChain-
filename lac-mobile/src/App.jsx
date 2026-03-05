@@ -78,56 +78,58 @@ const post = (p, b) => api(p, { method: 'POST', body: b });
 const get = (p) => api(p);
 
 // ─── WebSocket hook — real-time push with polling fallback ───────
-const useRealtimeSocket = (onMessage) => {
-  const wsRef = useRef(null);
-  const reconnectRef = useRef(null);
-  const aliveRef = useRef(true);
+// ─── Global singleton WebSocket — ONE connection for entire app ──────────────
+const _wsListeners = new Set();
+let _wsInstance = null;
+let _wsReconnectTimer = null;
+let _wsAlive = false;
+let _wsConnected = false;
 
-  const connect = () => {
-    const seed = localStorage.getItem('lac_seed');
-    if (!seed || !aliveRef.current) return;
+const _wsConnect = () => {
+  if (_wsInstance && _wsInstance.readyState <= 1) return; // already connecting/open
+  const seed = localStorage.getItem('lac_seed');
+  if (!seed || !_wsAlive) return;
 
-    // wss:// for https, ws:// for http
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/ws?seed=${encodeURIComponent(seed)}`);
-    wsRef.current = ws;
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${location.host}/ws?seed=${encodeURIComponent(seed)}`);
+  _wsInstance = ws;
 
-    ws.onopen = () => {
-      // Keep-alive ping every 25s
-      const ping = setInterval(() => {
-        if (ws.readyState === 1) ws.send('ping');
-        else clearInterval(ping);
-      }, 25000);
-    };
-
-    ws.onmessage = (e) => {
-      if (e.data === 'pong') return;
-      try {
-        const msg = JSON.parse(e.data);
-        onMessage && onMessage(msg);
-      } catch {}
-    };
-
-    ws.onclose = () => {
-      if (!aliveRef.current) return;
-      // Reconnect after 3s
-      reconnectRef.current = setTimeout(connect, 3000);
-    };
-
-    ws.onerror = () => ws.close();
+  ws.onopen = () => {
+    _wsConnected = true;
+    const ping = setInterval(() => {
+      if (ws.readyState === 1) ws.send('ping');
+      else clearInterval(ping);
+    }, 25000);
   };
 
+  ws.onmessage = (e) => {
+    if (e.data === 'pong') return;
+    try {
+      const msg = JSON.parse(e.data);
+      _wsListeners.forEach(fn => { try { fn(msg); } catch {} });
+    } catch {}
+  };
+
+  ws.onclose = () => {
+    _wsConnected = false;
+    if (!_wsAlive) return;
+    _wsReconnectTimer = setTimeout(_wsConnect, 3000);
+  };
+
+  ws.onerror = () => ws.close();
+};
+
+const useRealtimeSocket = (onMessage) => {
   useEffect(() => {
-    aliveRef.current = true;
-    connect();
+    _wsAlive = true;
+    _wsListeners.add(onMessage);
+    _wsConnect(); // start global WS if not running
     return () => {
-      aliveRef.current = false;
-      clearTimeout(reconnectRef.current);
-      wsRef.current?.close();
+      _wsListeners.delete(onMessage);
     };
   }, []);
 
-  return wsRef;
+  return { isConnected: () => _wsConnected };
 };
 
 // ─── Utils ────────────────────────────────────────────
@@ -1210,11 +1212,19 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
   useRealtimeSocket((msg) => {
     if (msg.event === 'new_message' || msg.event === 'new_group_post') {
       clearTimeout(wsDebounce.current);
-      wsDebounce.current = setTimeout(load, 300); // debounce 300ms to batch rapid events
+      wsDebounce.current = setTimeout(load, 200);
     }
   });
 
-  useEffect(() => { load(); const i = setInterval(() => { if(!document.hidden) load(); }, 25000); return () => clearInterval(i); }, []);
+  useEffect(() => {
+    load();
+    // Poll as fallback — WS handles real-time, poll only catches missed events
+    const i = setInterval(() => {
+      if (!document.hidden && !_wsConnected) load();
+      else if (!document.hidden) load(); // light refresh even with WS
+    }, 30000);
+    return () => clearInterval(i);
+  }, []);
 
   const convos = {};
   msgs.forEach(m => {
@@ -1268,7 +1278,7 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
         ) : (
           loading ? <div className="space-y-0">{[1,2,3].map(i=><div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-900/50 animate-pulse"><div className="w-11 h-11 rounded-full bg-gray-800/60 shrink-0"/><div className="flex-1 space-y-2"><div className="h-3 bg-gray-800/60 rounded w-1/4"/><div className="h-2.5 bg-gray-800/40 rounded w-1/3"/></div></div>)}</div> :
           groups.length === 0 ? <Empty emoji="👥" text={t('noGroups')} sub={t('createGroup')} /> :
-          groups.map(g => {
+          [...groups].sort((a,b) => (b.last_post_ts||b.created_at||0) - (a.last_post_ts||a.created_at||0)).map(g => {
             const tb = {public:['emerald','🌍 Public'],private:['purple','🔒 Private'],l1_blockchain:['blue','⛓ L1 Chain'],l2_ephemeral:['amber','⚡ L2 Ephemeral']}[g.type]||['gray', g.type||'Unknown'];
             return (
             <ListItem key={g.id||g.name}
@@ -1646,24 +1656,21 @@ const ChatView = ({ peer, onBack, profile }) => {
     finally { loadingRef.current = false; }
   };
 
-  // WebSocket: миттєве оновлення — з debounce щоб не тригерити двічі
+  // WebSocket: миттєве оновлення
   const wsLoadTimer = useRef(null);
-  const wsConnected = useRef(false);
   useRealtimeSocket((msg) => {
-    wsConnected.current = true;
     if (msg.event === 'new_message') {
       clearTimeout(wsLoadTimer.current);
       wsLoadTimer.current = setTimeout(() => load(false), 100);
     }
   });
 
-  // Polling як fallback — тільки коли WS не підключений
+  // Polling як fallback — WS handles real-time, poll only as safety net
   useEffect(() => {
     load(false);
     const i = setInterval(() => {
-      // Slow poll if WS is alive (WS handles real-time), fast poll as fallback
       if (!document.hidden) load(false);
-    }, wsConnected.current ? 30000 : 5000);
+    }, 15000); // always 15s — WS fires instantly anyway
     return () => clearInterval(i);
   }, []);
   useEffect(() => { end.current?.scrollIntoView({behavior:'instant', block:'end'}); }, [msgs]);
