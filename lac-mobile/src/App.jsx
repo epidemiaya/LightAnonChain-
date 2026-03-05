@@ -645,6 +645,7 @@ const BitcoinWalletTab = ({ onMenu }) => {
 
         // P2WPKH bech32 address (bc1q...)
         const words = bech32lib.toWords(pubKeyHash);
+          if (!words) throw new Error('bech32 convertbits failed');
         const address = bech32lib.encode('bc', new Uint8Array([0, ...words]));
 
         setKeys({ privKey, pubKey, pubKeyHash, address });
