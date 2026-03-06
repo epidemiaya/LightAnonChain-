@@ -1,4 +1,5 @@
 /**
+import * as secp256k1 from '@noble/secp256k1';
  * LAC Mobile v8 — Full-featured Privacy Blockchain App
  * Telegram-like design with all LAC features
  */
@@ -60,8 +61,7 @@ const _bech32 = (() => {
   const hrpExpand=(hrp)=>{const r=[];for(const c of hrp)r.push(c.charCodeAt(0)>>5);r.push(0);for(const c of hrp)r.push(c.charCodeAt(0)&31);return r;};
   const createChecksum=(hrp,data)=>{const v=[...hrpExpand(hrp),...data,0,0,0,0,0,0];const p=polymod(v)^1;return Array.from({length:6},(_,i)=>(p>>(5*(5-i)))&31);};
   const convertbits=(data,frombits,tobits,pad=true)=>{let acc=0,bits=0;const r=[];for(const v of data){acc=(acc<<frombits)|v;bits+=frombits;while(bits>=tobits){bits-=tobits;r.push((acc>>bits)&((1<<tobits)-1));}}if(pad&&bits>0)r.push((acc<<(tobits-bits))&((1<<tobits)-1));return r;};
-  const toWords = data => convertbits(Array.from(data),8,5);
-  return {encode:(hrp,data)=>{const d=convertbits(Array.from(data),8,5);const combined=[...d,...createChecksum(hrp,d)];return hrp+'1'+combined.map(i=>CHARSET[i]).join('');}, toWords};
+  return {encode:(hrp,data)=>{const d=convertbits(data,8,5);const combined=[...d,...createChecksum(hrp,d)];return hrp+'1'+combined.map(i=>CHARSET[i]).join('');}};
 })();
 
 // ─── API Layer ────────────────────────────────────────
@@ -412,14 +412,12 @@ const LevelBadge = ({ level }) => {
 
 // --- BTC Crypto Helpers (loaded lazily) ---
 const loadBtcCrypto = async () => {
-  const secp = await import('@noble/secp256k1');
-  // v1.7.1: functions are on the module directly
-  const secpLib = secp.default || secp;
+  // secp256k1 is statically imported at top — no dynamic import needed
   return {
-    sha256fn: (data) => _sha256(data),   // SYNC — must not be async
+    sha256fn: (data) => _sha256(data),
     ripemd160fn: (data) => _ripemd160(data),
     bech32lib: _bech32,
-    secpLib,
+    secpLib: secp256k1,
   };
 };
 
