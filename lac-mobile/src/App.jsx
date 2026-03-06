@@ -1,5 +1,4 @@
 /**
-import * as secp256k1 from '@noble/secp256k1';
  * LAC Mobile v8 — Full-featured Privacy Blockchain App
  * Telegram-like design with all LAC features
  */
@@ -411,15 +410,52 @@ const LevelBadge = ({ level }) => {
 // P2WPKH (native segwit, bc1q...) via BIP143 transaction signing.
 
 // --- BTC Crypto Helpers (loaded lazily) ---
-const loadBtcCrypto = async () => {
-  // secp256k1 is statically imported at top — no dynamic import needed
-  return {
-    sha256fn: (data) => _sha256(data),
-    ripemd160fn: (data) => _ripemd160(data),
-    bech32lib: _bech32,
-    secpLib: secp256k1,
+
+// ─── Inline secp256k1 — zero external deps, pure BigInt ──────────────────────
+const _secp256k1 = (() => {
+  const P  = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2Fn;
+  const N  = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
+  const Gx = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n;
+  const Gy = 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n;
+  const mod = (a, m=P) => { const r=a%m; return r>=0n?r:m+r; };
+  const inv = (a, m=P) => {
+    let [r,s,x,y]=[1n,0n,a,m];
+    while(y){ const q=x/y; [r,s,x,y]=[s,r-q*s,y,x-q*y]; }
+    return mod(r);
   };
-};
+  const padd = (A, B) => {
+    if(!A) return B; if(!B) return A;
+    const [x1,y1]=A,[x2,y2]=B;
+    if(x1===x2&&y1!==y2) return null;
+    const m=x1===x2?mod(3n*x1*x1*inv(2n*y1)):mod((y2-y1)*inv(mod(x2-x1)));
+    const x3=mod(m*m-x1-x2); return [x3,mod(m*(x1-x3)-y1)];
+  };
+  const pmul = (k,G=[Gx,Gy]) => { let R=null,Q=G; for(;k>0n;k>>=1n){if(k&1n)R=padd(R,Q);Q=padd(Q,Q);} return R; };
+  const b2n = b => BigInt('0x'+Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join(''));
+  const n2b = (n,len=32) => { const h=n.toString(16).padStart(len*2,'0'); return new Uint8Array(h.match(/.{2}/g).map(x=>parseInt(x,16))); };
+  const getPublicKey = (priv, compressed=true) => {
+    const [x,y]=pmul(b2n(priv));
+    if(compressed) return new Uint8Array([y%2n?3:2,...n2b(x)]);
+    return new Uint8Array([4,...n2b(x),...n2b(y)]);
+  };
+  const sign = (hash, priv, {lowS=true}={}) => {
+    const d=b2n(priv), z=b2n(hash);
+    let k=mod(b2n(_sha256(new Uint8Array([...priv,...hash]))),N); if(k===0n)k=1n;
+    const [rx]=pmul(k); let r=mod(rx,N),s=mod(inv(k,N)*(z+r*d),N);
+    if(lowS&&s>N/2n) s=N-s;
+    const enc=(n)=>{const b=[...n2b(n)].reverse().join(',').split(',').map(Number).reverse(); return b[0]>=0x80?[0,...b]:b;};
+    const rb=enc(r),sb=enc(s);
+    return new Uint8Array([0x30,4+rb.length+sb.length,0x02,rb.length,...rb,0x02,sb.length,...sb]);
+  };
+  return {getPublicKey, sign};
+})();
+// ─────────────────────────────────────────────────────────────────────────────
+const loadBtcCrypto = async () => ({
+  sha256fn: (data) => _sha256(data),
+  ripemd160fn: (data) => _ripemd160(data),
+  bech32lib: _bech32,
+  secpLib: _secp256k1,
+});
 
 // Byte helpers
 const btcConcat = (...a) => { const t=a.reduce((s,x)=>s+x.length,0); const r=new Uint8Array(t); let o=0; for(const x of a){r.set(x,o);o+=x.length;} return r; };
