@@ -15,29 +15,8 @@ import {
 } from 'lucide-react';
 // ─── Bitcoin crypto — inline to avoid Rollup subpath issues ─────────────────
 // sha256 via Web Crypto API (built-in browser, zero deps)
-const _sha256 = (() => {
-  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
-  const r32=(x,n)=>(x>>>n)|(x<<(32-n));
-  return (data) => {
-    const src = data instanceof Uint8Array ? data : new TextEncoder().encode(data);
-    const msg = [...src, 0x80];
-    while(msg.length%64!==56) msg.push(0);
-    const bits=src.length*8;
-    for(let i=7;i>=0;i--) msg.push((bits/2**(i*8))&0xff);
-    let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a,h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;
-    for(let i=0;i<msg.length;i+=64){
-      const w=new Uint32Array(64);
-      for(let j=0;j<16;j++) w[j]=(msg[i+j*4]<<24)|(msg[i+j*4+1]<<16)|(msg[i+j*4+2]<<8)|msg[i+j*4+3];
-      for(let j=16;j<64;j++){const s0=r32(w[j-15],7)^r32(w[j-15],18)^(w[j-15]>>>3);const s1=r32(w[j-2],17)^r32(w[j-2],19)^(w[j-2]>>>10);w[j]=(w[j-16]+s0+w[j-7]+s1)>>>0;}
-      let[a,b,cc,d,e,f,g,h]=[h0,h1,h2,h3,h4,h5,h6,h7];
-      for(let j=0;j<64;j++){const S1=r32(e,6)^r32(e,11)^r32(e,25);const ch=(e&f)^(~e&g);const t1=(h+S1+ch+K[j]+w[j])>>>0;const S0=r32(a,2)^r32(a,13)^r32(a,22);const maj=(a&b)^(a&cc)^(b&cc);const t2=(S0+maj)>>>0;h=g;g=f;f=e;e=(d+t1)>>>0;d=cc;cc=b;b=a;a=(t1+t2)>>>0;}
-      h0=(h0+a)>>>0;h1=(h1+b)>>>0;h2=(h2+cc)>>>0;h3=(h3+d)>>>0;h4=(h4+e)>>>0;h5=(h5+f)>>>0;h6=(h6+g)>>>0;h7=(h7+h)>>>0;
-    }
-    const res=new Uint8Array(32);
-    [h0,h1,h2,h3,h4,h5,h6,h7].forEach((v,i)=>{res[i*4]=v>>>24;res[i*4+1]=(v>>>16)&0xff;res[i*4+2]=(v>>>8)&0xff;res[i*4+3]=v&0xff;});
-    return res;
-  };
-})();
+const _sha256 = async (data) => new Uint8Array(await crypto.subtle.digest('SHA-256', data instanceof Uint8Array ? data : new Uint8Array(data)));
+const _sha256sync = (data) => { throw new Error('use async sha256'); };
 
 // ripemd160 — tiny pure-JS impl (no external dep needed)
 const _ripemd160 = (() => {
@@ -81,7 +60,8 @@ const _bech32 = (() => {
   const hrpExpand=(hrp)=>{const r=[];for(const c of hrp)r.push(c.charCodeAt(0)>>5);r.push(0);for(const c of hrp)r.push(c.charCodeAt(0)&31);return r;};
   const createChecksum=(hrp,data)=>{const v=[...hrpExpand(hrp),...data,0,0,0,0,0,0];const p=polymod(v)^1;return Array.from({length:6},(_,i)=>(p>>(5*(5-i)))&31);};
   const convertbits=(data,frombits,tobits,pad=true)=>{let acc=0,bits=0;const r=[];for(const v of data){acc=(acc<<frombits)|v;bits+=frombits;while(bits>=tobits){bits-=tobits;r.push((acc>>bits)&((1<<tobits)-1));}}if(pad&&bits>0)r.push((acc<<(tobits-bits))&((1<<tobits)-1));return r;};
-  return {encode:(hrp,data)=>{const d=convertbits(data,8,5);const combined=[...d,...createChecksum(hrp,d)];return hrp+'1'+combined.map(i=>CHARSET[i]).join('');}};
+  const toWords=(data)=>convertbits(Array.from(data),8,5);
+  return {encode:(hrp,data)=>{const d=toWords(data);const combined=[...d,...createChecksum(hrp,d)];return hrp+'1'+combined.map(i=>CHARSET[i]).join('');},toWords};
 })();
 
 // ─── API Layer ────────────────────────────────────────
@@ -431,28 +411,19 @@ const LevelBadge = ({ level }) => {
 // P2WPKH (native segwit, bc1q...) via BIP143 transaction signing.
 
 // --- BTC Crypto Helpers (loaded lazily) ---
-const _secp256k1 = (() => {
-  const P=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2Fn;
-  const N=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
-  const Gx=0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n;
-  const Gy=0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n;
-  const mod=(a,m=P)=>{const r=a%m;return r<0n?r+m:r;};
-  const inv=(a,m=P)=>{let[r,s,x,y]=[1n,0n,mod(a,m),m];while(y>0n){const q=x/y;[r,s,x,y]=[s,r-q*s,y,x-q*y];}return mod(r);};
-  const padd=(A,B)=>{if(!A)return B;if(!B)return A;const[x1,y1]=A,[x2,y2]=B;if(x1===x2){if(y1!==y2)return null;const m=mod(3n*x1*x1*inv(2n*y1));const x3=mod(m*m-2n*x1);return[x3,mod(m*(x1-x3)-y1)];}const m=mod((y2-y1)*inv(x2-x1));const x3=mod(m*m-x1-x2);return[x3,mod(m*(x1-x3)-y1)];};
-  const pmul=(k,G=[Gx,Gy])=>{let R=null,Q=G;for(;k>0n;k>>=1n){if(k&1n)R=padd(R,Q);Q=padd(Q,Q);}return R;};
-  const b2n=b=>{let h=0n;for(const x of b)h=(h<<8n)|BigInt(x);return h;};
-  const n2b=(n,len=32)=>{const r=new Uint8Array(len);let v=n;for(let i=len-1;i>=0;i--){r[i]=Number(v&0xffn);v>>=8n;}return r;};
-  const getPublicKey=(priv,compressed=true)=>{const pt=pmul(b2n(priv));if(!pt)throw new Error('bad key');const[x,y]=pt;return compressed?new Uint8Array([y%2n?3:2,...n2b(x)]):new Uint8Array([4,...n2b(x),...n2b(y)]);};
-  const sign=(hash,priv,{lowS=true}={})=>{const d=b2n(priv),z=b2n(hash);const kb=new Uint8Array(64);kb.set(priv);kb.set(hash,32);let k=mod(b2n(kb),N);if(k<2n)k=2n;const pt=pmul(k);if(!pt)throw new Error('sign fail');const[rx]=pt;let r=mod(rx,N),s=mod(inv(k,N)*(z+r*d),N);if(!r||!s)throw new Error('sign fail');if(lowS&&s>N/2n)s=N-s;const enc=n=>{const b=[...n2b(n)];while(b[0]===0)b.shift();return b[0]>=0x80?[0,...b]:b;};const rb=enc(r),sb=enc(s);return new Uint8Array([0x30,4+rb.length+sb.length,0x02,rb.length,...rb,0x02,sb.length,...sb]);};
-  return{getPublicKey,sign};
-})();
-
-const loadBtcCrypto = async () => ({
-  sha256fn: (data) => _sha256(data),
-  ripemd160fn: (data) => _ripemd160(data),
-  bech32lib: _bech32,
-  secpLib: _secp256k1,
-});
+const loadBtcCrypto = async () => {
+  // lazy-load secp256k1 only (the one dep we actually need for signing)
+  const secp = await import('https://cdn.jsdelivr.net/npm/@noble/secp256k1@1.7.1/lib/index.js').catch(async () => {
+    // fallback: try local if CDN fails
+    return await import('@noble/secp256k1');
+  });
+  return {
+    sha256fn: async (data) => _sha256(data),
+    ripemd160fn: (data) => _ripemd160(data),
+    bech32lib: _bech32,
+    secpLib: secp.secp256k1 || secp,
+  };
+};
 
 // Byte helpers
 const btcConcat = (...a) => { const t=a.reduce((s,x)=>s+x.length,0); const r=new Uint8Array(t); let o=0; for(const x of a){r.set(x,o);o+=x.length;} return r; };
