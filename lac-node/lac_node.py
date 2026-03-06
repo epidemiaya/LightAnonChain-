@@ -1015,6 +1015,8 @@ def auto_mining_loop():
                 print(f"⚠️ Save error: {e}")
                 
             with S.lock:
+                _cache_del('explorer:chain')
+                _cache_del_prefix('blocks:')
                 print(f"\n⛏️ Block #{len(S.chain)-1} mined!")
                 print(f"   Winners: {block_data['unique_winners']} unique")
                 print(f"   Rewards: {block_data['total_reward']:.2f} LAC")
@@ -2053,14 +2055,23 @@ def faucet():
         # Update balance immediately
         S.wallets[addr]['balance'] = S.wallets[addr].get('balance', 0) + faucet_amount
         S.counters['emitted_faucet'] += faucet_amount
-        S.save()
+        _cache_del('profile:' + addr)
         
-        return jsonify({
-            'ok': True,
-            'added': faucet_amount,
-            'balance': S.wallets[addr].get('balance', 0),
-            'level': S.wallets[addr].get('level', 0)
-        })
+        new_balance = S.wallets[addr].get('balance', 0)
+        new_level = S.wallets[addr].get('level', 0)
+    
+    # S.save() OUTSIDE lock — disk write doesn't block API
+    try:
+        S.save()
+    except Exception as e:
+        print(f'⚠️ Faucet save error: {e}')
+    
+    return jsonify({
+        'ok': True,
+        'added': faucet_amount,
+        'balance': new_balance,
+        'level': new_level
+    })
 
 @app.route('/api/transfer/normal', methods=['POST'])
 def transfer_normal():
@@ -2292,11 +2303,6 @@ def send_message():
         _recv_addr = to_address if to_address and to_address.startswith('lac') else None
         if _recv_addr:
             ws_push_to_peers([_recv_addr, from_addr], 'new_message', push_data)
-        # Invalidate chat cache for both sides
-        _cache_del_prefix('chat:' + from_addr)
-        _cache_del_prefix('chat:' + _recv_addr)
-        _cache_del('inbox:' + from_addr)
-        _cache_del('inbox:' + _recv_addr)
 
         return jsonify({
             'ok': True,
@@ -2365,12 +2371,6 @@ def inbox():
 
     addr = get_address_from_seed(seed)
 
-    # Inbox cache (invalidated on new message)
-    ck_inbox = 'inbox:' + addr
-    cached_inbox = _cache_get(ck_inbox)
-    if cached_inbox:
-        return jsonify(cached_inbox)
-
     with S.lock:
         if addr not in S.wallets:
             return jsonify({'error': 'Wallet not found'}), 404
@@ -2434,9 +2434,11 @@ def inbox():
         conv['unread'] = 1 if (conv.get('direction') == 'received' and
                                conv.get('timestamp', 0) > last_read) else 0
 
-    result_inbox = {'ok': True, 'messages': messages, 'count': len(messages)}
-    _cache_set(ck_inbox, result_inbox, ttl=5)
-    return jsonify(result_inbox)
+    return jsonify({
+        'ok': True,
+        'messages': messages,
+        'count': len(messages)
+        })
 
 @app.route('/api/chat', methods=['GET'])
 def get_chat():
@@ -2450,12 +2452,6 @@ def get_chat():
         return jsonify({'error': 'peer param required'}), 400
     
     addr = get_address_from_seed(seed)
-    
-    # Cache check — chat data changes only on new message (WS invalidates)
-    ck = 'chat:' + addr + ':' + peer
-    cached = _cache_get(ck)
-    if cached:
-        return jsonify(cached)
     
     # Resolve peer — could be @username, username, or address
     peer_addr = resolve_recipient(peer) if not peer.startswith('lac') else peer
@@ -2593,7 +2589,7 @@ def get_chat():
             if is_for_me and not raw_msg.get('_read_at'):
                 raw_msg['_read_at'] = now_ts
 
-        result = {
+        return jsonify({
             'ok': True,
             'messages': messages,
             'count': len(messages),
@@ -2601,9 +2597,7 @@ def get_chat():
             'peer_addr': peer_addr,
             'peer_online': peer_online,
             'last_ts': last_ts
-        }
-        _cache_set(ck, result, ttl=3)
-        return jsonify(result)
+        })
 
 @app.route('/api/chat/poll', methods=['GET'])
 def chat_poll():
@@ -3195,17 +3189,27 @@ def chain():
 
 @app.route('/api/explorer/chain', methods=['GET'])
 def explorer_chain():
-    """Get full blockchain for explorer"""
+    """Get recent blocks for explorer — last 200 only"""
+    cached = _cache_get('explorer:chain')
+    if cached:
+        return jsonify(cached)
+    
     with S.lock:
-        # Return all blocks with indexes
+        chain_len = len(S.chain)
+        start = max(0, chain_len - 200)
         blocks = []
-        for i, block in enumerate(S.chain):
-            block_copy = block.copy()
-            if 'index' not in block_copy:
-                block_copy['index'] = i
-            blocks.append(block_copy)
-        
-        return jsonify(blocks)
+        for i in range(start, chain_len):
+            block = S.chain[i]
+            b = {'index': block.get('index', i), 'timestamp': block.get('timestamp'),
+                 'hash': block.get('hash','')[:16], 'miner': block.get('miner',''),
+                 'tx_count': len(block.get('transactions',[])),
+                 'total_reward': block.get('total_reward', 0),
+                 'mining_winners_count': block.get('mining_winners_count', 0)}
+            blocks.append(b)
+    
+    result = list(reversed(blocks))  # newest first
+    _cache_set('explorer:chain', result, ttl=10)
+    return jsonify(result)
 
 # ===================== P2P SYNC ENDPOINTS =====================
 
@@ -3224,6 +3228,14 @@ def blocks_range():
     """Get blocks in range [start, end)"""
     start = int(request.args.get('start', 0))
     end = int(request.args.get('end', len(S.chain)))
+    # Cap range to 200 blocks max
+    if end - start > 200:
+        start = end - 200
+    
+    ck = f'blocks:{start}:{end}'
+    cached = _cache_get(ck)
+    if cached:
+        return jsonify(cached)
     
     with S.lock:
         if start < 0 or start >= len(S.chain):
