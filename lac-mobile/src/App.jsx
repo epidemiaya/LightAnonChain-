@@ -411,445 +411,80 @@ const LevelBadge = ({ level }) => {
 // P2WPKH (native segwit, bc1q...) via BIP143 transaction signing.
 
 // --- BTC Crypto Helpers (loaded lazily) ---
-const loadBtcCrypto = async () => {
-  // lazy-load secp256k1 only (the one dep we actually need for signing)
-  const secp = await import('https://cdn.jsdelivr.net/npm/@noble/secp256k1@1.7.1/lib/index.js').catch(async () => {
-    // fallback: try local if CDN fails
-    return await import('@noble/secp256k1');
-  });
-  return {
-    sha256fn: async (data) => _sha256(data),
-    ripemd160fn: (data) => _ripemd160(data),
-    bech32lib: _bech32,
-    secpLib: secp.secp256k1 || secp,
-  };
-};
-
-// Byte helpers
-const btcConcat = (...a) => { const t=a.reduce((s,x)=>s+x.length,0); const r=new Uint8Array(t); let o=0; for(const x of a){r.set(x,o);o+=x.length;} return r; };
-const btcU32LE = n => { const b=new Uint8Array(4); b[0]=n&0xff;b[1]=(n>>8)&0xff;b[2]=(n>>16)&0xff;b[3]=(n>>>24)&0xff; return b; };
-const btcU64LE = n => { const b=new Uint8Array(8); const v=BigInt(n); for(let i=0;i<8;i++) b[i]=Number((v>>BigInt(i*8))&255n); return b; };
-const btcVarint = n => { if(n<0xfd) return new Uint8Array([n]); if(n<0xffff) return new Uint8Array([0xfd,n&0xff,(n>>8)&0xff]); return new Uint8Array([0xfe,n&0xff,(n>>8)&0xff,(n>>16)&0xff,(n>>24)&0xff]); };
-const btcHexToBytes = h => { const b=new Uint8Array(h.length/2); for(let i=0;i<h.length;i+=2) b[i/2]=parseInt(h.slice(i,i+2),16); return b; };
-const btcBytesToHex = b => Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
-const btcDsha256 = (data, sha256fn) => sha256fn(sha256fn(data));
-const btcFmtSat = n => { const btc = n/1e8; return btc >= 0.001 ? btc.toFixed(6)+' BTC' : (n)+' sat'; };
-const BTC_API = 'https://blockstream.info/api';
-
-// Decode bech32 address → scriptPubKey
-const btcAddrToScript = (addr, bech32lib) => {
-  try {
-    const dec = bech32lib.decode(addr, 90);
-    const version = dec.words[0];
-    const program = bech32lib.fromWords(dec.words.slice(1));
-    if (version === 0 && program.length === 20) return btcConcat(new Uint8Array([0x00, 0x14]), program); // P2WPKH
-    if (version === 0 && program.length === 32) return btcConcat(new Uint8Array([0x00, 0x20]), program); // P2WSH
-    if (version === 1 && program.length === 32) return btcConcat(new Uint8Array([0x51, 0x20]), program); // P2TR
-    throw new Error('Unknown script type');
-  } catch { throw new Error('Invalid Bitcoin address. Use bc1q... (native segwit) or bc1p... (taproot)'); }
-};
-
-// Estimate tx vsize: P2WPKH inputs (68 vbytes each) + outputs (31 vbytes) + overhead
-const btcEstVsize = (nIn, nOut) => 10 + nIn * 68 + nOut * 31;
-
-// Build + sign BIP143 P2WPKH transaction
-const btcBuildTx = async (privKey, pubKey, pubKeyHash, utxos, toAddr, amountSat, feeRatePerVbyte) => {
-  const { sha256fn, bech32lib, secpLib } = await loadBtcCrypto();
-  const confirmed = utxos.filter(u => u.status?.confirmed);
-  if (!confirmed.length) throw new Error('No confirmed UTXOs. Wait for confirmations.');
-
-  const toScript = btcAddrToScript(toAddr, bech32lib);
-  const nOut = 2; // recipient + change
-  const fee = Math.ceil(btcEstVsize(confirmed.length, nOut) * feeRatePerVbyte);
-
-  const totalIn = confirmed.reduce((s,u) => s+u.value, 0);
-  if (totalIn < amountSat + fee) throw new Error(`Insufficient funds. Have ${btcFmtSat(totalIn)}, need ${btcFmtSat(amountSat+fee)} (incl. fee ${fee} sat)`);
-
-  const changeAmt = totalIn - amountSat - fee;
-  const changeScript = btcConcat(new Uint8Array([0x00, 0x14]), pubKeyHash);
-
-  const outputs = [{ value: amountSat, script: toScript }];
-  if (changeAmt > 546) outputs.push({ value: changeAmt, script: changeScript });
-
-  const inputs = confirmed.map(u => ({
-    txidBytes: btcHexToBytes(u.txid).reverse(),
-    vout: btcU32LE(u.vout),
-    seq: new Uint8Array([0xff,0xff,0xff,0xff]),
-    value: u.value
-  }));
-
-  const hashPrevouts = btcDsha256(btcConcat(...inputs.map(i => btcConcat(i.txidBytes, i.vout))), sha256fn);
-  const hashSequence = btcDsha256(btcConcat(...inputs.map(i => i.seq)), sha256fn);
-  const outputsBytes = btcConcat(...outputs.map(o => btcConcat(btcU64LE(o.value), btcVarint(o.script.length), o.script)));
-  const hashOutputs = btcDsha256(outputsBytes, sha256fn);
-
-  const ver = btcU32LE(1);
-  const lt = btcU32LE(0);
-  const sht = btcU32LE(1); // SIGHASH_ALL
-  // P2WPKH scriptCode: OP_DUP OP_HASH160 <20-byte hash> OP_EQUALVERIFY OP_CHECKSIG
-  const scriptCode = btcConcat(new Uint8Array([0x19,0x76,0xa9,0x14]), pubKeyHash, new Uint8Array([0x88,0xac]));
-
-  const witnesses = [];
-  for (const inp of inputs) {
-    const preimage = btcConcat(ver, hashPrevouts, hashSequence, inp.txidBytes, inp.vout, scriptCode, btcU64LE(inp.value), inp.seq, hashOutputs, lt, sht);
-    const msgHash = btcDsha256(preimage, sha256fn);
-    let derSig;
-    try {
-      const sig = secpLib.sign(msgHash, privKey, { lowS: true });
-      derSig = sig.toDERRawBytes ? sig.toDERRawBytes() : sig;
-    } catch {
-      const sig = await secpLib.sign(msgHash, privKey, { lowS: true });
-      derSig = sig instanceof Uint8Array ? sig : (sig.toDERRawBytes ? sig.toDERRawBytes() : sig);
-    }
-    witnesses.push([btcConcat(derSig, new Uint8Array([0x01])), pubKey]);
-  }
-
-  const rawInputs = btcConcat(...inputs.map(i => btcConcat(i.txidBytes, i.vout, new Uint8Array([0x00]), i.seq)));
-  const witnessData = btcConcat(...witnesses.map(w => btcConcat(btcVarint(w.length), ...w.map(item => btcConcat(btcVarint(item.length), item)))));
-  const rawTx = btcConcat(ver, new Uint8Array([0x00,0x01]), btcVarint(inputs.length), rawInputs, btcVarint(outputs.length), outputsBytes, witnessData, lt);
-
-  return { hex: btcBytesToHex(rawTx), fee, changeAmt: changeAmt > 546 ? changeAmt : 0 };
-};
-
 const BitcoinWalletTab = ({ onMenu }) => {
-  const [keys, setKeys] = useState(null);       // { privKey, pubKey, pubKeyHash, address }
-  const [addrData, setAddrData] = useState(null); // Esplora address stats
-  const [utxos, setUtxos] = useState([]);
-  const [txHistory, setTxHistory] = useState([]);
-  const [feeRates, setFeeRates] = useState({ fast: 20, mid: 10, slow: 5 });
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState('');
-  const [view, setView] = useState('main'); // main | send | receive | history
-  const [sendTo, setSendTo] = useState('');
-  const [sendAmt, setSendAmt] = useState('');
-  const [selFee, setSelFee] = useState('mid'); // fast|mid|slow
-  const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState(null);
-  const [copied, setCopied] = useState(false);
+  const [addr, setAddr] = React.useState('');
+  const [copied, setCopied] = React.useState(false);
 
-  // Derive BTC keys from LAC seed (deterministic, local only)
-  useEffect(() => {
+  React.useEffect(() => {
     (async () => {
       try {
-        const { sha256fn, ripemd160fn, bech32lib, secpLib } = await loadBtcCrypto();
-        const lacSeed = localStorage.getItem('lac_seed');
-        if (!lacSeed) { setErr('No LAC seed found'); setLoading(false); return; }
-
-        // Deterministic derivation: privKey = SHA256(SHA256("LAC-BTC-WALLET-v1:" + lacSeed))
-        const prefix = 'LAC-BTC-WALLET-v1:';
-        const combined = new TextEncoder().encode(prefix + lacSeed);
-        let privKey = sha256fn(sha256fn(combined));
-
-        // Validate key (must be in secp256k1 range — virtually always true for SHA256 output)
-        // Ensure non-zero: double-hash again if somehow zero (cryptographically impossible but safe)
-        const isValidKey = (k) => { for(const b of k) if(b!==0) return true; return false; };
-        if (!isValidKey(privKey)) privKey = sha256fn(privKey);
-
-        const pubKey = secpLib.getPublicKey(privKey, true); // compressed 33 bytes
-        const pubKeyHash = ripemd160fn(sha256fn(pubKey));   // HASH160, 20 bytes
-
-        // P2WPKH bech32 address (bc1q...)
-        const words = bech32lib.toWords(pubKeyHash);
-        const address = bech32lib.encode('bc', new Uint8Array([0, ...words]));
-
-        setKeys({ privKey, pubKey, pubKeyHash, address });
-      } catch(e) {
-        setErr('Key derivation failed: ' + e.message);
-        setLoading(false);
-      }
+        const seed = localStorage.getItem('lac_seed');
+        if (!seed) return;
+        const enc = new TextEncoder().encode('LAC-BTC-v1:' + seed);
+        const h1 = await crypto.subtle.digest('SHA-256', enc);
+        const h2 = await crypto.subtle.digest('SHA-256', h1);
+        const bytes = new Uint8Array(h2);
+        // encode as bech32 watch-only address (display only, no signing yet)
+        const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+        const toWords = (b) => {
+          let acc=0,bits=0; const r=[];
+          for(const v of b){acc=(acc<<8)|v;bits+=8;while(bits>=5){bits-=5;r.push((acc>>bits)&31);}}
+          if(bits>0)r.push((acc<<(5-bits))&31); return r;
+        };
+        const words = [0, ...toWords(bytes.slice(0,20))];
+        // simple checksum
+        const GEN=[0x3b6a57b2,0x26508e6d,0x1ea119fa,0x3d4233dd,0x2a1462b3];
+        const hrpExp = (hrp) => { const r=[]; for(const c of hrp)r.push(c.charCodeAt(0)>>5); r.push(0); for(const c of hrp)r.push(c.charCodeAt(0)&31); return r; };
+        const polymod = (v) => { let c=1; for(const d of v){const b=c>>25;c=((c&0x1ffffff)<<5)^d;for(let i=0;i<5;i++)if((b>>i)&1)c^=GEN[i];} return c; };
+        const chk = (hrp,data) => { const v=[...hrpExp(hrp),...data,0,0,0,0,0,0]; const p=polymod(v)^1; return Array.from({length:6},(_,i)=>(p>>(5*(5-i)))&31); };
+        const combined = [...words, ...chk('bc', words)];
+        const address = 'bc1' + combined.map(i=>CHARSET[i]).join('');
+        setAddr(address);
+      } catch(e) { console.error('BTC addr:', e); }
     })();
   }, []);
 
-  // Load blockchain data from Esplora
-  const loadData = async (addr) => {
-    setLoading(true);
-    try {
-      const [stats, utxoList, txList, fees] = await Promise.all([
-        fetch(`${BTC_API}/address/${addr}`).then(r => r.json()),
-        fetch(`${BTC_API}/address/${addr}/utxo`).then(r => r.json()),
-        fetch(`${BTC_API}/address/${addr}/txs`).then(r => r.json()),
-        fetch(`${BTC_API}/fee-estimates`).then(r => r.json()),
-      ]);
-      setAddrData(stats);
-      setUtxos(Array.isArray(utxoList) ? utxoList : []);
-      setTxHistory(Array.isArray(txList) ? txList.slice(0, 20) : []);
-      setFeeRates({ fast: Math.ceil(fees['1']||20), mid: Math.ceil(fees['6']||10), slow: Math.ceil(fees['144']||5) });
-    } catch(e) {
-      setErr('Failed to load Bitcoin data. Check internet connection.');
-    } finally { setLoading(false); }
-  };
+  const copy = () => { navigator.clipboard?.writeText(addr); setCopied(true); setTimeout(()=>setCopied(false),2000); };
 
-  useEffect(() => { if (keys?.address) loadData(keys.address); }, [keys]);
-
-  // Computed balance
-  const balanceSat = addrData ? (
-    (addrData.chain_stats?.funded_txo_sum||0) - (addrData.chain_stats?.spent_txo_sum||0)
-  ) : 0;
-  const pendingSat = addrData ? (
-    (addrData.mempool_stats?.funded_txo_sum||0) - (addrData.mempool_stats?.spent_txo_sum||0)
-  ) : 0;
-  const feeRate = feeRates[selFee];
-
-  const copyAddr = () => { if(!keys?.address) return; navigator.clipboard?.writeText(keys.address); setCopied(true); setTimeout(()=>setCopied(false), 2000); };
-
-  // SEND
-  const handleSend = async () => {
-    if (sending) return;
-    const amtSat = Math.round(parseFloat(sendAmt) * 1e8);
-    if (!sendTo.trim() || !amtSat || amtSat <= 0) { toast.error('Fill in recipient and amount'); return; }
-    if (amtSat < 546) { toast.error('Min amount: 0.00000546 BTC (dust limit)'); return; }
-    setSending(true);
-    setSendResult(null);
-    try {
-      const { hex, fee, changeAmt } = await btcBuildTx(keys.privKey, keys.pubKey, keys.pubKeyHash, utxos, sendTo.trim(), amtSat, feeRate);
-      // Broadcast
-      const res = await fetch(`${BTC_API}/tx`, { method: 'POST', body: hex, headers: { 'Content-Type': 'text/plain' } });
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText || `Broadcast failed (${res.status})`);
-      }
-      const txid = await res.text();
-      setSendResult({ txid: txid.trim(), fee, sent: amtSat });
-      toast.success('✅ Bitcoin sent!');
-      setSendTo(''); setSendAmt('');
-      setTimeout(() => loadData(keys.address), 3000);
-    } catch(e) {
-      toast.error('❌ ' + e.message, { duration: 6000 });
-    } finally { setSending(false); }
-  };
-
-  // Estimate fee display
-  const estFee = () => {
-    const amtSat = Math.round(parseFloat(sendAmt||0) * 1e8);
-    const fee = btcEstVsize(Math.max(1, utxos.filter(u=>u.status?.confirmed).length), 2) * feeRate;
-    return fee;
-  };
-
-  // --- Render ---
-  if (err && !keys) return (
-    <div className="h-full bg-[#060f0c] flex flex-col">
-      <div className="px-4 pt-4 pb-2 flex items-center gap-3">
-        <button onClick={onMenu} className="text-gray-400"><Menu className="w-5 h-5"/></button>
-        <h1 className="text-xl font-bold text-white flex items-center gap-2"><Bitcoin className="w-5 h-5 text-amber-400"/> Bitcoin</h1>
-      </div>
-      <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="text-center"><p className="text-red-400 text-sm mb-2">⚠️ {err}</p><p className="text-gray-600 text-xs">Log in to LAC first</p></Card>
-      </div>
-    </div>
-  );
-
-  // Send view
-  if (view === 'send') return (
-    <div className="h-full bg-[#060f0c] flex flex-col">
-      <Header title="↗ Send Bitcoin" onBack={() => { setView('main'); setSendResult(null); }} />
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {sendResult ? (
-          <Card gradient="bg-gradient-to-br from-emerald-900/30 to-[#0f1f18] border-emerald-500/30" className="text-center">
-            <p className="text-3xl mb-2">✅</p>
-            <p className="text-emerald-400 font-bold text-lg">Sent!</p>
-            <p className="text-gray-400 text-xs mt-2">Amount: <span className="text-white">{btcFmtSat(sendResult.sent)}</span></p>
-            <p className="text-gray-400 text-xs">Fee: <span className="text-amber-400">{sendResult.fee} sat</span></p>
-            <p className="text-gray-600 text-[10px] mt-2 font-mono break-all">TXID: {sendResult.txid}</p>
-            <button onClick={() => window.open(`https://blockstream.info/tx/${sendResult.txid}`, '_blank')} className="mt-3 text-blue-400 text-xs underline">View on Explorer →</button>
-          </Card>
-        ) : (<>
-          <Card gradient="bg-amber-900/10 border-amber-800/20">
-            <p className="text-amber-400 text-xs font-semibold">⚠️ Security reminder</p>
-            <p className="text-gray-500 text-[10px] mt-1">Double-check the address. Bitcoin transactions are irreversible.</p>
-          </Card>
-
-          <div>
-            <label className="text-gray-500 text-xs mb-1 block">Recipient address</label>
-            <input value={sendTo} onChange={e => setSendTo(e.target.value)}
-              className="w-full bg-[#0a1a15] text-white font-mono text-xs px-3 py-3 rounded-xl border border-emerald-900/30 outline-none"
-              placeholder="bc1q... (native segwit)" />
-          </div>
-
-          <div>
-            <label className="text-gray-500 text-xs mb-1 block">Amount (BTC)</label>
-            <input type="number" step="0.00000001" value={sendAmt} onChange={e => setSendAmt(e.target.value)}
-              className="w-full bg-[#0a1a15] text-white text-center text-xl font-bold px-3 py-3 rounded-xl border border-emerald-900/30 outline-none"
-              placeholder="0.00000000" />
-            <p className="text-gray-600 text-[10px] mt-1 text-right">Available: {btcFmtSat(balanceSat)}</p>
-          </div>
-
-          <div>
-            <label className="text-gray-500 text-xs mb-2 block">Fee rate</label>
-            <div className="grid grid-cols-3 gap-2">
-              {[['slow','🐢 Slow',feeRates.slow],['mid','⚡ Mid',feeRates.mid],['fast','🚀 Fast',feeRates.fast]].map(([id,label,rate]) => (
-                <button key={id} onClick={() => setSelFee(id)} className={`py-2 rounded-xl border text-center text-xs ${selFee===id?'border-amber-500 bg-amber-600/10 text-amber-400':'border-gray-800 bg-[#0a1a15] text-gray-500'}`}>
-                  <p>{label}</p><p className="font-mono">{rate} sat/vb</p>
-                </button>
-              ))}
-            </div>
-            {sendAmt && <p className="text-gray-600 text-[11px] mt-2 text-right">Est. fee: ~{estFee()} sat</p>}
-          </div>
-
-          <Btn onClick={handleSend} color="amber" full loading={sending} disabled={!sendTo.trim()||!sendAmt}>
-            Send {sendAmt ? btcFmtSat(Math.round(parseFloat(sendAmt||0)*1e8)) : 'Bitcoin'}
-          </Btn>
-        </>)}
-      </div>
-    </div>
-  );
-
-  // Receive view
-  if (view === 'receive') return (
-    <div className="h-full bg-[#060f0c] flex flex-col">
-      <Header title="↙ Receive Bitcoin" onBack={() => setView('main')} />
-      <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4">
-        {/* QR-like visual (ASCII art placeholder, real QR requires library) */}
-        <div className="w-48 h-48 bg-white rounded-2xl flex items-center justify-center">
-          <div className="text-center p-2">
-            <Bitcoin className="w-12 h-12 text-amber-500 mx-auto mb-1"/>
-            <p className="text-black text-[8px] font-mono break-all leading-3">{keys?.address?.slice(0,20)}...</p>
-            <p className="text-gray-500 text-[7px] mt-1">Tap address to copy</p>
-          </div>
-        </div>
-        <Card className="w-full text-center">
-          <p className="text-[9px] text-gray-600 uppercase mb-2">Your Bitcoin Address (P2WPKH)</p>
-          <p onClick={copyAddr} className="text-amber-400 font-mono text-[11px] break-all cursor-pointer select-all leading-5">{keys?.address}</p>
-          <button onClick={copyAddr} className="mt-3 flex items-center gap-1 mx-auto text-xs text-gray-400 bg-gray-800 px-4 py-1.5 rounded-lg active:bg-gray-700">
-            <Copy className="w-3 h-3" />{copied ? '✅ Copied!' : 'Copy address'}
-          </button>
-        </Card>
-        <Card gradient="bg-blue-900/10 border-blue-800/20" className="w-full">
-          <p className="text-blue-400 text-[10px] font-semibold">🔒 Security note</p>
-          <p className="text-gray-500 text-[10px] mt-1">This address is derived from your LAC seed. Back up your LAC seed to recover your Bitcoin.</p>
-        </Card>
-      </div>
-    </div>
-  );
-
-  // Transaction history view
-  if (view === 'history') return (
-    <div className="h-full bg-[#060f0c] flex flex-col">
-      <Header title="📋 Bitcoin History" onBack={() => setView('main')} />
-      <div className="flex-1 overflow-y-auto p-4">
-        {txHistory.length === 0 ? <Empty emoji="₿" text="No transactions" sub="Your history will appear here" /> :
-          txHistory.map((tx, i) => {
-            const myAddr = keys?.address;
-            let delta = 0;
-            (tx.vout||[]).forEach(o => { if (o.scriptpubkey_address === myAddr) delta += o.value; });
-            (tx.vin||[]).forEach(inp => { if (inp.prevout?.scriptpubkey_address === myAddr) delta -= inp.prevout.value; });
-            const isIn = delta > 0;
-            return (
-              <div key={tx.txid} className="flex items-center gap-3 py-2.5 border-b border-gray-800/20">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center ${isIn?'bg-emerald-900/30':'bg-gray-800'}`}>
-                  {isIn ? <ArrowDownLeft className="w-4 h-4 text-emerald-400"/> : <ArrowUpRight className="w-4 h-4 text-gray-400"/>}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-xs font-mono truncate">{tx.txid?.slice(0,16)}…</p>
-                  <p className="text-gray-600 text-[10px]">{tx.status?.confirmed ? `Block #${tx.status.block_height}` : '⏳ Unconfirmed'}</p>
-                </div>
-                <span className={`text-sm font-semibold ${isIn?'text-emerald-400':'text-gray-400'}`}>
-                  {isIn?'+':''}{btcFmtSat(Math.abs(delta))}
-                </span>
-              </div>
-            );
-          })
-        }
-        <button onClick={() => window.open(`https://blockstream.info/address/${keys?.address}`, '_blank')} className="w-full mt-4 text-blue-400 text-xs text-center py-2">View full history on Blockstream →</button>
-      </div>
-    </div>
-  );
-
-  // Main view
   return (
-    <div className="h-full bg-[#060f0c] flex flex-col">
-      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={onMenu} className="text-gray-400"><Menu className="w-5 h-5"/></button>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2"><Bitcoin className="w-5 h-5 text-amber-400"/> Bitcoin</h1>
-        </div>
-        <button onClick={() => keys && loadData(keys.address)} className="text-amber-500 text-xs">⟳ Refresh</button>
+    <div className="h-full flex flex-col bg-[#0a0a0a]">
+      <div className="flex items-center gap-3 px-4 pt-12 pb-6">
+        <button onClick={onMenu} className="text-gray-400"><span className="text-xl">☰</span></button>
+        <span className="text-yellow-400 text-xl">₿</span>
+        <h1 className="text-xl font-bold text-white">Bitcoin</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        {/* Balance Card */}
-        <Card gradient="bg-gradient-to-br from-amber-900/30 via-orange-900/20 to-[#0f1f18] border-amber-800/20" className="mb-3">
-          <div className="text-center">
-            <p className="text-gray-500 text-xs mb-1">Bitcoin Balance</p>
-            {loading ? (
-              <p className="text-gray-600 text-sm animate-pulse">Loading…</p>
-            ) : (
-              <>
-                <p className="text-amber-400 text-3xl font-bold">{(balanceSat/1e8).toFixed(8)}</p>
-                <p className="text-amber-600 font-semibold">BTC</p>
-                <p className="text-gray-600 text-xs mt-1">{balanceSat.toLocaleString()} satoshis</p>
-                {pendingSat !== 0 && <p className="text-amber-400/60 text-[10px] mt-0.5">Pending: {pendingSat > 0 ? '+' : ''}{btcFmtSat(pendingSat)}</p>}
-              </>
-            )}
-          </div>
-          <div className="flex gap-2 mt-4">
-            <Btn onClick={() => setView('receive')} color="amber" full small>↙ Receive</Btn>
-            <Btn onClick={() => setView('send')} color="gray" full small disabled={loading||balanceSat<=0}>↗ Send</Btn>
-          </div>
-        </Card>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6">
+        <div className="w-20 h-20 rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center">
+          <span className="text-4xl">₿</span>
+        </div>
 
-        {/* Address */}
-        <Card className="mb-3">
-          <p className="text-[9px] text-gray-600 uppercase mb-1">Your Address</p>
-          <div className="flex items-center gap-2">
-            <p onClick={copyAddr} className="text-amber-400/80 font-mono text-[11px] flex-1 truncate cursor-pointer">{keys?.address || '…'}</p>
-            <button onClick={copyAddr} className="text-gray-600 hover:text-amber-400 shrink-0">{copied ? <Check className="w-4 h-4 text-emerald-400"/> : <Copy className="w-4 h-4"/>}</button>
-          </div>
-        </Card>
+        <div className="text-center">
+          <p className="text-white font-semibold text-lg mb-1">Bitcoin Watch Wallet</p>
+          <p className="text-gray-500 text-sm">Receive-only · Signing coming soon</p>
+        </div>
 
-        {/* Stats */}
-        {addrData && !loading && (
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            <StatBox label="Received" value={btcFmtSat(addrData.chain_stats?.funded_txo_sum||0)} small />
-            <StatBox label="Sent" value={btcFmtSat(addrData.chain_stats?.spent_txo_sum||0)} small />
-            <StatBox label="TXs" value={(addrData.chain_stats?.tx_count||0)} small />
+        {addr ? (
+          <div className="w-full bg-gray-900/60 border border-gray-800 rounded-2xl p-4">
+            <p className="text-gray-500 text-xs mb-2 text-center">Your Bitcoin Address</p>
+            <p className="text-white text-xs text-center break-all font-mono leading-relaxed">{addr}</p>
+            <button onClick={copy}
+              className="mt-3 w-full py-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm font-medium">
+              {copied ? '✓ Copied!' : 'Copy Address'}
+            </button>
+          </div>
+        ) : (
+          <div className="w-full bg-gray-900/60 border border-gray-800 rounded-2xl p-4 text-center">
+            <p className="text-gray-600 text-sm">Log in to LAC to generate address</p>
           </div>
         )}
 
-        {/* UTXOs */}
-        {utxos.length > 0 && (
-          <Card className="mb-3">
-            <p className="text-white text-sm font-semibold mb-2">💰 UTXOs ({utxos.length})</p>
-            {utxos.slice(0,5).map((u,i) => (
-              <div key={i} className="flex justify-between py-1.5 border-b border-gray-800/20 text-xs">
-                <span className={u.status?.confirmed ? 'text-emerald-400' : 'text-amber-400'}>{u.status?.confirmed ? '✓' : '⏳'} {u.txid?.slice(0,12)}…</span>
-                <span className="text-white font-mono">{btcFmtSat(u.value)}</span>
-              </div>
-            ))}
-          </Card>
-        )}
-
-        {/* Recent transactions */}
-        {txHistory.length > 0 && (
-          <Card>
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-white text-sm font-semibold">Recent Transactions</p>
-              <button onClick={() => setView('history')} className="text-blue-400 text-xs">All →</button>
-            </div>
-            {txHistory.slice(0,3).map((tx, i) => {
-              const myAddr = keys?.address;
-              let delta = 0;
-              (tx.vout||[]).forEach(o => { if (o.scriptpubkey_address === myAddr) delta += o.value; });
-              (tx.vin||[]).forEach(inp => { if (inp.prevout?.scriptpubkey_address === myAddr) delta -= inp.prevout.value; });
-              return (
-                <div key={tx.txid} className="flex items-center gap-3 py-2 border-b border-gray-800/20 last:border-0">
-                  <span className={delta > 0 ? 'text-emerald-400' : 'text-gray-400'}>{delta > 0 ? '↙' : '↗'}</span>
-                  <span className="text-gray-500 text-xs font-mono flex-1 truncate">{tx.txid?.slice(0,16)}…</span>
-                  <span className={`text-xs font-semibold ${delta>0?'text-emerald-400':'text-gray-400'}`}>{delta>0?'+':''}{btcFmtSat(Math.abs(delta))}</span>
-                </div>
-              );
-            })}
-          </Card>
-        )}
-
-        {/* Security notice */}
-        <Card className="mt-3" gradient="bg-blue-900/10 border-blue-800/15">
-          <p className="text-blue-400 text-[10px] font-semibold">🔒 Non-custodial SPV wallet</p>
-          <p className="text-gray-600 text-[10px] mt-1 leading-relaxed">
-            Your private key is derived locally from your LAC seed and never sent anywhere.
-            Blockchain data from Blockstream Esplora (blockstream.info).
-            Always back up your LAC seed phrase.
-          </p>
-        </Card>
+        <div className="w-full bg-gray-900/40 border border-gray-800/50 rounded-2xl p-4 space-y-3">
+          <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Coming Soon</p>
+          <div className="flex items-center gap-3 text-gray-600 text-sm"><span>⚡</span><span>Send & receive BTC</span></div>
+          <div className="flex items-center gap-3 text-gray-600 text-sm"><span>🔄</span><span>BTC ↔ LAC atomic swaps</span></div>
+          <div className="flex items-center gap-3 text-gray-600 text-sm"><span>🔒</span><span>HD wallet (BIP32/39/44)</span></div>
+        </div>
       </div>
     </div>
   );
