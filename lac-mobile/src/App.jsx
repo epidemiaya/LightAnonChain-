@@ -834,7 +834,10 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
   const [groups, setGroups] = useState(() => cacheGet('groups') || []);
   const [loading, setLoading] = useState(!cacheGet('inbox'));
 
+  const loadingRef = useRef(false);
   const load = async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     try {
       const [i,g] = await Promise.all([get('/api/inbox'),get('/api/groups')]);
       const m = i.messages||[]; const gr = g.groups||[];
@@ -842,7 +845,7 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
       setMsgs(prev => JSON.stringify(prev) === JSON.stringify(m) ? prev : m);
       setGroups(prev => JSON.stringify(prev) === JSON.stringify(gr) ? prev : gr);
     } catch {}
-    finally { setLoading(false); }
+    finally { setLoading(false); loadingRef.current = false; }
   };
   const wsDebounce = useRef(null);
   useRealtimeSocket((msg) => {

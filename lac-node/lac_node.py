@@ -2292,6 +2292,11 @@ def send_message():
         _recv_addr = to_address if to_address and to_address.startswith('lac') else None
         if _recv_addr:
             ws_push_to_peers([_recv_addr, from_addr], 'new_message', push_data)
+        # Invalidate chat cache for both sides
+        _cache_del_prefix('chat:' + from_addr)
+        _cache_del_prefix('chat:' + _recv_addr)
+        _cache_del('inbox:' + from_addr)
+        _cache_del('inbox:' + _recv_addr)
 
         return jsonify({
             'ok': True,
@@ -2360,6 +2365,12 @@ def inbox():
 
     addr = get_address_from_seed(seed)
 
+    # Inbox cache (invalidated on new message)
+    ck_inbox = 'inbox:' + addr
+    cached_inbox = _cache_get(ck_inbox)
+    if cached_inbox:
+        return jsonify(cached_inbox)
+
     with S.lock:
         if addr not in S.wallets:
             return jsonify({'error': 'Wallet not found'}), 404
@@ -2423,11 +2434,9 @@ def inbox():
         conv['unread'] = 1 if (conv.get('direction') == 'received' and
                                conv.get('timestamp', 0) > last_read) else 0
 
-    return jsonify({
-        'ok': True,
-        'messages': messages,
-        'count': len(messages)
-        })
+    result_inbox = {'ok': True, 'messages': messages, 'count': len(messages)}
+    _cache_set(ck_inbox, result_inbox, ttl=5)
+    return jsonify(result_inbox)
 
 @app.route('/api/chat', methods=['GET'])
 def get_chat():
@@ -2441,6 +2450,12 @@ def get_chat():
         return jsonify({'error': 'peer param required'}), 400
     
     addr = get_address_from_seed(seed)
+    
+    # Cache check — chat data changes only on new message (WS invalidates)
+    ck = 'chat:' + addr + ':' + peer
+    cached = _cache_get(ck)
+    if cached:
+        return jsonify(cached)
     
     # Resolve peer — could be @username, username, or address
     peer_addr = resolve_recipient(peer) if not peer.startswith('lac') else peer
@@ -2578,7 +2593,7 @@ def get_chat():
             if is_for_me and not raw_msg.get('_read_at'):
                 raw_msg['_read_at'] = now_ts
 
-        return jsonify({
+        result = {
             'ok': True,
             'messages': messages,
             'count': len(messages),
@@ -2586,7 +2601,9 @@ def get_chat():
             'peer_addr': peer_addr,
             'peer_online': peer_online,
             'last_ts': last_ts
-        })
+        }
+        _cache_set(ck, result, ttl=3)
+        return jsonify(result)
 
 @app.route('/api/chat/poll', methods=['GET'])
 def chat_poll():
