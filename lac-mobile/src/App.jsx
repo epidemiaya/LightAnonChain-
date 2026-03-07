@@ -2708,6 +2708,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
           ['Required Level', 'L5+'],
           ['L5 Reward', '0.5 LAC/commitment'],
           ['L6 Reward', '1.0 LAC/commitment'],
+          ['L7 GOD Reward', '1.0 LAC · 3x weight'],
           ['Min Validators', s.min_validators||3],
           ['Commitment Interval', `${s.commitment_interval||30}s`],
           ['Your Balance', fmt(p.balance)+' LAC'],

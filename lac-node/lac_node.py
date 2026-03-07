@@ -1249,11 +1249,13 @@ def is_validator_eligible(wallet_addr):
 
 def get_validator_weight(wallet):
     """
-    Get validator weight
-    Level 6 has 2x weight (priority)
+    Validator weight by level:
+    L5 = 1x, L6 = 2x (Priority), L7 GOD = 3x
     """
     level = wallet.get('level', 0)
-    return 2.0 if level == 6 else 1.0
+    if level >= 7: return 3.0
+    if level >= 6: return 2.0
+    return 1.0
 
 def get_validator_reward(level):
     """
@@ -2454,11 +2456,9 @@ def inbox():
         conv['unread'] = 1 if (conv.get('direction') == 'received' and
                                conv.get('timestamp', 0) > last_read) else 0
 
-    return jsonify({
-        'ok': True,
-        'messages': messages,
-        'count': len(messages)
-        })
+    result_inbox = {'ok': True, 'messages': messages, 'count': len(messages)}
+    _cache_set(ck_inbox, result_inbox, ttl=5)
+    return jsonify(result_inbox)
 
 @app.route('/api/chat', methods=['GET'])
 def get_chat():
@@ -2986,7 +2986,9 @@ def group_posts():
     
     if not gid:
         return jsonify({'error': 'Group ID required'}), 400
-    
+    ck_gp = 'gp:' + gid
+    cached_gp = _cache_get(ck_gp)
+    if cached_gp: return jsonify(cached_gp)
     with S.lock:
         # Try direct ID lookup first, then search by name
         group = None
@@ -3013,10 +3015,9 @@ def group_posts():
             ep['reactions'] = S.reactions.get(mk, S.reactions.get(legacy_key, {}))
             enriched_posts.append(ep)
         
-        return jsonify({
-            'ok': True,
-            'posts': enriched_posts
-        })
+        result_gp = {'ok': True, 'posts': enriched_posts}
+        _cache_set(ck_gp, result_gp, ttl=5)
+        return jsonify(result_gp)
 
 @app.route('/api/group.post', methods=['POST'])
 def post_to_group():
