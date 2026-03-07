@@ -643,6 +643,11 @@ class State:
             sys.stdout.flush()
     
     def save(self):
+        """Non-blocking save — queues work to background thread"""
+        _schedule_save()
+
+    def save_sync(self):
+        """Blocking save — only use when absolutely needed (shutdown)"""
         if STABILITY_ENABLED and self.state_manager:
             # Atomic writes - zero data loss
             self.state_manager.save_atomic('chain.json', self.chain)
@@ -1017,14 +1022,17 @@ def auto_mining_loop():
             with S.lock:
                 _cache_del('explorer:chain')
                 _cache_del_prefix('blocks:')
-                print(f"\n⛏️ Block #{len(S.chain)-1} mined!")
-                print(f"   Winners: {block_data['unique_winners']} unique")
-                print(f"   Rewards: {block_data['total_reward']:.2f} LAC")
-                print(f"   Active miners: {block_data['active_miners']}")
-                
-                # Broadcast block to peers
-                broadcast_block_to_peers(new_block)
-                
+                _cache_del('stats:chain')
+            _cache_del('explorer:chain')
+            _cache_del_prefix('blocks:')
+            print(f"\n⛏️ Block #{len(S.chain)-1} mined!")
+            print(f"   Winners: {block_data['unique_winners']} unique")
+            print(f"   Rewards: {block_data['total_reward']:.2f} LAC")
+            print(f"   Active miners: {block_data['active_miners']}")
+            
+            # Broadcast block to peers
+            broadcast_block_to_peers(new_block)
+            
         except Exception as e:
             print(f"❌ Mining error: {e}")
             import traceback
@@ -1708,6 +1716,9 @@ def login():
         return jsonify({'error': 'Invalid seed'}), 400
     
     addr = get_address_from_seed(seed)
+    ck_wtx = 'wtx:' + addr
+    cached_wtx = _cache_get(ck_wtx)
+    if cached_wtx: return jsonify(cached_wtx)
     
     with S.lock:
         if addr not in S.wallets:
@@ -1791,8 +1802,8 @@ def get_wallet_mining():
         return jsonify({'error': 'Unauthorized'}), 401
     
     addr = get_address_from_seed(seed)
-    limit = request.args.get('limit', 100, type=int)
-    limit = min(limit, 500)  # Max 500
+    limit = request.args.get('limit', 50, type=int)
+    limit = min(limit, 200)  # Max 200
     
     with S.lock:
         if addr not in S.wallets:
@@ -2303,6 +2314,10 @@ def send_message():
         _recv_addr = to_address if to_address and to_address.startswith('lac') else None
         if _recv_addr:
             ws_push_to_peers([_recv_addr, from_addr], 'new_message', push_data)
+        _cache_del_prefix('chat:' + from_addr)
+        _cache_del_prefix('chat:' + _recv_addr)
+        _cache_del('inbox:' + from_addr)
+        _cache_del('inbox:' + _recv_addr)
 
         return jsonify({
             'ok': True,
@@ -2370,6 +2385,9 @@ def inbox():
         return jsonify({'error': 'Unauthorized'}), 401
 
     addr = get_address_from_seed(seed)
+    ck_inbox = 'inbox:' + addr
+    cached_inbox = _cache_get(ck_inbox)
+    if cached_inbox: return jsonify(cached_inbox)
 
     with S.lock:
         if addr not in S.wallets:
@@ -2452,6 +2470,9 @@ def get_chat():
         return jsonify({'error': 'peer param required'}), 400
     
     addr = get_address_from_seed(seed)
+    ck_chat = 'chat:' + addr + ':' + peer
+    cached_chat = _cache_get(ck_chat)
+    if cached_chat: return jsonify(cached_chat)
     
     # Resolve peer — could be @username, username, or address
     peer_addr = resolve_recipient(peer) if not peer.startswith('lac') else peer
@@ -4384,6 +4405,9 @@ def get_wallet_stats():
         return jsonify({'error': 'Unauthorized'}), 401
     
     addr = get_address_from_seed(seed)
+    ck_wst='wst:'+get_address_from_seed(seed)
+    cached_wst=_cache_get(ck_wst)
+    if cached_wst: return jsonify(cached_wst)
     
     with S.lock:
         now = int(time.time())
@@ -6278,6 +6302,45 @@ def referral_leaderboard():
             'total_referrers': len(board)
         })
 
+# ══════════════════════════════════════════════════════
+# Background save queue — S.save() never blocks a request
+# ══════════════════════════════════════════════════════
+import queue as _queue_module
+_save_queue = _queue_module.Queue()
+_save_dirty = False
+
+def _schedule_save():
+    global _save_dirty
+    _save_dirty = True
+    try:
+        _save_queue.put_nowait(True)
+    except Exception:
+        pass  # Already queued
+
+def _bg_save_worker():
+    """Background thread: coalesces rapid saves into one disk write"""
+    import time as _t
+    while True:
+        try:
+            _save_queue.get(timeout=2)
+            # Drain any additional queued saves (coalesce)
+            while True:
+                try: _save_queue.get_nowait()
+                except: break
+            # Actually write
+            try:
+                S.save_sync()
+            except Exception as e:
+                print(f'⚠️ BG save error: {e}')
+        except Exception:
+            pass  # Timeout — no pending save
+
+def _start_bg_save():
+    import threading
+    t = threading.Thread(target=_bg_save_worker, daemon=True, name='bg-save')
+    t.start()
+
+
 # ═══════════════════════════════════════════════════════
 # PROOF-OF-LOCATION API
 # ═══════════════════════════════════════════════════════
@@ -6509,6 +6572,8 @@ def chain_stats():
     - emitted_mining = height × 190  ← ALWAYS correct (fixed block reward)
     - total_burned = total_emitted - on_wallets - stash  ← DERIVED, always balances
     """
+    cached = _cache_get('stats:chain')
+    if cached: return jsonify(cached)
     try:
         with S.lock:
             total_wallets = len(S.wallets)

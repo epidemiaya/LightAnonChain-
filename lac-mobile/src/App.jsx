@@ -2000,7 +2000,7 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
             <ChevronDown className={`w-4 h-4 text-gray-600 transition-transform ${txOpen ? 'rotate-180' : ''}`} />
           </div>
         </button>
-        {txOpen && <RecentTxs />}
+        {txOpen && <RecentTxs visible={txOpen} />}
       </div>
     </div>
   );
@@ -2009,9 +2009,9 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
 const MiningMini = () => {
   const [d, setD] = useState(null);
   useEffect(() => {
-    const load = () => get('/api/wallet/mining?limit=500').then(setD).catch(() => {});
+    const load = () => get('/api/wallet/mining?limit=20').then(setD).catch(() => {});
     load();
-    const i = setInterval(load, 15000);
+    const i = setInterval(load, 60000); // mining stats change every ~30s block
     return () => clearInterval(i);
   }, []);
   if (!d) return <p className="text-gray-600 text-xs">Loading…</p>;
@@ -2049,9 +2049,10 @@ const LevelBar = ({ level, balance }) => {
   );
 };
 
-const RecentTxs = () => {
+const RecentTxs = ({ visible=false }) => {
   const [txs, setTxs] = useState(null);
   useEffect(() => {
+    if (!visible) return; // lazy — only load when expanded
     get('/api/wallet/transactions').then(d => {
       const t=d.transactions||{};
       const all = [
@@ -2064,7 +2065,7 @@ const RecentTxs = () => {
       ];
       setTxs(all.sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,8));
     }).catch(() => setTxs([]));
-  }, []);
+  }, [visible]);
   if (!txs) return null;
   if (txs.length===0) return <p className="text-gray-700 text-sm text-center py-4">No transactions</p>;
   return <div>{txs.map((tx,i) => <TxRow key={i} tx={tx} />)}</div>;
