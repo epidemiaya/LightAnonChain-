@@ -1025,6 +1025,8 @@ def auto_mining_loop():
                 _cache_del('stats:chain')
             _cache_del('explorer:chain')
             _cache_del_prefix('blocks:')
+            _cache_del_prefix('wtx:')
+            _cache_del_prefix('wst:')
             print(f"\n⛏️ Block #{len(S.chain)-1} mined!")
             print(f"   Winners: {block_data['unique_winners']} unique")
             print(f"   Rewards: {block_data['total_reward']:.2f} LAC")
@@ -4156,6 +4158,12 @@ def get_wallet_transactions():
     
     addr = get_address_from_seed(seed)
     
+    # Cache — transactions change only on new block (every ~30s)
+    ck_wtx = 'wtx:' + addr
+    cached_wtx = _cache_get(ck_wtx)
+    if cached_wtx:
+        return jsonify(cached_wtx)
+    
     with S.lock:
         transactions = {
             'received': [],
@@ -4383,7 +4391,7 @@ def get_wallet_transactions():
         except Exception:
             pass  # Don't crash if dice history is malformed
         
-        return jsonify({
+        _wtx_result = {
             'ok': True,
             'address': addr,
             'transactions': transactions,
@@ -4393,7 +4401,9 @@ def get_wallet_transactions():
                 'total_burned': total_burned,
                 'net': total_received - total_sent - total_burned
             }
-        })
+        }
+        _cache_set(ck_wtx, _wtx_result, ttl=30)
+        return jsonify(_wtx_result)
 
 
 @app.route('/api/wallet/stats', methods=['GET'])

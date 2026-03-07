@@ -1003,15 +1003,18 @@ const uploadMedia = async (file, onProgress) => {
 // Відображення картинки в повідомленні
 const MsgImage = React.memo(({ url }) => {
   const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState('loading'); // loading | ok | error
   const [retries, setRetries] = useState(0);
-  const full = API_BASE_URL + url;
-  // Show expired only after 3 failed attempts
+  // Fix double-slash: normalize URL
+  const base = (API_BASE_URL || '').replace(/\/$/, '');
+  const path = (url || '').replace(/^\//, '/');
+  const full = base + path;
   if (retries >= 3) return <p className="text-gray-600 text-xs italic mt-1">🖼 Image expired</p>;
   const handleError = () => {
-    // Retry with cache-bust after short delay
-    setTimeout(() => setRetries(r => r + 1), 1500);
+    setTimeout(() => setRetries(r => r + 1), 2000);
+    setStatus('error');
   };
-  // Cache bust on retry
+  const handleLoad = () => setStatus('ok');
   const src = retries > 0 ? `${full}?r=${retries}` : full;
   return (
     <>
@@ -1985,6 +1988,7 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
             <Badge>L{p.level??0}</Badge>
           </div>
           <LevelBar level={p.level??0} balance={p.balance||0} />
+          <LevelBonuses level={p.level??0} />
         </Card>
       </div>
 
@@ -2031,6 +2035,27 @@ const MiningMini = () => {
 
 const levelCosts = [100, 700, 2000, 10000, 100000, 500000, 2000000, 0]; // L0→L1...L6→L7(GOD), L7=MAX
 const levelNames = ['Newbie','Starter','Active','Trusted','Expert','Validator','Priority','⚡ GOD'];
+
+const LevelBonuses = ({ level }) => {
+  const bonuses = [
+    null, // L0
+    '+10 LAC/day faucet',           // L1
+    '+20 LAC/day faucet',           // L2
+    '+30 LAC/day faucet',           // L3
+    '+40 LAC/day faucet · Validator access', // L4
+    'Validator · 2x block rewards', // L5
+    'Priority Validator · 2x weight + 2x rewards', // L6
+    '⚡ 2x mining chance · 2x validator reward · MAX LEVEL', // L7 GOD
+  ];
+  const bonus = bonuses[level];
+  if (!bonus) return null;
+  const isGod = level >= 7;
+  return (
+    <div className={`mt-2 px-3 py-1.5 rounded-lg text-xs ${isGod ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400' : 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-400/80'}`}>
+      {isGod ? '⚡ ' : '✓ '}{bonus}
+    </div>
+  );
+};
 const LevelBar = ({ level, balance }) => {
   const cost = levelCosts[level] || 0;
   const pct = cost > 0 ? Math.min(100, (balance/cost)*100) : 100;
@@ -3051,16 +3076,20 @@ const isAnon = (t) => ['veil_transfer','ring_transfer','stealth_transfer','stash
 const ExplorerView = ({ onBack }) => {
   const [blocks, setBlocks] = useState([]); const [h, setH] = useState(0); const [sel, setSel] = useState(null); const [loading, setLoading] = useState(true);
   useEffect(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
     (async () => {
       try {
         const hd = await get('/api/chain/height');
         setH(hd.height||0);
         const height = hd.height||0;
-        // Load last 200 blocks (full history available in separate explorer)
-        const start = Math.max(0, height - 200);
+        const start = Math.max(0, height - 100); // 100 blocks, not 200
         const bd = await get(`/api/blocks/range?start=${start}&end=${height}`);
-        setBlocks((bd.blocks||[]).reverse());
-      } catch {}
+        setBlocks((bd.blocks||bd||[]).reverse());
+      } catch(e) {
+        console.error('Explorer load:', e);
+      }
+      clearTimeout(timer);
       setLoading(false);
     })();
   }, []);
