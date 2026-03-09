@@ -491,6 +491,561 @@ const BitcoinWalletTab = ({ onMenu }) => {
 };
 
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 🐍 NAGINI — Geographic Secret Distribution
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const NaginiView = ({ onBack, profile }) => {
+  const [screen, setScreen] = useState('home');
+  const [bundles, setBundles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [available, setAvailable] = useState(true);
+  const [selectedBundle, setSelectedBundle] = useState(null);
+
+  useEffect(() => { loadBundles(); }, []);
+
+  const loadBundles = async () => {
+    setLoading(true);
+    try {
+      const r = await get('/api/nagini/bundles');
+      setBundles(r.bundles || []);
+      setAvailable(r.available !== false);
+    } catch(e) { setBundles([]); } finally { setLoading(false); }
+  };
+
+  if (screen === 'setup') return <NaginiSetup onBack={() => { setScreen('home'); loadBundles(); }} />;
+  if (screen === 'recover') return <NaginiRecover onBack={() => setScreen('home')} bundles={bundles} />;
+  if (screen === 'dms') return <NaginiDMS onBack={() => { setScreen('bundle'); }} bundle={selectedBundle} />;
+  if (screen === 'bundle' && selectedBundle) return (
+    <NaginiBundleDetail bundle={selectedBundle}
+      onBack={() => { setScreen('home'); loadBundles(); }}
+      onDMS={() => setScreen('dms')} />
+  );
+
+  return (
+    <div className="flex flex-col h-full">
+      <Header title="🐍 Nagini Protocol" onBack={onBack} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="rounded-2xl bg-gradient-to-br from-[#0d1f18] to-[#091a10] border border-emerald-900/30 p-5">
+          <div className="text-center mb-3">
+            <div className="text-4xl mb-2">🐍</div>
+            <div className="text-emerald-400 font-bold text-lg">Geographic Secret Distribution</div>
+            <div className="text-gray-500 text-xs mt-1">
+              Split your seed across N physical locations.<br/>Recovery requires visiting K of N sites.
+            </div>
+          </div>
+          {!available && (
+            <div className="bg-red-900/20 border border-red-800/30 rounded-xl p-3 text-center mt-3">
+              <div className="text-red-400 text-xs">⚠️ Run on server: pip install cryptography</div>
+            </div>
+          )}
+        </div>
+        <div className="rounded-xl bg-[#0d1a12]/80 border border-emerald-900/20 p-4 space-y-2">
+          <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-3">How it works</div>
+          {[
+            ['🔀','Split','Secret split into N shards via Shamir Secret Sharing GF(2⁸)'],
+            ['📍','Lock','Each shard locked to a GPS location — AES-256-GCM'],
+            ['🚶','Recover','Visit K of N locations physically to reconstruct your secret'],
+            ['🪤','Canary','One location is a trap — fires a silent LAC message alert'],
+            ['⏰','DMS','Dead Man\'s Switch sends LAC alert if you miss check-in'],
+          ].map(([icon,title,desc]) => (
+            <div key={title} className="flex gap-3 items-start">
+              <span className="text-lg shrink-0">{icon}</span>
+              <div>
+                <div className="text-emerald-400 text-xs font-semibold">{title}</div>
+                <div className="text-gray-500 text-xs">{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div>
+          <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Your Bundles</div>
+          {loading ? (
+            <div className="text-center py-8 text-gray-600 text-sm">Loading...</div>
+          ) : bundles.length === 0 ? (
+            <Empty emoji="📦" text="No bundles yet" sub="Create your first geo-protected bundle" />
+          ) : (
+            <div className="space-y-2">
+              {bundles.map(b => (
+                <button key={b.bundle_id} onClick={() => { setSelectedBundle(b); setScreen('bundle'); }}
+                  className="w-full text-left rounded-xl bg-[#0d1a12]/80 border border-emerald-900/20 p-4 hover:border-emerald-800/50 transition-all">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-white text-sm font-medium">{b.label || 'Bundle'}</div>
+                      <div className="text-gray-500 text-xs mt-0.5">
+                        {b.n} locations · threshold {b.threshold}
+                        {b.has_canary ? ' · 🪤' : ''}{b.has_dms ? ' · ⏰' : ''}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-emerald-500 text-xs">{new Date(b.created_at*1000).toLocaleDateString()}</div>
+                      <ChevronRight className="w-4 h-4 text-gray-700 mt-1 ml-auto" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="p-4 space-y-2 border-t border-gray-800/30">
+        <Btn disabled={!available} onClick={() => setScreen('setup')} className="w-full bg-emerald-600 hover:bg-emerald-500">
+          + Create New Bundle
+        </Btn>
+        {bundles.length > 0 && (
+          <Btn onClick={() => setScreen('recover')} className="w-full bg-[#0d1a12] border border-emerald-800/40 text-emerald-400">
+            🗺 Recover Secret
+          </Btn>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const NaginiSetup = ({ onBack }) => {
+  const [step, setStep] = useState(1);
+  const [secretType, setSecretType] = useState('seed');
+  const [customSecret, setCustomSecret] = useState('');
+  const [locations, setLocations] = useState([{lat:'',lon:'',name:''},{lat:'',lon:'',name:''}]);
+  const [threshold, setThreshold] = useState(2);
+  const [label, setLabel] = useState('My Bundle');
+  const [canaryIdx, setCanaryIdx] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [locating, setLocating] = useState(null);
+
+  const getGPS = (idx) => {
+    setLocating(idx);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const locs = [...locations];
+        locs[idx] = {...locs[idx], lat: pos.coords.latitude.toFixed(6), lon: pos.coords.longitude.toFixed(6)};
+        setLocations(locs); setLocating(null);
+      },
+      () => { toast.error('GPS not available'); setLocating(null); },
+      {enableHighAccuracy: true, timeout: 10000}
+    );
+  };
+
+  const addLocation = () => {
+    if (locations.length >= 8) return;
+    setLocations([...locations, {lat:'',lon:'',name:''}]);
+  };
+
+  const removeLocation = (i) => {
+    if (locations.length <= 2) return;
+    const locs = locations.filter((_,idx) => idx !== i);
+    setLocations(locs);
+    if (threshold > locs.length) setThreshold(locs.length);
+    if (canaryIdx !== null && canaryIdx >= locs.length) setCanaryIdx(null);
+  };
+
+  const buildSecret = () => {
+    if (secretType === 'seed') {
+      const seed = window._lac_seed || '';
+      if (!seed) { toast.error('No seed found'); return null; }
+      const enc = new TextEncoder().encode(seed);
+      return btoa(String.fromCharCode(...enc));
+    }
+    if (!customSecret.trim()) { toast.error('Enter your secret text'); return null; }
+    const enc = new TextEncoder().encode(customSecret.trim());
+    return btoa(String.fromCharCode(...enc));
+  };
+
+  const submit = async () => {
+    const s = buildSecret(); if (!s) return;
+    const validLocs = locations.filter(l => l.lat && l.lon);
+    if (validLocs.length < 2) { toast.error('Fill at least 2 locations'); return; }
+    if (threshold > validLocs.length) { toast.error(`Threshold can't exceed ${validLocs.length}`); return; }
+    setLoading(true);
+    try {
+      const r = await post('/api/nagini/setup', {
+        secret: s, label,
+        locations: validLocs.map(l => [parseFloat(l.lat), parseFloat(l.lon)]),
+        threshold,
+        canary_index: canaryIdx,
+      });
+      if (r.ok) { setResult(r); setStep(4); }
+      else toast.error(r.error || 'Failed');
+    } catch(e) { toast.error('Network error'); } finally { setLoading(false); }
+  };
+
+  if (step === 4 && result) return (
+    <div className="flex flex-col h-full">
+      <Header title="Bundle Created ✅" onBack={onBack} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="rounded-2xl bg-[#0d1f18] border border-emerald-800/30 p-5 text-center">
+          <div className="text-4xl mb-3">✅</div>
+          <div className="text-emerald-400 font-bold text-lg">{result.label}</div>
+          <div className="text-gray-500 text-sm mt-1">{result.n} locations · threshold {result.threshold}</div>
+          <div className="mt-3 bg-black/30 rounded-xl p-3">
+            <div className="text-gray-500 text-xs mb-1">Bundle ID</div>
+            <div className="text-emerald-300 text-xs font-mono break-all">{result.bundle_id}</div>
+          </div>
+        </div>
+        <div className="rounded-xl bg-amber-900/10 border border-amber-800/30 p-4 text-xs text-gray-400 space-y-1">
+          <div className="text-amber-400 font-semibold mb-2">⚠️ Important</div>
+          <div>• GPS coordinates are NOT stored on the server</div>
+          <div>• Only you know the physical locations to visit</div>
+          <div>• Write location names on paper, store separately from device</div>
+          {canaryIdx !== null && <div>• Location #{canaryIdx+1} is your canary 🪤 trap</div>}
+        </div>
+        <Btn onClick={onBack} className="w-full bg-emerald-600 hover:bg-emerald-500">Done</Btn>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col h-full">
+      <Header title={`Create Bundle — Step ${step}/3`} onBack={step === 1 ? onBack : () => setStep(s => s-1)} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {step === 1 && (
+          <div className="space-y-4">
+            <div className="text-gray-400 text-sm">What secret do you want to protect?</div>
+            <div className="grid grid-cols-2 gap-2">
+              {[['seed','🔑 LAC Seed'],['custom','✏️ Custom text']].map(([v,l]) => (
+                <button key={v} onClick={() => setSecretType(v)}
+                  className={`p-3 rounded-xl border text-sm transition-all ${secretType===v?'border-emerald-500 bg-emerald-900/20 text-emerald-400':'border-gray-800 text-gray-500'}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {secretType === 'custom' && (
+              <textarea value={customSecret} onChange={e => setCustomSecret(e.target.value)}
+                placeholder="Your private key, secret phrase, or any sensitive text..."
+                className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl p-3 text-white text-sm resize-none h-24 focus:outline-none focus:border-emerald-600" />
+            )}
+            {secretType === 'seed' && (
+              <div className="bg-emerald-900/10 border border-emerald-800/20 rounded-xl p-3 text-xs text-gray-400">
+                Your LAC seed will be split into shards. You can recover it later by visiting the locations — even without your device.
+              </div>
+            )}
+            <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Bundle name (e.g. Kyiv backup)" />
+            <Btn onClick={() => setStep(2)} className="w-full bg-emerald-600 hover:bg-emerald-500">Next →</Btn>
+          </div>
+        )}
+        {step === 2 && (
+          <div className="space-y-3">
+            <div className="text-gray-400 text-sm">Set GPS locations. Each shard is locked to a location.</div>
+            {locations.map((loc, i) => (
+              <div key={i} className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${canaryIdx===i?'bg-amber-900/40 text-amber-400':'bg-emerald-900/30 text-emerald-500'}`}>
+                    {canaryIdx===i ? '🪤 Canary' : `#${i+1}`}
+                  </span>
+                  <div className="flex gap-1">
+                    <button onClick={() => setCanaryIdx(canaryIdx===i ? null : i)}
+                      className={`text-xs px-2 py-1 rounded-lg transition-all ${canaryIdx===i?'bg-amber-900/40 text-amber-400':'text-gray-600 hover:text-amber-500'}`}>
+                      {canaryIdx===i ? '🪤 trap' : 'set trap'}
+                    </button>
+                    {locations.length > 2 && (
+                      <button onClick={() => removeLocation(i)} className="text-gray-700 hover:text-red-500 text-xs px-2">✕</button>
+                    )}
+                  </div>
+                </div>
+                <Input value={loc.name} onChange={e => { const l=[...locations]; l[i].name=e.target.value; setLocations(l); }}
+                  placeholder={`Location name (e.g. Kyiv central park)`} />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input value={loc.lat} onChange={e => { const l=[...locations]; l[i].lat=e.target.value; setLocations(l); }}
+                    placeholder="Latitude" />
+                  <Input value={loc.lon} onChange={e => { const l=[...locations]; l[i].lon=e.target.value; setLocations(l); }}
+                    placeholder="Longitude" />
+                </div>
+                <button onClick={() => getGPS(i)} disabled={locating===i}
+                  className="w-full text-xs py-2 rounded-lg bg-emerald-900/20 border border-emerald-900/30 text-emerald-500 hover:bg-emerald-900/40 transition-all">
+                  {locating===i ? '📡 Getting GPS...' : '📍 Use my current location'}
+                </button>
+              </div>
+            ))}
+            {locations.length < 8 && (
+              <button onClick={addLocation}
+                className="w-full py-2 rounded-xl border border-dashed border-emerald-900/30 text-emerald-700 text-sm hover:border-emerald-700/40 transition-all">
+                + Add location
+              </button>
+            )}
+            <div className="bg-[#0d1a12]/60 rounded-xl p-3">
+              <div className="text-gray-400 text-xs mb-2">Min locations needed to recover</div>
+              <div className="flex gap-2">
+                {Array.from({length: locations.length-1}, (_,i) => i+2).map(v => (
+                  <button key={v} onClick={() => setThreshold(v)}
+                    className={`px-3 py-1 rounded-lg text-sm transition-all ${threshold===v?'bg-emerald-600 text-white':'bg-[#0d1a12] border border-gray-800 text-gray-500'}`}>
+                    {v}
+                  </button>
+                ))}
+              </div>
+              <div className="text-gray-600 text-xs mt-2">Visit any {threshold} of {locations.length} locations</div>
+            </div>
+            <Btn onClick={() => setStep(3)} className="w-full bg-emerald-600 hover:bg-emerald-500">Next →</Btn>
+          </div>
+        )}
+        {step === 3 && (
+          <div className="space-y-4">
+            <div className="text-gray-400 text-sm">Review and confirm</div>
+            <div className="bg-amber-900/10 border border-amber-800/20 rounded-xl p-4">
+              <div className="text-amber-400 text-sm font-semibold mb-2">🪤 Canary Trap</div>
+              <div className="text-gray-500 text-xs">
+                {canaryIdx !== null
+                  ? `Location #${canaryIdx+1} is your trap. If someone visits it, you get a silent LAC message alert.`
+                  : 'No trap set. Go back to Step 2 to set one.'}
+              </div>
+            </div>
+            <div className="bg-emerald-900/10 border border-emerald-800/20 rounded-xl p-3 text-xs text-emerald-500">
+              📩 Canary &amp; DMS alerts arrive as LAC messages in your chat inbox — no external setup needed.
+            </div>
+            <div className="bg-[#0d1a12]/60 rounded-xl p-3 text-xs text-gray-500 space-y-1">
+              <div className="text-emerald-400 font-semibold mb-1">Summary</div>
+              <div>• Secret type: {secretType === 'seed' ? 'LAC Seed' : 'Custom text'}</div>
+              <div>• {locations.filter(l=>l.lat&&l.lon).length} locations with GPS</div>
+              <div>• Threshold: {threshold} of {locations.length}</div>
+              {canaryIdx !== null && <div>• Canary at location #{canaryIdx+1} 🪤</div>}
+              <div>• Alerts via LAC messages 📩</div>
+            </div>
+            <Btn onClick={submit} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500">
+              {loading ? 'Creating...' : '✅ Create Bundle'}
+            </Btn>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
+  const [deleting, setDeleting] = useState(false);
+  const del = async () => {
+    if (!window.confirm('Delete this bundle? Cannot be undone.')) return;
+    setDeleting(true);
+    await post('/api/nagini/delete', {bundle_id: bundle.bundle_id});
+    onBack();
+  };
+  return (
+    <div className="flex flex-col h-full">
+      <Header title={bundle.label || 'Bundle'} onBack={onBack} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="rounded-2xl bg-[#0d1f18] border border-emerald-800/30 p-4 space-y-1">
+          {[
+            ['Bundle ID', bundle.bundle_id.slice(0,16)+'...'],
+            ['Locations', `${bundle.n} total`],
+            ['Threshold', `${bundle.threshold} required to recover`],
+            ['Created', new Date(bundle.created_at*1000).toLocaleString()],
+            ['Canary', bundle.has_canary ? '🪤 Active' : 'None'],
+            ["Dead Man's Switch", bundle.has_dms ? '⏰ Active' : 'Not configured'],
+          ].map(([k,v]) => (
+            <div key={k} className="flex justify-between items-center py-2 border-b border-gray-800/20">
+              <span className="text-gray-500 text-sm">{k}</span>
+              <span className="text-white text-sm">{v}</span>
+            </div>
+          ))}
+        </div>
+        <Btn onClick={onDMS} className="w-full bg-[#0d1a12] border border-emerald-800/40 text-emerald-400">
+          ⏰ {bundle.has_dms ? 'Manage' : 'Setup'} Dead Man's Switch
+        </Btn>
+        <Btn onClick={del} disabled={deleting} className="w-full bg-red-900/20 border border-red-800/30 text-red-400">
+          {deleting ? 'Deleting...' : '🗑 Delete Bundle'}
+        </Btn>
+      </div>
+    </div>
+  );
+};
+
+const NaginiRecover = ({ onBack, bundles }) => {
+  const [bundleId, setBundleId] = useState(bundles[0]?.bundle_id || '');
+  const [shards, setShards] = useState([]);
+  const [locating, setLocating] = useState(false);
+  const [result, setResult] = useState(null);
+  const bundle = bundles.find(b => b.bundle_id === bundleId);
+
+  const scan = () => {
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setLocating(false);
+        try {
+          const r = await post('/api/nagini/recover', {
+            bundle_id: bundleId,
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            shards,
+          });
+          if (r.ok && r.matched) {
+            if (r.reconstructed) { setResult(r); setShards([]); }
+            else {
+              setShards(prev => [...prev.filter(s=>s.shard_index!==r.shard_index),
+                                 {shard_index: r.shard_index, shard_hex: r.shard_hex}]);
+              toast.success(`Shard #${r.shard_index} unlocked! ${r.remaining} more needed.`);
+            }
+          } else {
+            toast.error('No shard at this location (~200m radius)');
+          }
+        } catch(e) { toast.error('Error'); }
+      },
+      () => { setLocating(false); toast.error('GPS not available'); },
+      {enableHighAccuracy: true, timeout: 15000}
+    );
+  };
+
+  if (result) return (
+    <div className="flex flex-col h-full">
+      <Header title="Secret Recovered 🔓" onBack={onBack} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="rounded-2xl bg-emerald-900/10 border border-emerald-800/30 p-5 text-center">
+          <div className="text-4xl mb-3">🔓</div>
+          <div className="text-emerald-400 font-bold text-lg">Secret Reconstructed</div>
+          <div className="text-gray-500 text-xs mt-1">{result.collected} of {result.threshold} shards collected</div>
+        </div>
+        <div className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-500 text-xs">Recovered secret (Base64)</span>
+            <button onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success('Copied!'); }}
+              className="text-emerald-500 text-xs">Copy</button>
+          </div>
+          <div className="font-mono text-emerald-300 text-xs break-all">{result.secret_b64}</div>
+        </div>
+        <div className="bg-amber-900/10 border border-amber-800/20 rounded-xl p-3 text-xs text-amber-500">
+          ⚠️ Save this immediately. This screen will not show it again.
+        </div>
+        <Btn onClick={onBack} className="w-full bg-emerald-600">Done</Btn>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col h-full">
+      <Header title="Recover Secret" onBack={onBack} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {bundles.length > 1 && (
+          <div>
+            <div className="text-gray-400 text-xs mb-2">Select bundle</div>
+            <select value={bundleId} onChange={e => { setBundleId(e.target.value); setShards([]); }}
+              className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm focus:outline-none">
+              {bundles.map(b => <option key={b.bundle_id} value={b.bundle_id}>{b.label || b.bundle_id.slice(0,12)}</option>)}
+            </select>
+          </div>
+        )}
+        {bundle && (
+          <div className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-4">
+            <div className="text-gray-400 text-xs mb-2">Progress: {shards.length}/{bundle.threshold} shards</div>
+            <div className="flex gap-1">
+              {Array.from({length: bundle.n}, (_,i) => (
+                <div key={i} className={`h-2 flex-1 rounded-full transition-all ${shards[i] ? 'bg-emerald-500' : 'bg-gray-800'}`} />
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="bg-blue-900/10 border border-blue-800/20 rounded-xl p-4 text-xs text-blue-400">
+          📍 Go to one of your saved locations, then tap the button. GPS must be within ~200m of the saved location.
+        </div>
+        <Btn onClick={scan} disabled={locating} className="w-full bg-emerald-600 hover:bg-emerald-500 py-4">
+          {locating ? '📡 Getting GPS...' : '📍 Scan This Location'}
+        </Btn>
+        {shards.length > 0 && (
+          <div className="space-y-1">
+            {shards.map(s => (
+              <div key={s.shard_index} className="text-xs font-mono text-emerald-700 bg-emerald-900/10 rounded-lg px-3 py-1">
+                Shard #{s.shard_index} ✓
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const NaginiDMS = ({ onBack, bundle }) => {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({ interval_hours: 24, owner_name: '', emergency_message: '' });
+
+  useEffect(() => {
+    if (!bundle) return;
+    get(`/api/nagini/dms/status?bundle_id=${bundle.bundle_id}`)
+      .then(r => { if (r.configured) setStatus(r); })
+      .catch(() => {});
+  }, [bundle?.bundle_id]);
+
+  const save = async () => {
+    setLoading(true);
+    try {
+      const r = await post('/api/nagini/dms/setup', { bundle_id: bundle.bundle_id, ...form });
+      if (r.ok) { toast.success('DMS activated!'); setStatus({ ...r, configured: true, hours_left: form.interval_hours }); }
+      else toast.error(r.error || 'Failed');
+    } finally { setLoading(false); }
+  };
+
+  const checkin = async () => {
+    setLoading(true);
+    try {
+      const r = await post('/api/nagini/dms/checkin', { bundle_id: bundle.bundle_id });
+      if (r.ok) {
+        toast.success('✅ Checked in! Timer reset.');
+        const hoursLeft = form.interval_hours || status?.interval_hours || 24;
+        setStatus(s => ({ ...s, last_checkin: r.last_checkin, hours_left: hoursLeft }));
+      }
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <Header title="⏰ Dead Man's Switch" onBack={onBack} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="bg-[#0d1a12]/60 border border-emerald-900/20 rounded-xl p-3 text-xs text-gray-500">
+          If you stop checking in within the set interval, a LAC message is sent to your wallet automatically.
+        </div>
+        {status?.configured ? (
+          <>
+            <div className="rounded-2xl bg-[#0d1f18] border border-emerald-800/30 p-5 text-center">
+              <div className={`text-5xl mb-2 ${status.hours_left < 4 ? 'text-red-400' : status.hours_left < 12 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {status.hours_left < 4 ? '🔴' : status.hours_left < 12 ? '🟡' : '🟢'}
+              </div>
+              <div className="text-white text-3xl font-bold">{status.hours_left}h</div>
+              <div className="text-gray-500 text-sm">until alert fires</div>
+            </div>
+            {[
+              ['Last check-in', status.last_checkin ? new Date(status.last_checkin*1000).toLocaleString() : 'Never'],
+              ['Interval', `${status.interval_hours}h`],
+              ['Owner', status.owner_name || '—'],
+              ['Alert channel', '📩 LAC message'],
+            ].map(([k,v]) => (
+              <div key={k} className="flex justify-between py-2 border-b border-gray-800/20">
+                <span className="text-gray-500 text-sm">{k}</span>
+                <span className="text-white text-sm">{v}</span>
+              </div>
+            ))}
+            <Btn onClick={checkin} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 py-4 text-base font-semibold">
+              {loading ? 'Saving...' : '✅ Check In Now — Reset Timer'}
+            </Btn>
+          </>
+        ) : (
+          <div className="space-y-3">
+            <Input value={form.owner_name} onChange={e => setForm(f=>({...f, owner_name: e.target.value}))}
+              placeholder="Your name (shown in alert message)" />
+            <div>
+              <div className="text-gray-400 text-xs mb-2">Alert interval</div>
+              <div className="flex gap-2">
+                {[12, 24, 48, 72].map(h => (
+                  <button key={h} onClick={() => setForm(f=>({...f, interval_hours: h}))}
+                    className={`flex-1 py-2 rounded-xl text-sm transition-all ${form.interval_hours===h?'bg-emerald-600 text-white':'bg-[#0d1a12] border border-gray-800 text-gray-500'}`}>
+                    {h}h
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Input value={form.emergency_message} onChange={e => setForm(f=>({...f, emergency_message: e.target.value}))}
+              placeholder="Emergency message (optional)" />
+            <div className="bg-emerald-900/10 border border-emerald-800/20 rounded-xl p-3 text-xs text-emerald-500">
+              📩 Alert will be sent as a LAC message to your own wallet if you miss a check-in.
+            </div>
+            <Btn onClick={save} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500">
+              {loading ? 'Activating...' : 'Activate DMS'}
+            </Btn>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
 export default function App() {
   const [seed, setSeed] = useState(localStorage.getItem('lac_seed'));
   const [lang, setLangState] = useState(getLang());
@@ -724,6 +1279,7 @@ const MainApp = ({ onLogout }) => {
       dice: <DiceView onBack={back} profile={profile} onRefresh={reload} />,
       referral: <ReferralView onBack={back} />,
       pol: <PolView onBack={back} profile={profile} />,
+      nagini: <NaginiView onBack={back} profile={profile} />,
     };
     return (
       <div className="w-full h-[100dvh] bg-[#060f0c] flex items-center justify-center sm:bg-gradient-to-br sm:from-gray-900 sm:to-gray-950 sm:p-4">
@@ -3251,6 +3807,8 @@ const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
           onClick={() => setLang(lang==='uk'?'en':'uk')} />
         <ListItem icon={<span className="text-lg">🤝</span>} title="Referral" sub="Invite friends, earn LAC"
           onClick={() => onNav({type:'referral'})} />
+          <ListItem icon={<span className="text-lg">🐍</span>} title="Nagini" sub="Geographic secret backup"
+            onClick={() => onNav({type:'nagini'})} />
           <ListItem icon={<Bell className="w-5 h-5 text-amber-500" />} title="Push Notifications" right={<NotifToggle />} />
         <div className="h-px bg-gray-800/30 my-2" />
         <ListItem icon={<LogOut className="w-5 h-5 text-red-400"/>} title={t('logout')} sub="Save seed first!" onClick={() => { if(confirm('Make sure seed is saved!')) onLogout(); }} />

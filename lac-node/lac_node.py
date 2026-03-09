@@ -1023,8 +1023,10 @@ def auto_mining_loop():
                 _cache_del('explorer:chain')
                 _cache_del_prefix('blocks:')
                 _cache_del('stats:chain')
+                _cache_del_prefix('wmining:')
             _cache_del('explorer:chain')
             _cache_del_prefix('blocks:')
+            _cache_del_prefix('wmining:')
             _cache_del_prefix('wtx:')
             _cache_del_prefix('wst:')
             print(f"\n⛏️ Block #{len(S.chain)-1} mined!")
@@ -1807,6 +1809,9 @@ def get_wallet_mining():
     
     addr = get_address_from_seed(seed)
     limit = request.args.get('limit', 50, type=int)
+    ck_wm = f'wmining:{addr}:{limit}'
+    r_wm = _cache_get(ck_wm)
+    if r_wm: return jsonify(r_wm)
     limit = min(limit, 200)  # Max 200
     
     with S.lock:
@@ -1846,12 +1851,14 @@ def get_wallet_mining():
         mining_rewards.sort(key=lambda x: x.get('block', 0), reverse=True)
         mining_rewards = mining_rewards[:limit]
         
-        return jsonify({
+        _wm_res = {
             'ok': True,
             'mining_rewards': mining_rewards,
             'count': len(mining_rewards),
             'total_mined': total_mined
-        })
+        }
+    _cache_set(ck_wm, _wm_res, ttl=30)
+    return jsonify(_wm_res)
 
 
 # ============================================================================
@@ -6359,10 +6366,13 @@ def _start_bg_save():
 @app.route('/api/pol/zones', methods=['GET'])
 def pol_zones():
     """List all available PoL zones"""
+    _pz_cached = _cache_get('pol:zones')
+    if _pz_cached: return jsonify(_pz_cached)
     if not POL_AVAILABLE:
         return jsonify({'ok': False, 'error': 'Proof-of-Location not available'}), 503
     zones = ProofOfLocation.get_available_zones()
     zones['ok'] = True
+    _cache_set('pol:zones', zones, ttl=120)
     return jsonify(zones)
 
 @app.route('/api/pol/prove', methods=['POST'])
@@ -6816,6 +6826,419 @@ def _gunicorn_init():
         print(f"[gunicorn] Init warning: {e}")
 
 # Run init if imported (gunicorn), skip if __main__ (direct python run)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 🐍 NAGINI PROTOCOL — Geographic Secret Distribution
+# Based on github.com/epidemiaya/nagini-protocol
+# Integrated inline — no extra files needed on server
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+try:
+    import struct as _nag_struct, math as _nag_math, platform as _nag_platform
+    import threading as _nag_threading, datetime as _nag_datetime
+    from dataclasses import dataclass as _nag_dc, asdict as _nag_asdict
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM as _AESGCM
+    from cryptography.hazmat.primitives import hashes as _nag_hashes
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF as _HKDF
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC as _PBKDF2
+    NAGINI_OK = True
+except ImportError:
+    NAGINI_OK = False
+
+if NAGINI_OK:
+    # ── GF(2^8) Shamir Secret Sharing ────────────────────────
+    _GF_EXP = [0]*512; _GF_LOG = [0]*256
+    def _gf_init():
+        x = 1
+        for i in range(255):
+            _GF_EXP[i] = x; _GF_LOG[x] = i
+            x <<= 1
+            if x & 0x100: x ^= 0x11d
+        for i in range(255,512): _GF_EXP[i] = _GF_EXP[i-255]
+    _gf_init()
+
+    def _gf_mul(a,b):
+        if a==0 or b==0: return 0
+        return _GF_EXP[(_GF_LOG[a]+_GF_LOG[b])%255]
+    def _gf_inv(x):
+        if x==0: raise ZeroDivisionError
+        return _GF_EXP[255-_GF_LOG[x]]
+    def _poly_eval(coeffs, x):
+        r=0
+        for c in reversed(coeffs): r=_gf_mul(r,x)^c
+        return r
+    def _lagrange(x, xs, ys):
+        r=0
+        for i,(xi,yi) in enumerate(zip(xs,ys)):
+            n2=yi; d=1
+            for j,xj in enumerate(xs):
+                if i!=j: n2=_gf_mul(n2,x^xj); d=_gf_mul(d,xi^xj)
+            r^=_gf_mul(n2,_gf_inv(d))
+        return r
+    def _nag_split(secret, n, k):
+        shards=[(i,bytearray()) for i in range(1,n+1)]
+        for bv in secret:
+            coeffs=[bv]+[os.urandom(1)[0] for _ in range(k-1)]
+            for i,sh in shards: sh.append(_poly_eval(coeffs,i))
+        return [(i,bytes(sh)) for i,sh in shards]
+    def _nag_combine(shares):
+        xs=[i for i,_ in shares]; slen=len(shares[0][1])
+        sec=bytearray()
+        for bi in range(slen):
+            ys=[s[bi] for _,s in shares]
+            sec.append(_lagrange(0,xs,ys))
+        return bytes(sec)
+
+    # ── Geo-key derivation (tile-based fuzzy extractor) ───────
+    _NAG_VER = b"nagini-v1"; _TILE = 0.002
+    def _tile_center(coord):
+        idx = _nag_math.floor(coord/_TILE)
+        return round(idx*_TILE + _TILE/2, 8)
+    def _tile_candidates(lat, lon):
+        bl = _nag_math.floor(lat/_TILE)*_TILE+_TILE/2
+        blo= _nag_math.floor(lon/_TILE)*_TILE+_TILE/2
+        return [(round(bl+dl,8),round(blo+dlo,8))
+                for dl in [-_TILE,0,_TILE] for dlo in [-_TILE,0,_TILE]]
+    def _geo_key(lat, lon, shard_idx, salt):
+        geo = hashlib.sha3_256(
+            _nag_struct.pack('>d',lat)+_nag_struct.pack('>d',lon)
+            +_NAG_VER+_nag_struct.pack('>B',shard_idx)
+        ).digest()
+        return _HKDF(algorithm=_nag_hashes.SHA256(),length=32,salt=salt,info=_NAG_VER).derive(geo)
+    def _enc_shard(shard, idx, lat, lon, salt):
+        tl,tlo = _tile_center(lat),_tile_center(lon)
+        nonce = os.urandom(12)
+        ct = _AESGCM(_geo_key(tl,tlo,idx,salt)).encrypt(nonce,shard,_nag_struct.pack('>B',idx))
+        return nonce+ct
+    def _dec_shard(ct_full, idx, lat, lon, salt):
+        nonce,ct = ct_full[:12],ct_full[12:]
+        aad = _nag_struct.pack('>B',idx)
+        for tl,tlo in _tile_candidates(lat,lon):
+            try: return _AESGCM(_geo_key(tl,tlo,idx,salt)).decrypt(nonce,ct,aad)
+            except: pass
+        return None
+
+    # ── Canary: fake-shard + silent alert ────────────────────
+    def _canary_fake_shard(shard_len, public_id, idx):
+        seed = hashlib.sha3_256(
+            b"nagini-canary-fake"+public_id.encode()+idx.to_bytes(1,'big')
+        ).digest()
+        fake=bytearray()
+        c=0
+        while len(fake)<shard_len:
+            fake.extend(hashlib.sha3_256(seed+c.to_bytes(4,'big')).digest()); c+=1
+        return bytes(fake[:shard_len])
+
+    def _canary_alert_fire(bundle_id, recipient_addr):
+        ts = _nag_datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+        text = (f"🪤 NAGINI CANARY TRIGGERED\n"
+                f"Bundle: {bundle_id[:12]}...\n"
+                f"Time: {ts}\n"
+                f"Someone visited your canary location and attempted forced recovery!")
+        _nag_threading.Thread(
+            target=_nag_lac_alert, args=(recipient_addr, text), daemon=True
+        ).start()
+
+    # ── Dead Man's Switch ────────────────────────────────────
+    def _dms_broadcast(config):
+        owner      = config.get('owner_name', '?')
+        lac        = config.get('lac_wallet', '')
+        interval_h = config.get('interval_hours', 24)
+        ts         = _nag_datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+        text = (f"\u23f0 NAGINI DEAD MAN'S SWITCH\n"
+                f"Owner: {owner}\n"
+                f"Time: {ts}\n"
+                f"No check-in for {interval_h}h — alert sent to your LAC wallet.")
+        if lac:
+            _nag_threading.Thread(
+                target=_nag_lac_alert, args=(lac, text), daemon=True
+            ).start()
+
+    _dms_monitors = {}  # profile_id → threading.Timer
+
+    def _dms_schedule(addr, profile_id, config, interval_h):
+        key = f"{addr}:{profile_id}"
+        if key in _dms_monitors:
+            _dms_monitors[key].cancel()
+        def _trigger():
+            _dms_monitors.pop(key,None)
+            _dms_broadcast(config)
+        t = _nag_threading.Timer(interval_h*3600, _trigger)
+        t.daemon = True; t.start()
+        _dms_monitors[key] = t
+
+    # ── Storage helpers ──────────────────────────────────────
+    def _nag_dir(addr):
+        d = S.datadir / 'nagini' / addr
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    def _nag_save(addr, bundle_id, data):
+        (_nag_dir(addr)/f'{bundle_id}.json').write_text(json.dumps(data))
+    def _nag_load(addr, bundle_id):
+        p = _nag_dir(addr)/f'{bundle_id}.json'
+        return json.loads(p.read_text()) if p.exists() else None
+    def _nag_list(addr):
+        d = S.datadir/'nagini'/addr
+        return [f.stem for f in d.glob('*.json') if not f.stem.startswith(('dms_','canary_'))] if d.exists() else []
+    def _nag_save_dms(addr, profile_id, data):
+        (_nag_dir(addr)/f'dms_{profile_id}.json').write_text(json.dumps(data))
+    def _nag_load_dms(addr, profile_id):
+        p = _nag_dir(addr)/f'dms_{profile_id}.json'
+        return json.loads(p.read_text()) if p.exists() else None
+
+    # ── LAC system alert (self-notification) ──────────────────
+    def _nag_lac_alert(recipient_addr, text):
+        """Inject a LAC system message to recipient's inbox — no fee, no rate limit."""
+        try:
+            with S.lock:
+                msg = {
+                    'from': '🐍 Nagini',
+                    'from_address': recipient_addr,
+                    'to': recipient_addr,
+                    'to_display': recipient_addr,
+                    'text': text,
+                    'timestamp': int(time.time()),
+                    'verified': True,
+                    'ephemeral': False,
+                    'burn': False,
+                    'reply_to': None,
+                    'ttl': 0,
+                    'system': True,
+                    'nagini': True,
+                }
+                S.persistent_msgs.append(msg)
+                if len(S.persistent_msgs) > 5000:
+                    S.persistent_msgs = S.persistent_msgs[-5000:]
+                _cache_del('inbox:' + recipient_addr)
+                _cache_del_prefix('chat:' + recipient_addr)
+            ws_push_to_peers([recipient_addr], 'new_message', {
+                'from': '🐍 Nagini', 'text': text, 'system': True
+            })
+        except Exception:
+            pass
+
+
+
+# ── /api/nagini/* endpoints ───────────────────────────────────────────
+
+@app.route('/api/nagini/status', methods=['GET'])
+def nagini_status():
+    return jsonify({'ok': True, 'available': NAGINI_OK,
+                    'version': 'nagini-v1', 'tile_size_m': 200})
+
+@app.route('/api/nagini/setup', methods=['POST'])
+def nagini_setup():
+    """Split a secret across GPS locations"""
+    if not NAGINI_OK:
+        return jsonify({'error': 'cryptography package not installed on server'}), 503
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+
+    import base64
+    secret_b64 = data.get('secret','')
+    locations  = data.get('locations',[])   # [[lat,lon], ...]
+    threshold  = int(data.get('threshold',2))
+    label      = str(data.get('label','Bundle'))[:64]
+    canary_idx = data.get('canary_index', None)   # optional: index of fake shard
+    tg_token   = data.get('telegram_token','').strip()
+    tg_chat    = data.get('telegram_chat_id','').strip()
+
+    if not secret_b64:
+        return jsonify({'error':'secret required'}),400
+    if len(locations) < 2:
+        return jsonify({'error':'At least 2 locations required'}),400
+    if threshold < 2 or threshold > len(locations):
+        return jsonify({'error':f'threshold must be 2..{len(locations)}'}),400
+
+    try:
+        secret = base64.b64decode(secret_b64)
+    except Exception:
+        try: secret = bytes.fromhex(secret_b64)
+        except: return jsonify({'error':'secret must be base64 or hex'}),400
+
+    n_locs = len(locations)
+    shards = _nag_split(secret, n_locs, threshold)
+    bundle_id = os.urandom(8).hex()
+    blobs = []
+
+    for (sidx, shard), (lat, lon) in zip(shards, locations):
+        is_canary = (canary_idx is not None and sidx-1 == canary_idx)
+        salt = os.urandom(32)
+        actual_shard = _canary_fake_shard(len(shard), bundle_id, sidx) if is_canary else shard
+        ct = _enc_shard(actual_shard, sidx, float(lat), float(lon), salt)
+        blobs.append({
+            'shard_index': sidx,
+            'salt': salt.hex(),
+            'ciphertext': ct.hex(),
+            'is_canary': is_canary
+        })
+
+    bundle = {
+        'bundle_id': bundle_id, 'label': label,
+        'n': n_locs, 'threshold': threshold,
+        'created_at': int(time.time()),
+        'blobs': blobs,
+        'canary': {'index': canary_idx, 'tg_token': tg_token, 'tg_chat': tg_chat} if canary_idx is not None else None,
+    }
+    _nag_save(addr, bundle_id, bundle)
+    return jsonify({'ok':True,'bundle_id':bundle_id,'n':n_locs,'threshold':threshold,'label':label})
+
+
+@app.route('/api/nagini/bundles', methods=['GET'])
+def nagini_bundles():
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    if not NAGINI_OK: return jsonify({'ok':True,'bundles':[],'available':False})
+    addr = get_address_from_seed(seed)
+    result=[]
+    for bid in _nag_list(addr):
+        b=_nag_load(addr,bid)
+        if b: result.append({'bundle_id':b['bundle_id'],'label':b.get('label',''),'n':b['n'],
+                              'threshold':b['threshold'],'created_at':b.get('created_at',0),
+                              'has_canary': b.get('canary') is not None,
+                              'has_dms': (_nag_dir(addr)/f"dms_{bid}.json").exists()})
+    return jsonify({'ok':True,'bundles':result,'available':NAGINI_OK})
+
+
+@app.route('/api/nagini/recover', methods=['POST'])
+def nagini_recover():
+    """Decrypt one shard at current GPS. Collect K shards to reconstruct."""
+    if not NAGINI_OK: return jsonify({'error':'cryptography not installed'}),503
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+
+    bundle_id   = data.get('bundle_id','')
+    lat         = float(data.get('lat',0))
+    lon         = float(data.get('lon',0))
+    shards_so_far = data.get('shards',[])  # [{shard_index, shard_hex}]
+
+    if not bundle_id: return jsonify({'error':'bundle_id required'}),400
+    bundle = _nag_load(addr, bundle_id)
+    if not bundle: return jsonify({'error':'Bundle not found'}),404
+
+    matched=None; matched_idx=None
+    for blob in bundle['blobs']:
+        sidx=blob['shard_index']
+        salt=bytes.fromhex(blob['salt'])
+        ct=bytes.fromhex(blob['ciphertext'])
+        result=_dec_shard(ct, sidx, lat, lon, salt)
+        if result is not None:
+            matched=result.hex(); matched_idx=sidx
+            # fire canary alert silently if this is canary shard
+            canary=bundle.get('canary')
+            if canary and canary.get('index') is not None and sidx-1==canary['index']:
+                _canary_alert_fire(bundle_id, addr)
+            break
+
+    if matched is None:
+        return jsonify({'ok':False,'matched':False,'error':'No shard at this location'})
+
+    all_shards = shards_so_far+[{'shard_index':matched_idx,'shard_hex':matched}]
+    collected  = len(all_shards)
+
+    if collected >= bundle['threshold']:
+        try:
+            import base64
+            shares = [(s['shard_index'],bytes.fromhex(s['shard_hex'])) for s in all_shards]
+            secret = _nag_combine(shares)
+            return jsonify({'ok':True,'matched':True,'shard_index':matched_idx,'shard_hex':matched,
+                           'reconstructed':True,'secret_b64':base64.b64encode(secret).decode(),
+                           'secret_hex':secret.hex(),'collected':collected,'threshold':bundle['threshold']})
+        except Exception as e:
+            return jsonify({'ok':True,'matched':True,'shard_index':matched_idx,'shard_hex':matched,
+                           'reconstructed':False,'error':str(e),'collected':collected,'threshold':bundle['threshold']})
+
+    return jsonify({'ok':True,'matched':True,'shard_index':matched_idx,'shard_hex':matched,
+                   'reconstructed':False,'collected':collected,'threshold':bundle['threshold'],
+                   'remaining':bundle['threshold']-collected})
+
+
+@app.route('/api/nagini/delete', methods=['POST'])
+def nagini_delete():
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    addr = get_address_from_seed(seed)
+    bundle_id = (request.get_json() or {}).get('bundle_id','')
+    for suffix in ['.json', f'_dms.json']:
+        p = _nag_dir(addr)/f'{bundle_id}{suffix}'
+        if p.exists(): p.unlink()
+    p2 = _nag_dir(addr)/f'dms_{bundle_id}.json'
+    if p2.exists(): p2.unlink()
+    p3 = _nag_dir(addr)/f'{bundle_id}.json'
+    if p3.exists(): p3.unlink()
+    return jsonify({'ok':True})
+
+
+@app.route('/api/nagini/dms/setup', methods=['POST'])
+def nagini_dms_setup():
+    """Configure Dead Man's Switch for a bundle"""
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    bundle_id     = data.get('bundle_id','')
+    interval_h    = int(data.get('interval_hours', 24))
+    tg_token      = data.get('telegram_token','').strip()
+    tg_chat       = data.get('telegram_chat_id','').strip()
+    owner_name    = data.get('owner_name', 'LAC User')[:64]
+    emergency_msg = data.get('emergency_message','')[:256]
+    if not bundle_id: return jsonify({'error':'bundle_id required'}),400
+    if not _nag_load(addr, bundle_id): return jsonify({'error':'Bundle not found'}),404
+    config = {
+        'bundle_id': bundle_id, 'interval_hours': interval_h,
+        'telegram_token': tg_token, 'telegram_chat_id': tg_chat,
+        'owner_name': owner_name, 'emergency_message': emergency_msg,
+        'lac_wallet': addr, 'last_checkin': int(time.time()),
+        'created_at': int(time.time())
+    }
+    _nag_save_dms(addr, bundle_id, config)
+    if NAGINI_OK and tg_token and tg_chat:
+        _dms_schedule(addr, bundle_id, config, interval_h)
+    return jsonify({'ok':True,'profile_id':bundle_id,'interval_hours':interval_h})
+
+
+@app.route('/api/nagini/dms/checkin', methods=['POST'])
+def nagini_dms_checkin():
+    """Dead Man's Switch check-in — resets the timer"""
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    addr = get_address_from_seed(seed)
+    bundle_id = (request.get_json() or {}).get('bundle_id','')
+    config = _nag_load_dms(addr, bundle_id) if NAGINI_OK else None
+    if not config: return jsonify({'error':'DMS not configured for this bundle'}),404
+    config['last_checkin'] = int(time.time())
+    _nag_save_dms(addr, bundle_id, config)
+    if NAGINI_OK:
+        _dms_schedule(addr, bundle_id, config, config.get('interval_hours',24))
+    return jsonify({'ok':True,'last_checkin':int(time.time()),
+                   'next_deadline':int(time.time())+config.get('interval_hours',24)*3600})
+
+
+@app.route('/api/nagini/dms/status', methods=['GET'])
+def nagini_dms_status():
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    addr = get_address_from_seed(seed)
+    bundle_id = request.args.get('bundle_id','')
+    if not NAGINI_OK: return jsonify({'ok':False,'available':False})
+    config = _nag_load_dms(addr, bundle_id)
+    if not config: return jsonify({'ok':False,'configured':False})
+    last = config.get('last_checkin',0)
+    interval_s = config.get('interval_hours',24)*3600
+    deadline = last + interval_s
+    now = int(time.time())
+    return jsonify({'ok':True,'configured':True,'last_checkin':last,
+                   'deadline':deadline,'hours_left':max(0,round((deadline-now)/3600,1)),
+                   'interval_hours':config.get('interval_hours',24),
+                   'owner_name':config.get('owner_name',''),
+                   'has_telegram': bool(config.get('telegram_token') and config.get('telegram_chat_id'))})
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 if __name__ != '__main__':
     _gunicorn_init()
 
