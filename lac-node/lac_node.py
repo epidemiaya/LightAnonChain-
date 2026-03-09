@@ -7120,9 +7120,14 @@ def nagini_recover():
     bundle = _nag_load(addr, bundle_id)
     if not bundle: return jsonify({'error':'Bundle not found'}),404
 
+    # Build set of already-collected shard indices to skip
+    already_collected = {s['shard_index'] for s in shards_so_far}
+
     matched=None; matched_idx=None
     for blob in bundle['blobs']:
         sidx=blob['shard_index']
+        if sidx in already_collected:
+            continue  # skip shards we already have
         salt=bytes.fromhex(blob['salt'])
         ct=bytes.fromhex(blob['ciphertext'])
         result=_dec_shard(ct, sidx, lat, lon, salt)
@@ -7135,7 +7140,7 @@ def nagini_recover():
             break
 
     if matched is None:
-        return jsonify({'ok':False,'matched':False,'error':'No shard at this location'})
+        return jsonify({'ok':True,'matched':False,'error':'No shard at this location (or all shards already collected)'})
 
     all_shards = shards_so_far+[{'shard_index':matched_idx,'shard_hex':matched}]
     collected  = len(all_shards)

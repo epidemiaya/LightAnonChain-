@@ -124,8 +124,10 @@ const useRealtimeSocket = (onMessage) => {
   useEffect(() => {
     _wsAlive = true;
     _wsListeners.add(onMessage);
-    _wsConnect(); // start global WS if not running
+    // Delay WS connection — let app render first, faster initial load
+    const t = setTimeout(_wsConnect, 1500);
     return () => {
+      clearTimeout(t);
       _wsListeners.delete(onMessage);
     };
   }, []);
@@ -495,319 +497,328 @@ const BitcoinWalletTab = ({ onMenu }) => {
 // 🐍 NAGINI — Geographic Secret Distribution
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const NaginiView = ({ onBack, profile }) => {
-  const [screen, setScreen] = useState('home');
+  const [screen, setScreen] = useState('home'); // home | setup | recover | bundle | dms
   const [bundles, setBundles] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [available, setAvailable] = useState(true);
-  const [selectedBundle, setSelectedBundle] = useState(null);
+  const [selBundle, setSelBundle] = useState(null);
+  const [available, setAvailable] = useState(null);
+  const [debug, setDebug] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadBundles(); }, []);
+  const hasSeed = !!localStorage.getItem('lac_seed');
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const r = await get('/api/nagini/status');
+        setAvailable(r.available);
+        if (!r.available) setDebug('❌ pip install cryptography — пакет не встановлено на сервері!');
+      } catch(e) {
+        setAvailable(false);
+        setDebug('❌ Помилка підключення до сервера: ' + e.message);
+      }
+      try {
+        const r2 = await get('/api/nagini/bundles');
+        setBundles(r2.bundles || []);
+      } catch {}
+      setLoading(false);
+    };
+    init();
+  }, []);
 
   const loadBundles = async () => {
-    setLoading(true);
-    try {
-      const r = await get('/api/nagini/bundles');
-      setBundles(r.bundles || []);
-      setAvailable(r.available !== false);
-    } catch(e) { setBundles([]); } finally { setLoading(false); }
+    try { const r = await get('/api/nagini/bundles'); setBundles(r.bundles||[]); } catch {}
   };
 
   if (screen === 'setup') return <NaginiSetup onBack={() => { setScreen('home'); loadBundles(); }} />;
   if (screen === 'recover') return <NaginiRecover onBack={() => setScreen('home')} bundles={bundles} />;
-  if (screen === 'dms') return <NaginiDMS onBack={() => { setScreen('bundle'); }} bundle={selectedBundle} />;
-  if (screen === 'bundle' && selectedBundle) return (
-    <NaginiBundleDetail bundle={selectedBundle}
-      onBack={() => { setScreen('home'); loadBundles(); }}
-      onDMS={() => setScreen('dms')} />
-  );
+  if (screen === 'bundle' && selBundle) return <NaginiBundleDetail bundle={selBundle} onBack={() => { setScreen('home'); loadBundles(); }} onDMS={() => setScreen('dms')} />;
+  if (screen === 'dms' && selBundle) return <NaginiDMS onBack={() => setScreen('bundle')} bundle={selBundle} />;
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="🐍 Nagini Protocol" onBack={onBack} />
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <div className="rounded-2xl bg-gradient-to-br from-[#0d1f18] to-[#091a10] border border-emerald-900/30 p-5">
-          <div className="text-center mb-3">
-            <div className="text-4xl mb-2">🐍</div>
-            <div className="text-emerald-400 font-bold text-lg">Geographic Secret Distribution</div>
-            <div className="text-gray-500 text-xs mt-1">
-              Split your seed across N physical locations.<br/>Recovery requires visiting K of N sites.
-            </div>
+      <Header title="🐍 Nagini" onBack={onBack} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {/* Status */}
+        <div className={`rounded-xl p-3 text-xs border ${
+          available === null ? 'bg-gray-800/40 border-gray-700/30 text-gray-500' :
+          available ? (hasSeed ? 'bg-emerald-900/20 border-emerald-800/30 text-emerald-400' : 'bg-amber-900/20 border-amber-800/30 text-amber-400') :
+          'bg-red-900/20 border-red-800/30 text-red-400'
+        }`}>
+          {available === null && '⏳ Перевірка сервера...'}
+          {available === true && hasSeed && '✅ Готово — Nagini активний, seed знайдено'}
+          {available === true && !hasSeed && '⚠️ Seed не знайдено. Виконайте вихід і вхід знову.'}
+          {available === false && (debug || '❌ Сервер не підтримує Nagini')}
+        </div>
+
+        {/* Actions */}
+        {available && hasSeed && (
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setScreen('setup')}
+              className="p-4 rounded-2xl bg-emerald-900/20 border border-emerald-800/30 text-center active:bg-emerald-900/40">
+              <div className="text-2xl mb-1">🔐</div>
+              <div className="text-emerald-400 text-sm font-semibold">Створити</div>
+              <div className="text-gray-500 text-[10px]">Новий bundle</div>
+            </button>
+            <button onClick={() => setScreen('recover')} disabled={bundles.length === 0}
+              className="p-4 rounded-2xl bg-blue-900/20 border border-blue-800/30 text-center active:bg-blue-900/40 disabled:opacity-40">
+              <div className="text-2xl mb-1">🔓</div>
+              <div className="text-blue-400 text-sm font-semibold">Відновити</div>
+              <div className="text-gray-500 text-[10px]">{bundles.length} bundle{bundles.length !== 1 ? 's' : ''}</div>
+            </button>
           </div>
-          {!available && (
-            <div className="bg-red-900/20 border border-red-800/30 rounded-xl p-3 text-center mt-3">
-              <div className="text-red-400 text-xs">⚠️ Run on server: pip install cryptography</div>
-            </div>
-          )}
-        </div>
-        <div className="rounded-xl bg-[#0d1a12]/80 border border-emerald-900/20 p-4 space-y-2">
-          <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-3">How it works</div>
-          {[
-            ['🔀','Split','Secret split into N shards via Shamir Secret Sharing GF(2⁸)'],
-            ['📍','Lock','Each shard locked to a GPS location — AES-256-GCM'],
-            ['🚶','Recover','Visit K of N locations physically to reconstruct your secret'],
-            ['🪤','Canary','One location is a trap — fires a silent LAC message alert'],
-            ['⏰','DMS','Dead Man\'s Switch sends LAC alert if you miss check-in'],
-          ].map(([icon,title,desc]) => (
-            <div key={title} className="flex gap-3 items-start">
-              <span className="text-lg shrink-0">{icon}</span>
-              <div>
-                <div className="text-emerald-400 text-xs font-semibold">{title}</div>
-                <div className="text-gray-500 text-xs">{desc}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div>
-          <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Your Bundles</div>
-          {loading ? (
-            <div className="text-center py-8 text-gray-600 text-sm">Loading...</div>
-          ) : bundles.length === 0 ? (
-            <Empty emoji="📦" text="No bundles yet" sub="Create your first geo-protected bundle" />
-          ) : (
-            <div className="space-y-2">
-              {bundles.map(b => (
-                <button key={b.bundle_id} onClick={() => { setSelectedBundle(b); setScreen('bundle'); }}
-                  className="w-full text-left rounded-xl bg-[#0d1a12]/80 border border-emerald-900/20 p-4 hover:border-emerald-800/50 transition-all">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-white text-sm font-medium">{b.label || 'Bundle'}</div>
-                      <div className="text-gray-500 text-xs mt-0.5">
-                        {b.n} locations · threshold {b.threshold}
-                        {b.has_canary ? ' · 🪤' : ''}{b.has_dms ? ' · ⏰' : ''}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-emerald-500 text-xs">{new Date(b.created_at*1000).toLocaleDateString()}</div>
-                      <ChevronRight className="w-4 h-4 text-gray-700 mt-1 ml-auto" />
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="p-4 space-y-2 border-t border-gray-800/30">
-        <Btn disabled={!available} onClick={() => setScreen('setup')} className="w-full bg-emerald-600 hover:bg-emerald-500">
-          + Create New Bundle
-        </Btn>
-        {bundles.length > 0 && (
-          <Btn onClick={() => setScreen('recover')} className="w-full bg-[#0d1a12] border border-emerald-800/40 text-emerald-400">
-            🗺 Recover Secret
-          </Btn>
         )}
+
+        {/* Bundle list */}
+        {bundles.length > 0 && (
+          <div>
+            <div className="text-gray-500 text-xs font-medium mb-2">Ваші bundles</div>
+            {bundles.map(b => (
+              <button key={b.bundle_id} onClick={() => { setSelBundle(b); setScreen('bundle'); }}
+                className="w-full flex items-center justify-between p-3 rounded-xl bg-[#0d1a12]/80 border border-emerald-900/20 mb-2 active:bg-emerald-900/20">
+                <div className="text-left">
+                  <div className="text-white text-sm font-medium">{b.label || 'Bundle'}</div>
+                  <div className="text-gray-500 text-[10px]">{b.n} локацій · threshold {b.threshold} · {b.has_canary ? '🪤' : ''}{b.has_dms ? '⏰' : ''}</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-600" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* How it works */}
+        <div className="bg-[#0d1a12]/60 border border-emerald-900/20 rounded-xl p-3 text-xs text-gray-500 space-y-1">
+          <div className="text-emerald-400 font-semibold mb-1">🐍 Як це працює</div>
+          <div>1. Твій seed розбивається на N шардів (Shamir Secret Sharing)</div>
+          <div>2. Кожен шард зашифрований GPS-ключем конкретного місця</div>
+          <div>3. Зібери K шардів (відвідай K місць) → seed відновлено</div>
+          <div>4. Без GPS-координат шард не розшифрувати</div>
+        </div>
       </div>
     </div>
   );
 };
+
 
 const NaginiSetup = ({ onBack }) => {
   const [step, setStep] = useState(1);
   const [secretType, setSecretType] = useState('seed');
   const [customSecret, setCustomSecret] = useState('');
-  const [locations, setLocations] = useState([{lat:'',lon:'',name:''},{lat:'',lon:'',name:''}]);
+  const [label, setLabel] = useState('');
+  const [locations, setLocations] = useState([
+    {name:'', lat:'', lon:''},
+    {name:'', lat:'', lon:''},
+  ]);
   const [threshold, setThreshold] = useState(2);
-  const [label, setLabel] = useState('My Bundle');
   const [canaryIdx, setCanaryIdx] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(-1);
   const [result, setResult] = useState(null);
-  const [locating, setLocating] = useState(null);
+  const [log, setLog] = useState('');
 
-  const getGPS = (idx) => {
-    setLocating(idx);
+  const addLocation = () => setLocations(l => [...l, {name:'', lat:'', lon:''}]);
+  const removeLocation = (i) => setLocations(l => l.filter((_,j) => j !== i));
+  const setLoc = (i, field, val) => setLocations(l => { const n=[...l]; n[i]={...n[i],[field]:val}; return n; });
+
+  const getGPS = (i) => {
+    setLocating(i);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const locs = [...locations];
-        locs[idx] = {...locs[idx], lat: pos.coords.latitude.toFixed(6), lon: pos.coords.longitude.toFixed(6)};
-        setLocations(locs); setLocating(null);
+      pos => {
+        setLoc(i, 'lat', pos.coords.latitude.toFixed(6));
+        setLoc(i, 'lon', pos.coords.longitude.toFixed(6));
+        setLocating(-1);
+        toast.success(`📍 GPS: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
       },
-      () => { toast.error('GPS not available'); setLocating(null); },
-      {enableHighAccuracy: true, timeout: 10000}
+      err => { setLocating(-1); toast.error('GPS: ' + err.message); },
+      {enableHighAccuracy: true, timeout: 15000}
     );
   };
 
-  const addLocation = () => {
-    if (locations.length >= 8) return;
-    setLocations([...locations, {lat:'',lon:'',name:''}]);
-  };
-
-  const removeLocation = (i) => {
-    if (locations.length <= 2) return;
-    const locs = locations.filter((_,idx) => idx !== i);
-    setLocations(locs);
-    if (threshold > locs.length) setThreshold(locs.length);
-    if (canaryIdx !== null && canaryIdx >= locs.length) setCanaryIdx(null);
-  };
-
-  const buildSecret = () => {
-    if (secretType === 'seed') {
-      const seed = window._lac_seed || '';
-      if (!seed) { toast.error('No seed found'); return null; }
-      const enc = new TextEncoder().encode(seed);
-      return btoa(String.fromCharCode(...enc));
-    }
-    if (!customSecret.trim()) { toast.error('Enter your secret text'); return null; }
-    const enc = new TextEncoder().encode(customSecret.trim());
-    return btoa(String.fromCharCode(...enc));
-  };
-
   const submit = async () => {
-    const s = buildSecret(); if (!s) return;
+    setLog('');
+    // Build secret
+    let secretB64 = '';
+    if (secretType === 'seed') {
+      const seed = localStorage.getItem('lac_seed') || '';
+      if (!seed) { toast.error('❌ Seed не знайдено! Перезайдіть в акаунт.'); return; }
+      const enc = new TextEncoder().encode(seed);
+      let bin = ''; enc.forEach(b => bin += String.fromCharCode(b));
+      secretB64 = btoa(bin);
+      setLog(`Seed: ${seed.slice(0,8)}... (${seed.length} chars)`);
+    } else {
+      if (!customSecret.trim()) { toast.error('Введіть секретний текст'); return; }
+      const enc = new TextEncoder().encode(customSecret.trim());
+      let bin = ''; enc.forEach(b => bin += String.fromCharCode(b));
+      secretB64 = btoa(bin);
+    }
+
     const validLocs = locations.filter(l => l.lat && l.lon);
-    if (validLocs.length < 2) { toast.error('Fill at least 2 locations'); return; }
-    if (threshold > validLocs.length) { toast.error(`Threshold can't exceed ${validLocs.length}`); return; }
+    if (validLocs.length < 2) { toast.error('Потрібно мінімум 2 локації з GPS'); return; }
+
     setLoading(true);
+    setLog(prev => prev + '\nВідправляю на сервер...');
+
     try {
-      const r = await post('/api/nagini/setup', {
-        secret: s, label,
+      const body = {
+        secret: secretB64,
+        label: label || 'My Bundle',
         locations: validLocs.map(l => [parseFloat(l.lat), parseFloat(l.lon)]),
         threshold,
         canary_index: canaryIdx,
-      });
-      if (r.ok) { setResult(r); setStep(4); }
-      else toast.error(r.error || 'Failed');
-    } catch(e) { toast.error('Network error'); } finally { setLoading(false); }
+      };
+      setLog(prev => prev + `\nLocations: ${JSON.stringify(body.locations)}`);
+      const r = await post('/api/nagini/setup', body);
+      setLog(prev => prev + '\nВідповідь: ' + JSON.stringify(r));
+      if (r.ok) {
+        setResult(r);
+        setStep(99); // done
+      } else {
+        toast.error('❌ ' + (r.error || 'Помилка сервера'), {duration: 8000});
+      }
+    } catch(e) {
+      setLog(prev => prev + '\n❌ Error: ' + e.message);
+      toast.error('❌ ' + e.message, {duration: 8000});
+    }
+    setLoading(false);
   };
 
-  if (step === 4 && result) return (
+  if (step === 99 && result) return (
     <div className="flex flex-col h-full">
-      <Header title="Bundle Created ✅" onBack={onBack} />
+      <Header title="✅ Bundle створено" onBack={onBack} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <div className="rounded-2xl bg-[#0d1f18] border border-emerald-800/30 p-5 text-center">
-          <div className="text-4xl mb-3">✅</div>
+        <div className="text-center py-6">
+          <div className="text-5xl mb-3">✅</div>
           <div className="text-emerald-400 font-bold text-lg">{result.label}</div>
-          <div className="text-gray-500 text-sm mt-1">{result.n} locations · threshold {result.threshold}</div>
+          <div className="text-gray-500 text-sm mt-1">{result.n} локацій · threshold {result.threshold}</div>
           <div className="mt-3 bg-black/30 rounded-xl p-3">
             <div className="text-gray-500 text-xs mb-1">Bundle ID</div>
             <div className="text-emerald-300 text-xs font-mono break-all">{result.bundle_id}</div>
           </div>
         </div>
-        <div className="rounded-xl bg-amber-900/10 border border-amber-800/30 p-4 text-xs text-gray-400 space-y-1">
-          <div className="text-amber-400 font-semibold mb-2">⚠️ Important</div>
-          <div>• GPS coordinates are NOT stored on the server</div>
-          <div>• Only you know the physical locations to visit</div>
-          <div>• Write location names on paper, store separately from device</div>
-          {canaryIdx !== null && <div>• Location #{canaryIdx+1} is your canary 🪤 trap</div>}
+        <div className="bg-amber-900/10 border border-amber-800/30 rounded-xl p-3 text-xs text-amber-400">
+          ⚠️ Запиши назви місць окремо від пристрою. GPS координати не зберігаються на сервері.
         </div>
-        <Btn onClick={onBack} className="w-full bg-emerald-600 hover:bg-emerald-500">Done</Btn>
+        <Btn onClick={onBack} className="w-full bg-emerald-600">Готово</Btn>
       </div>
     </div>
   );
 
   return (
     <div className="flex flex-col h-full">
-      <Header title={`Create Bundle — Step ${step}/3`} onBack={step === 1 ? onBack : () => setStep(s => s-1)} />
+      <Header title={`Створити Bundle — Крок ${Math.min(step,3)}/3`}
+        onBack={step === 1 ? onBack : () => setStep(s => s-1)} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {step === 1 && (
-          <div className="space-y-4">
-            <div className="text-gray-400 text-sm">What secret do you want to protect?</div>
-            <div className="grid grid-cols-2 gap-2">
-              {[['seed','🔑 LAC Seed'],['custom','✏️ Custom text']].map(([v,l]) => (
-                <button key={v} onClick={() => setSecretType(v)}
-                  className={`p-3 rounded-xl border text-sm transition-all ${secretType===v?'border-emerald-500 bg-emerald-900/20 text-emerald-400':'border-gray-800 text-gray-500'}`}>
-                  {l}
+        {/* Step 1: Secret */}
+        {step === 1 && <>
+          <div className="text-gray-400 text-sm">Що хочеш захистити?</div>
+          <div className="grid grid-cols-2 gap-2">
+            {[['seed','🔑 LAC Seed'],['custom','✏️ Свій текст']].map(([v,l]) => (
+              <button key={v} onClick={() => setSecretType(v)}
+                className={`p-3 rounded-xl border text-sm transition-all ${secretType===v?'border-emerald-500 bg-emerald-900/20 text-emerald-400':'border-gray-800 text-gray-500'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {secretType === 'seed' && (
+            <div className={`rounded-xl p-3 text-xs border ${localStorage.getItem('lac_seed')
+              ? 'bg-emerald-900/10 border-emerald-800/20 text-emerald-400'
+              : 'bg-red-900/20 border-red-700/30 text-red-400'}`}>
+              {localStorage.getItem('lac_seed')
+                ? `✅ Seed знайдено (${localStorage.getItem('lac_seed').length} символів). Буде розбито на шарди.`
+                : '❌ Seed відсутній! Виконайте вихід і вхід знову.'}
+            </div>
+          )}
+          {secretType === 'custom' && (
+            <textarea value={customSecret} onChange={e => setCustomSecret(e.target.value)}
+              placeholder="Секретний текст, ключ, або будь-що важливе..."
+              className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl p-3 text-white text-sm resize-none h-24" />
+          )}
+          <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Назва (напр. Kyiv backup)" />
+          <Btn onClick={() => setStep(2)} className="w-full bg-emerald-600"
+            disabled={secretType === 'seed' && !localStorage.getItem('lac_seed')}>
+            Далі →
+          </Btn>
+        </>}
+
+        {/* Step 2: Locations */}
+        {step === 2 && <>
+          <div className="text-gray-400 text-sm">Встанови GPS локації. Кожен шард прив'язаний до місця.</div>
+          {locations.map((loc, i) => (
+            <div key={i} className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${canaryIdx===i?'bg-amber-900/40 text-amber-400':'bg-emerald-900/30 text-emerald-500'}`}>
+                  {canaryIdx===i ? '🪤 Canary' : `#${i+1}`}
+                </span>
+                <div className="flex gap-2">
+                  <button onClick={() => setCanaryIdx(canaryIdx===i ? null : i)}
+                    className={`text-[10px] px-2 py-1 rounded-lg border ${canaryIdx===i?'border-amber-700/50 text-amber-400':'border-gray-700/30 text-gray-600'}`}>
+                    🪤 trap
+                  </button>
+                  {locations.length > 2 && (
+                    <button onClick={() => removeLocation(i)} className="text-gray-600 text-xs">✕</button>
+                  )}
+                </div>
+              </div>
+              <Input value={loc.name} onChange={e => setLoc(i,'name',e.target.value)}
+                placeholder={`Місце #${i+1} (напр. Центральний парк)`} />
+              <div className="grid grid-cols-2 gap-2">
+                <input value={loc.lat} onChange={e => setLoc(i,'lat',e.target.value)}
+                  placeholder="Широта" className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
+                <input value={loc.lon} onChange={e => setLoc(i,'lon',e.target.value)}
+                  placeholder="Довгота" className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
+              </div>
+              <button onClick={() => getGPS(i)} disabled={locating===i}
+                className="w-full text-xs py-2 rounded-lg bg-emerald-900/20 border border-emerald-900/30 text-emerald-500 disabled:opacity-50">
+                {locating===i ? '📡 GPS...' : '📍 Використати моє місце зараз'}
+              </button>
+              {loc.lat && loc.lon && <div className="text-emerald-600 text-[10px]">✓ {parseFloat(loc.lat).toFixed(5)}, {parseFloat(loc.lon).toFixed(5)}</div>}
+            </div>
+          ))}
+          {locations.length < 8 && (
+            <button onClick={addLocation}
+              className="w-full py-2 rounded-xl border border-dashed border-emerald-900/30 text-emerald-700 text-sm">
+              + Додати локацію
+            </button>
+          )}
+          <div className="bg-[#0d1a12]/60 rounded-xl p-3">
+            <div className="text-gray-400 text-xs mb-2">Мінімум локацій для відновлення</div>
+            <div className="flex gap-2">
+              {Array.from({length: locations.length-1}, (_,i) => i+2).map(v => (
+                <button key={v} onClick={() => setThreshold(v)}
+                  className={`px-3 py-1 rounded-lg text-sm ${threshold===v?'bg-emerald-600 text-white':'bg-[#0d1a12] border border-gray-800 text-gray-500'}`}>
+                  {v}
                 </button>
               ))}
             </div>
-            {secretType === 'custom' && (
-              <textarea value={customSecret} onChange={e => setCustomSecret(e.target.value)}
-                placeholder="Your private key, secret phrase, or any sensitive text..."
-                className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl p-3 text-white text-sm resize-none h-24 focus:outline-none focus:border-emerald-600" />
-            )}
-            {secretType === 'seed' && (
-              <div className="bg-emerald-900/10 border border-emerald-800/20 rounded-xl p-3 text-xs text-gray-400">
-                Your LAC seed will be split into shards. You can recover it later by visiting the locations — even without your device.
-              </div>
-            )}
-            <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Bundle name (e.g. Kyiv backup)" />
-            <Btn onClick={() => setStep(2)} className="w-full bg-emerald-600 hover:bg-emerald-500">Next →</Btn>
+            <div className="text-gray-600 text-xs mt-1">Будь-які {threshold} з {locations.length} локацій</div>
           </div>
-        )}
-        {step === 2 && (
-          <div className="space-y-3">
-            <div className="text-gray-400 text-sm">Set GPS locations. Each shard is locked to a location.</div>
-            {locations.map((loc, i) => (
-              <div key={i} className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${canaryIdx===i?'bg-amber-900/40 text-amber-400':'bg-emerald-900/30 text-emerald-500'}`}>
-                    {canaryIdx===i ? '🪤 Canary' : `#${i+1}`}
-                  </span>
-                  <div className="flex gap-1">
-                    <button onClick={() => setCanaryIdx(canaryIdx===i ? null : i)}
-                      className={`text-xs px-2 py-1 rounded-lg transition-all ${canaryIdx===i?'bg-amber-900/40 text-amber-400':'text-gray-600 hover:text-amber-500'}`}>
-                      {canaryIdx===i ? '🪤 trap' : 'set trap'}
-                    </button>
-                    {locations.length > 2 && (
-                      <button onClick={() => removeLocation(i)} className="text-gray-700 hover:text-red-500 text-xs px-2">✕</button>
-                    )}
-                  </div>
-                </div>
-                <Input value={loc.name} onChange={e => { const l=[...locations]; l[i].name=e.target.value; setLocations(l); }}
-                  placeholder={`Location name (e.g. Kyiv central park)`} />
-                <div className="grid grid-cols-2 gap-2">
-                  <Input value={loc.lat} onChange={e => { const l=[...locations]; l[i].lat=e.target.value; setLocations(l); }}
-                    placeholder="Latitude" />
-                  <Input value={loc.lon} onChange={e => { const l=[...locations]; l[i].lon=e.target.value; setLocations(l); }}
-                    placeholder="Longitude" />
-                </div>
-                <button onClick={() => getGPS(i)} disabled={locating===i}
-                  className="w-full text-xs py-2 rounded-lg bg-emerald-900/20 border border-emerald-900/30 text-emerald-500 hover:bg-emerald-900/40 transition-all">
-                  {locating===i ? '📡 Getting GPS...' : '📍 Use my current location'}
-                </button>
-              </div>
-            ))}
-            {locations.length < 8 && (
-              <button onClick={addLocation}
-                className="w-full py-2 rounded-xl border border-dashed border-emerald-900/30 text-emerald-700 text-sm hover:border-emerald-700/40 transition-all">
-                + Add location
-              </button>
-            )}
-            <div className="bg-[#0d1a12]/60 rounded-xl p-3">
-              <div className="text-gray-400 text-xs mb-2">Min locations needed to recover</div>
-              <div className="flex gap-2">
-                {Array.from({length: locations.length-1}, (_,i) => i+2).map(v => (
-                  <button key={v} onClick={() => setThreshold(v)}
-                    className={`px-3 py-1 rounded-lg text-sm transition-all ${threshold===v?'bg-emerald-600 text-white':'bg-[#0d1a12] border border-gray-800 text-gray-500'}`}>
-                    {v}
-                  </button>
-                ))}
-              </div>
-              <div className="text-gray-600 text-xs mt-2">Visit any {threshold} of {locations.length} locations</div>
-            </div>
-            <Btn onClick={() => setStep(3)} className="w-full bg-emerald-600 hover:bg-emerald-500">Next →</Btn>
+          <Btn onClick={() => setStep(3)} className="w-full bg-emerald-600"
+            disabled={locations.filter(l=>l.lat&&l.lon).length < 2}>
+            Далі →
+          </Btn>
+        </>}
+
+        {/* Step 3: Confirm */}
+        {step === 3 && <>
+          <div className="text-gray-400 text-sm">Перевір і підтвердь</div>
+          <div className="bg-[#0d1a12]/60 rounded-xl p-3 text-xs text-gray-400 space-y-1">
+            <div className="text-emerald-400 font-semibold mb-1">Підсумок</div>
+            <div>• Секрет: {secretType === 'seed' ? `LAC Seed (${(localStorage.getItem('lac_seed')||'').length} chars)` : 'Свій текст'}</div>
+            <div>• {locations.filter(l=>l.lat&&l.lon).length} локацій з GPS</div>
+            <div>• Threshold: {threshold} з {locations.length}</div>
+            {canaryIdx !== null && <div>• Canary пастка на локації #{canaryIdx+1} 🪤</div>}
           </div>
-        )}
-        {step === 3 && (
-          <div className="space-y-4">
-            <div className="text-gray-400 text-sm">Review and confirm</div>
-            <div className="bg-amber-900/10 border border-amber-800/20 rounded-xl p-4">
-              <div className="text-amber-400 text-sm font-semibold mb-2">🪤 Canary Trap</div>
-              <div className="text-gray-500 text-xs">
-                {canaryIdx !== null
-                  ? `Location #${canaryIdx+1} is your trap. If someone visits it, you get a silent LAC message alert.`
-                  : 'No trap set. Go back to Step 2 to set one.'}
-              </div>
-            </div>
-            <div className="bg-emerald-900/10 border border-emerald-800/20 rounded-xl p-3 text-xs text-emerald-500">
-              📩 Canary &amp; DMS alerts arrive as LAC messages in your chat inbox — no external setup needed.
-            </div>
-            <div className="bg-[#0d1a12]/60 rounded-xl p-3 text-xs text-gray-500 space-y-1">
-              <div className="text-emerald-400 font-semibold mb-1">Summary</div>
-              <div>• Secret type: {secretType === 'seed' ? 'LAC Seed' : 'Custom text'}</div>
-              <div>• {locations.filter(l=>l.lat&&l.lon).length} locations with GPS</div>
-              <div>• Threshold: {threshold} of {locations.length}</div>
-              {canaryIdx !== null && <div>• Canary at location #{canaryIdx+1} 🪤</div>}
-              <div>• Alerts via LAC messages 📩</div>
-            </div>
-            <Btn onClick={submit} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500">
-              {loading ? 'Creating...' : '✅ Create Bundle'}
-            </Btn>
-          </div>
-        )}
+          {log ? (
+            <div className="bg-black/40 rounded-xl p-3 text-[10px] font-mono text-gray-400 whitespace-pre-wrap break-all">{log}</div>
+          ) : null}
+          <Btn onClick={submit} disabled={loading} className="w-full bg-emerald-600 py-4 text-base">
+            {loading ? '⏳ Створюю...' : '✅ Створити Bundle'}
+          </Btn>
+        </>}
       </div>
     </div>
   );
 };
+
 
 const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
   const [deleting, setDeleting] = useState(false);
@@ -849,37 +860,84 @@ const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
 
 const NaginiRecover = ({ onBack, bundles }) => {
   const [bundleId, setBundleId] = useState(bundles[0]?.bundle_id || '');
+  // shardsRef is the TRUE source — state is just for render
+  const shardsRef = React.useRef([]);
   const [shards, setShards] = useState([]);
   const [locating, setLocating] = useState(false);
   const [result, setResult] = useState(null);
+  const [lastScan, setLastScan] = useState(null); // debug info
   const bundle = bundles.find(b => b.bundle_id === bundleId);
 
+  const addShard = (s) => {
+    const already = shardsRef.current.find(x => x.shard_index === s.shard_index);
+    if (already) return false; // duplicate
+    shardsRef.current = [...shardsRef.current, s];
+    setShards([...shardsRef.current]);
+    return true;
+  };
+
   const scan = () => {
+    if (locating) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        setLocating(false);
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const acc = Math.round(pos.coords.accuracy || 0);
+        const currentShards = [...shardsRef.current]; // snapshot before async
+        console.log('[Nagini] scan at', lat.toFixed(6), lon.toFixed(6), 'acc:', acc, 'have shards:', currentShards.map(s=>s.shard_index));
         try {
           const r = await post('/api/nagini/recover', {
             bundle_id: bundleId,
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude,
-            shards,
+            lat, lon,
+            shards: currentShards,
           });
+          console.log('[Nagini] recover response:', r);
+          setLastScan({ lat: lat.toFixed(5), lon: lon.toFixed(5), acc, ok: r.ok, matched: r.matched, shard: r.shard_index, err: r.error });
+
           if (r.ok && r.matched) {
-            if (r.reconstructed) { setResult(r); setShards([]); }
-            else {
-              setShards(prev => [...prev.filter(s=>s.shard_index!==r.shard_index),
-                                 {shard_index: r.shard_index, shard_hex: r.shard_hex}]);
-              toast.success(`Shard #${r.shard_index} unlocked! ${r.remaining} more needed.`);
+            if (r.reconstructed) {
+              setResult(r);
+              shardsRef.current = [];
+              setShards([]);
+              toast.success('🔓 Секрет розшифровано!', {duration: 5000});
+            } else {
+              const isNew = addShard({shard_index: r.shard_index, shard_hex: r.shard_hex});
+              if (isNew) {
+                const collected = shardsRef.current.length;
+                const remaining = (bundle?.threshold || 1) - collected;
+                if (remaining > 0) {
+                  toast.success(`✅ Shard #${r.shard_index} зібраний! Ще ${remaining} локацій`, {duration: 4000});
+                } else {
+                  toast.success(`✅ Shard #${r.shard_index} — достатньо! Надсилаю...`, {duration: 4000});
+                  // Auto-reconstruct if we have enough
+                  setTimeout(() => {
+                    post('/api/nagini/recover', { bundle_id: bundleId, lat, lon, shards: shardsRef.current })
+                      .then(r2 => { if (r2.reconstructed) { setResult(r2); shardsRef.current=[]; setShards([]); } })
+                      .catch(()=>{});
+                  }, 500);
+                }
+              } else {
+                toast('⚠️ Цей shard вже зібраний', {icon:'ℹ️'});
+              }
             }
           } else {
-            toast.error('No shard at this location (~200m radius)');
+            const errMsg = r.error || 'Шард не знайдено в цій точці (~200м)';
+            toast.error('❌ ' + errMsg, {duration: 4000});
           }
-        } catch(e) { toast.error('Error'); }
+        } catch(e) {
+          console.error('[Nagini] recover error:', e);
+          toast.error('❌ Помилка: ' + (e.message || 'мережа'), {duration: 4000});
+          setLastScan({ err: e.message });
+        }
+        setLocating(false);
       },
-      () => { setLocating(false); toast.error('GPS not available'); },
-      {enableHighAccuracy: true, timeout: 15000}
+      (err) => {
+        setLocating(false);
+        toast.error('❌ GPS: ' + err.message, {duration: 4000});
+        setLastScan({ err: 'GPS: ' + err.message });
+      },
+      {enableHighAccuracy: true, timeout: 12000, maximumAge: 0}
     );
   };
 
@@ -915,7 +973,7 @@ const NaginiRecover = ({ onBack, bundles }) => {
         {bundles.length > 1 && (
           <div>
             <div className="text-gray-400 text-xs mb-2">Select bundle</div>
-            <select value={bundleId} onChange={e => { setBundleId(e.target.value); setShards([]); }}
+            <select value={bundleId} onChange={e => { setBundleId(e.target.value); setShards([]); shardsRef.current = []; }}
               className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm focus:outline-none">
               {bundles.map(b => <option key={b.bundle_id} value={b.bundle_id}>{b.label || b.bundle_id.slice(0,12)}</option>)}
             </select>
@@ -923,25 +981,35 @@ const NaginiRecover = ({ onBack, bundles }) => {
         )}
         {bundle && (
           <div className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-4">
-            <div className="text-gray-400 text-xs mb-2">Progress: {shards.length}/{bundle.threshold} shards</div>
+            <div className="text-gray-400 text-xs mb-2">Progress: {shards.length}/{bundle.threshold} shards needed</div>
             <div className="flex gap-1">
               {Array.from({length: bundle.n}, (_,i) => (
-                <div key={i} className={`h-2 flex-1 rounded-full transition-all ${shards[i] ? 'bg-emerald-500' : 'bg-gray-800'}`} />
+                <div key={i} className={`h-2 flex-1 rounded-full transition-all ${i < shards.length ? 'bg-emerald-500' : 'bg-gray-800'}`} />
               ))}
             </div>
           </div>
         )}
         <div className="bg-blue-900/10 border border-blue-800/20 rounded-xl p-4 text-xs text-blue-400">
-          📍 Go to one of your saved locations, then tap the button. GPS must be within ~200m of the saved location.
+          📍 Перейди до однієї зі збережених локацій і натисни кнопку. GPS повинен бути в межах ~200м.
         </div>
-        <Btn onClick={scan} disabled={locating} className="w-full bg-emerald-600 hover:bg-emerald-500 py-4">
-          {locating ? '📡 Getting GPS...' : '📍 Scan This Location'}
+        {lastScan && (
+          <div className={`rounded-xl p-3 text-xs font-mono border ${lastScan.matched ? 'bg-emerald-900/20 border-emerald-800/30 text-emerald-400' : 'bg-gray-800/40 border-gray-700/30 text-gray-500'}`}>
+            <div>📡 {lastScan.lat}, {lastScan.lon} (±{lastScan.acc}м)</div>
+            {lastScan.matched ? <div>✅ Shard #{lastScan.shard} знайдено</div> : <div>❌ {lastScan.err || 'No match'}</div>}
+          </div>
+        )}
+        <Btn onClick={scan} disabled={locating} className="w-full bg-emerald-600 hover:bg-emerald-500 py-4 text-base font-semibold">
+          {locating ? '📡 Отримую GPS...' : '📍 Сканувати цю локацію'}
         </Btn>
         {shards.length > 0 && (
-          <div className="space-y-1">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-emerald-600 text-xs font-semibold">Зібрані шарди:</div>
+              <button onClick={() => setShards([])} className="text-gray-600 hover:text-red-500 text-xs">✕ Скинути</button>
+            </div>
             {shards.map(s => (
-              <div key={s.shard_index} className="text-xs font-mono text-emerald-700 bg-emerald-900/10 rounded-lg px-3 py-1">
-                Shard #{s.shard_index} ✓
+              <div key={s.shard_index} className="text-xs font-mono text-emerald-500 bg-emerald-900/10 rounded-lg px-3 py-1.5 flex items-center gap-2">
+                <span className="text-emerald-400">✓</span> Shard #{s.shard_index} зібраний
               </div>
             ))}
           </div>
