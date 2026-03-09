@@ -806,241 +806,158 @@ def init_mining():
 
 
 def auto_mining_loop():
-    """Auto-mining loop - mines blocks every ~10 seconds"""
+    """Auto-mining loop — mines blocks every ~10 seconds.
+    DESIGN: Lock is held ONLY for final state write (~5ms).
+    All preparation happens outside the lock.
+    """
     if not POET_ENABLED or not S or not S.mining_coordinator:
         return
-    
     print("⛏️ Auto-mining loop started")
-    
+
     while S.mining_active:
         try:
-            time.sleep(10)  # Wait 10 seconds between blocks
-            
-            with S.lock:
-                # Register ONLY ACTIVE (logged-in) eligible miners
-                # NOTE: lock is held during mining — keep this block fast
-                eligible_miners = []
-                
-                print(f"🔍 Checking miners:")
-                print(f"   Active sessions: {len(S.active_sessions)}")
-                
-                for addr in S.active_sessions:
-                    if addr not in S.wallets:
-                        print(f"   ❌ {addr[:16]}... - no wallet")
-                        continue
-                    
-                    wallet = S.wallets[addr]
-                    balance = wallet.get('balance', 0)
-                    level = wallet.get('level', 0)
-                    created_at = wallet.get('created_at', time.time())
-                    
-                    print(f"   📊 {addr[:16]}... - Balance: {balance}, Level: {level}")
-                    
-                    if balance >= 50:  # Minimum balance for mining
-                        status = S.mining_coordinator.register_miner(
-                            addr, level, balance, created_at
-                        )
-                        print(f"      Status: {status}")
-                        if status.get('mining'):
-                            eligible_miners.append(addr)
-                            print(f"      ✅ Eligible for mining!")
-                        else:
-                            print(f"      ❌ NOT eligible: {status.get('reason', 'unknown')}")
-                    else:
-                        print(f"      ❌ Balance too low (need 50+)")
-                
-                if len(eligible_miners) == 0:
-                    print(f"⚠️ No eligible miners (need active session + 50+ LAC)")
-                    continue
-                
-                # Simulate proofs (in real impl, miners would submit after waiting)
-                for addr in eligible_miners:
-                    S.mining_coordinator.submit_proof(addr)
-                    # Level 7 GOD: x2 mining chance (submit double proof)
-                    if S.wallets.get(addr, {}).get('level', 0) >= 7:
-                        S.mining_coordinator.submit_proof(addr)
-                
-                # Mine block
-                block_data = S.mining_coordinator.mine_block()
-                
-                # Distribute rewards — STRICT CAP: block must never emit > 190 LAC
-                BLOCK_REWARD_CAP = 190.0
-                raw_total = sum(block_data['rewards'].values())
-                # Scale down if somehow over cap (should never happen, just in case)
-                scale = min(1.0, BLOCK_REWARD_CAP / raw_total) if raw_total > 0 else 1.0
+            time.sleep(10)
 
-                block_emission = 0
-                for winner_addr, reward in block_data['rewards'].items():
-                    if winner_addr in S.wallets:
-                        safe_reward = round(reward * scale, 8)
-                        # Level 7 GOD: x2 validator reward (but still within cap)
-                        actual_reward = safe_reward * 2 if S.wallets[winner_addr].get('level', 0) >= 7 else safe_reward
-                        S.wallets[winner_addr]['balance'] = \
-                            S.wallets[winner_addr].get('balance', 0) + actual_reward
-                        block_emission += actual_reward
-                # Final sanity check
-                if block_emission > BLOCK_REWARD_CAP * 3:  # max 3x because of L7 x2
-                    print(f"⚠️ Block emission anomaly: {block_emission:.2f} LAC — skipping")
+            # ── Phase 1: read state (short lock) ──────────────────
+            with S.lock:
+                eligible_miners = []
+                for addr in list(S.active_sessions):
+                    w = S.wallets.get(addr)
+                    if not w or w.get('balance', 0) < 50:
+                        continue
+                    st = S.mining_coordinator.register_miner(
+                        addr, w.get('level', 0), w.get('balance', 0), w.get('created_at', time.time()))
+                    if st.get('mining'):
+                        eligible_miners.append((addr, w.get('level', 0)))
+
+                if not eligible_miners:
                     continue
-                S.counters['emitted_mining'] += block_emission
-                
-                # Add block to chain (anonymous - no addresses revealed)
-                # Take ephemeral messages (max 20 per block)
-                ephemeral_msgs = S.ephemeral_msgs[:20]
-                
-                new_block = {
-                    'index': len(S.chain),
-                    'timestamp': block_data['timestamp'],
-                    'transactions': S.mempool[:50] + getattr(S, 'pending_txs', []),
-                    'ephemeral_msgs': ephemeral_msgs,
-                    'previous_hash': S.chain[-1]['hash'] if S.chain else '0',
-                    'nonce': 0,
-                    'miner': 'poet_anonymous',
-                    'difficulty': block_data['difficulty'],
-                    'hash': hashlib.sha256(
-                        json.dumps({
-                            'index': len(S.chain),
-                            'prev': S.chain[-1]['hash'] if S.chain else '0',
-                            'ts': block_data['timestamp'],
-                            'txs': len(S.mempool[:50]),
-                            'nonce': block_data.get('height', 0)
-                        }, sort_keys=True).encode()
-                    ).hexdigest(),
-                    'mining_winners_count': block_data['unique_winners'],
-                    'total_reward': block_data['total_reward']
-                }
-                
-                # Store mining rewards separately (not in public blockchain)
-                # Each wallet tracks their own earnings
-                for winner_addr, reward in block_data['rewards'].items():
-                    if winner_addr in S.wallets:
-                        if 'mining_history' not in S.wallets[winner_addr]:
-                            S.wallets[winner_addr]['mining_history'] = []
-                        S.wallets[winner_addr]['mining_history'].append({
-                            'block': new_block['index'],
-                            'reward': reward,
-                            'timestamp': block_data['timestamp']
-                        })
-                        # Cap mining_history at 10000 entries per wallet
-                        if len(S.wallets[winner_addr]['mining_history']) > 10000:
-                            S.wallets[winner_addr]['mining_history'] = S.wallets[winner_addr]['mining_history'][-10000:]
-                
-                # mining_rewards kept for chain explorer only, wallet history is primary source
-                new_block["mining_rewards"] = [{"address": addr, "reward": rew} for addr, rew in block_data["rewards"].items()]
+
+                for addr, lvl in eligible_miners:
+                    S.mining_coordinator.submit_proof(addr)
+                    if lvl >= 7:
+                        S.mining_coordinator.submit_proof(addr)
+
+                block_data  = S.mining_coordinator.mine_block()
+                prev_hash   = S.chain[-1]['hash'] if S.chain else '0'
+                next_index  = len(S.chain)
+                mempool_snap = S.mempool[:50]
+                eph_snap     = S.ephemeral_msgs[:20]
+                pending_snap = list(getattr(S, 'pending_txs', []))
+
+            # ── Phase 2: heavy computation OUTSIDE lock ────────────
+            BLOCK_REWARD_CAP = 190.0
+            raw_total = sum(block_data['rewards'].values())
+            scale = min(1.0, BLOCK_REWARD_CAP / raw_total) if raw_total > 0 else 1.0
+
+            reward_map = {}
+            block_emission = 0
+            for w_addr, reward in block_data['rewards'].items():
+                safe = round(reward * scale, 8)
+                # L7 GOD x2 — check from snapshot
+                actual = safe * 2 if (S.wallets.get(w_addr, {}).get('level', 0) >= 7) else safe
+                reward_map[w_addr] = actual
+                block_emission += actual
+
+            block_hash = hashlib.sha256(
+                json.dumps({
+                    'index': next_index,
+                    'prev': prev_hash,
+                    'ts': block_data['timestamp'],
+                    'txs': len(mempool_snap),
+                    'nonce': block_data.get('height', 0)
+                }, sort_keys=True).encode()
+            ).hexdigest()
+
+            new_block = {
+                'index': next_index,
+                'timestamp': block_data['timestamp'],
+                'transactions': mempool_snap + pending_snap,
+                'ephemeral_msgs': eph_snap,
+                'previous_hash': prev_hash,
+                'nonce': 0,
+                'miner': 'poet_anonymous',
+                'difficulty': block_data['difficulty'],
+                'hash': block_hash,
+                'mining_winners_count': block_data['unique_winners'],
+                'total_reward': block_data['total_reward'],
+                'mining_rewards': [{'address': a, 'reward': r} for a, r in block_data['rewards'].items()],
+            }
+
+            # ── Phase 3: apply state (short lock) ─────────────────
+            with S.lock:
+                # Safety check — no duplicate block
+                if len(S.chain) != next_index:
+                    print(f"⚠️ Block index mismatch, skipping")
+                    continue
+
+                # Apply rewards
+                for w_addr, actual in reward_map.items():
+                    if w_addr in S.wallets:
+                        S.wallets[w_addr]['balance'] = round(
+                            S.wallets[w_addr].get('balance', 0) + actual, 8)
+                        hist = S.wallets[w_addr].setdefault('mining_history', [])
+                        hist.append({'block': next_index, 'reward': actual, 'timestamp': block_data['timestamp']})
+                        if len(hist) > 10000:
+                            S.wallets[w_addr]['mining_history'] = hist[-10000:]
+
+                S.counters['emitted_mining'] = S.counters.get('emitted_mining', 0) + block_emission
                 S.chain.append(new_block)
-                
-                # Process username transactions in block
+
+                # Process username txs
                 if S.username_processor:
                     for tx in new_block['transactions']:
                         if is_username_transaction(tx):
-                            success, error = S.username_processor.process_transaction(
-                                tx, 
-                                new_block['index'],
-                                S.wallets
-                            )
-                            if success:
-                                print(f"✅ Username TX processed: {tx['type']} - {tx.get('username', 'N/A')}")
+                            S.username_processor.process_transaction(tx, next_index, S.wallets)
 
-                                # UPDATE username_state after successful registration
-                                if tx.get('type') == TX_TYPE_USERNAME_REGISTER:
-                                    username = tx.get('username')
-                                    from_addr = tx.get('from')  # Use 'from' address instead of stealth
-                                    
-                                    # Find wallet by address and update S.usernames
-                                    if from_addr and from_addr in S.wallets:
-                                        key_id = S.wallets[from_addr].get('key_id')
-                                        if key_id:
-                                            # S.usernames removed - using state.usernames
-                                            print(f"✅ Updated S.usernames: key_id={key_id[:16]}... → {username}")
-                            else:
-                                print(f"⚠️ Username TX failed: {error}")
-                
-                
-                # ===================== PROCESS ANONYMOUS TRANSFERS =====================
-                print(f"🔍 Processing {len(new_block['transactions'])} transactions")
-                
+                # Key images
                 for tx in new_block['transactions']:
-                    tx_type = tx.get('type')
-                    
-                    if tx_type in ['ring_transfer', 'stealth_transfer', 'veil_transfer']:
-                        print(f"  🎯 Processing {tx_type}")
-                        
-                        # Add key image
-                        ring_sig = tx.get('ring_signature', {})
-                        key_image = ring_sig.get('key_image')
-                        if key_image:
-                            S.spent_key_images.add(key_image)
-                            print(f"    ✅ Key image: {key_image[:32]}...")
-                        
-                        # Balances already updated at API time (veil_transfer)
-                        # Mining loop only records key_image to blockchain
-                        real_to = tx.get('real_to')
-                        real_amount = tx.get('real_amount', 0)
-                        if real_to:
-                            print(f"    💰 Recipient: {S.wallets.get(real_to, {}).get('balance', 0)} LAC (confirmed)")
-                # ===================== END ANONYMOUS TRANSFERS =====================
-                # Clear processed mempool and ephemeral messages
+                    if tx.get('type') in ['ring_transfer', 'stealth_transfer', 'veil_transfer']:
+                        ki = tx.get('ring_signature', {}).get('key_image')
+                        if ki:
+                            S.spent_key_images.add(ki)
+
+                # Clear mempool
                 S.mempool = S.mempool[50:]
-                # Cap mempool at 1000 to prevent unbounded growth
                 if len(S.mempool) > 1000:
                     S.mempool = S.mempool[-1000:]
                 S.ephemeral_msgs = S.ephemeral_msgs[20:]
-                S.pending_txs = []  # Clear dice/game transactions
-                
-                # Process time-locked transactions
+                S.pending_txs = []
+
+                # Timelock
                 if S.timelock:
-                    activated = S.timelock.process_unlocked_transactions(len(S.chain))
-                    if activated:
-                        print(f"⏰ Activated {len(activated)} time-locked TX")
-                
-                # Blockchain pruning (automatic)
+                    S.timelock.process_unlocked_transactions(len(S.chain))
+
+                # Pruning
                 if S.pruning and S.pruning.should_prune(len(S.chain)):
-                    prune_stats = S.pruning.prune_old_blocks()
-                    if prune_stats.get('pruned'):
-                        print(f"🗜️ Pruned {prune_stats['blocks_pruned']} blocks, saved {prune_stats['mb_saved']} MB")
-                
-                
-                # ===================== ZERO-HISTORY: ADD BLOCK =====================
+                    S.pruning.prune_old_blocks()
+
+                # Zero-history
                 if S.zero_history:
-                    # Add block to Zero-History
-                    S.zero_history.add_block(
-                        block=new_block,
-                        utxo_delta={},
-                        spent_key_images=list(S.spent_key_images)
-                    )
-                # ===================== END ZERO-HISTORY =====================
-                
-            # save() OUTSIDE lock — unblocks API during disk write
+                    S.zero_history.add_block(block=new_block, utxo_delta={},
+                                             spent_key_images=list(S.spent_key_images))
+
+            # ── Phase 4: save + invalidate cache (no lock needed) ──
             try:
-                # Persist win_history before save
                 if S.mining_coordinator and S.mining_coordinator.poet:
                     S.counters['win_history'] = list(S.mining_coordinator.poet.win_history[-200:])
                 S.save()
             except Exception as e:
                 print(f"⚠️ Save error: {e}")
-                
-            with S.lock:
-                _cache_del('explorer:chain')
-                _cache_del_prefix('blocks:')
-                _cache_del('stats:chain')
-                _cache_del_prefix('wmining:')
+
             _cache_del('explorer:chain')
             _cache_del_prefix('blocks:')
+            _cache_del('stats:chain')
             _cache_del_prefix('wmining:')
             _cache_del_prefix('wtx:')
             _cache_del_prefix('wst:')
-            print(f"\n⛏️ Block #{len(S.chain)-1} mined!")
-            print(f"   Winners: {block_data['unique_winners']} unique")
-            print(f"   Rewards: {block_data['total_reward']:.2f} LAC")
-            print(f"   Active miners: {block_data['active_miners']}")
-            
-            # Broadcast block to peers
+            print(f"⛏️ Block #{next_index} | winners={block_data['unique_winners']} | {block_emission:.2f} LAC")
+
             broadcast_block_to_peers(new_block)
-            
+
         except Exception as e:
             print(f"❌ Mining error: {e}")
-            import traceback
-            traceback.print_exc()
+            import traceback; traceback.print_exc()
             time.sleep(5)
 
 
@@ -7246,6 +7163,102 @@ def nagini_dms_status():
 
 if __name__ != '__main__':
     _gunicorn_init()
+
+
+# ═══ NAGINI RECOVERY SESSIONS (server-side state) ═══════════
+@app.route('/api/nagini/session/start', methods=['POST'])
+def nagini_session_start():
+    if not NAGINI_OK: return jsonify({'error':'cryptography not installed'}),503
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    bundle_id = data.get('bundle_id','')
+    if not bundle_id: return jsonify({'error':'bundle_id required'}),400
+    bundle = _nag_load(addr, bundle_id)
+    if not bundle: return jsonify({'error':'Bundle not found'}),404
+    # Create session file
+    import uuid
+    session_id = uuid.uuid4().hex
+    sess = {'session_id': session_id, 'bundle_id': bundle_id, 'addr': addr,
+            'shards': [], 'created_at': int(time.time())}
+    sess_path = os.path.join(S.datadir, 'nagini', addr, f'sess_{session_id}.json')
+    os.makedirs(os.path.dirname(sess_path), exist_ok=True)
+    with open(sess_path,'w') as f: json.dump(sess, f)
+    return jsonify({'ok':True,'session_id':session_id,
+                    'n':bundle['n'],'threshold':bundle['threshold'],'label':bundle.get('label','')})
+
+@app.route('/api/nagini/session/scan', methods=['POST'])
+def nagini_session_scan():
+    if not NAGINI_OK: return jsonify({'error':'cryptography not installed'}),503
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    session_id = data.get('session_id','')
+    lat = float(data.get('lat',0))
+    lon = float(data.get('lon',0))
+    if not session_id: return jsonify({'error':'session_id required'}),400
+    # Load session
+    sess_path = os.path.join(S.datadir, 'nagini', addr, f'sess_{session_id}.json')
+    if not os.path.exists(sess_path): return jsonify({'error':'Session not found or expired'}),404
+    with open(sess_path) as f: sess = json.load(f)
+    bundle = _nag_load(addr, sess['bundle_id'])
+    if not bundle: return jsonify({'error':'Bundle not found'}),404
+    # Already collected
+    already = {s['shard_index'] for s in sess['shards']}
+    matched = None; matched_idx = None
+    for blob in bundle['blobs']:
+        sidx = blob['shard_index']
+        if sidx in already: continue
+        salt = bytes.fromhex(blob['salt'])
+        ct = bytes.fromhex(blob['ciphertext'])
+        res = _dec_shard(ct, sidx, lat, lon, salt)
+        if res is not None:
+            matched = res.hex(); matched_idx = sidx
+            canary = bundle.get('canary')
+            if canary and canary.get('index') is not None and sidx-1==canary['index']:
+                _canary_alert_fire(sess['bundle_id'], addr)
+            break
+    if matched is None:
+        return jsonify({'ok':True,'matched':False,
+                        'collected':len(sess['shards']),'threshold':bundle['threshold'],
+                        'error':'No shard at this location (~200m radius)'})
+    # Add shard to session
+    sess['shards'].append({'shard_index': matched_idx, 'shard_hex': matched})
+    collected = len(sess['shards'])
+    # Save updated session
+    with open(sess_path,'w') as f: json.dump(sess, f)
+    # Check if we have enough
+    if collected >= bundle['threshold']:
+        try:
+            import base64
+            shares = [(s['shard_index'], bytes.fromhex(s['shard_hex'])) for s in sess['shards']]
+            secret = _nag_combine(shares)
+            os.remove(sess_path)  # cleanup
+            return jsonify({'ok':True,'matched':True,'shard_index':matched_idx,
+                           'reconstructed':True,'secret_b64':base64.b64encode(secret).decode(),
+                           'collected':collected,'threshold':bundle['threshold']})
+        except Exception as e:
+            return jsonify({'ok':True,'matched':True,'shard_index':matched_idx,
+                           'reconstructed':False,'error':str(e),
+                           'collected':collected,'threshold':bundle['threshold']})
+    return jsonify({'ok':True,'matched':True,'shard_index':matched_idx,
+                   'reconstructed':False,'collected':collected,
+                   'threshold':bundle['threshold'],
+                   'remaining':bundle['threshold']-collected})
+
+@app.route('/api/nagini/session/cancel', methods=['POST'])
+def nagini_session_cancel():
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    session_id = data.get('session_id','')
+    if session_id:
+        sess_path = os.path.join(S.datadir, 'nagini', addr, f'sess_{session_id}.json')
+        if os.path.exists(sess_path): os.remove(sess_path)
+    return jsonify({'ok':True})
 
 if __name__ == '__main__':
     main()

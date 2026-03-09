@@ -70,10 +70,24 @@ const api = async (path, opts = {}) => {
   const seed = localStorage.getItem('lac_seed');
   const h = { 'Content-Type': 'application/json' };
   if (seed) h['X-Seed'] = seed;
-  const r = await fetch(API_BASE + path, { method: opts.method || 'GET', headers: { ...h, ...opts.headers }, body: opts.body ? JSON.stringify(opts.body) : undefined });
-  const d = await r.json();
-  if (!r.ok) throw new Error(d.error || 'Error');
-  return d;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000); // 12s max
+  try {
+    const r = await fetch(API_BASE + path, {
+      method: opts.method || 'GET',
+      headers: { ...h, ...opts.headers },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    return d;
+  } catch(e) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') throw new Error('Timeout (12s) — сервер не відповів');
+    throw e;
+  }
 };
 const post = (p, b) => api(p, { method: 'POST', body: b });
 const get = (p) => api(p);
@@ -100,7 +114,7 @@ const _wsConnect = () => {
     const ping = setInterval(() => {
       if (ws.readyState === 1) ws.send('ping');
       else clearInterval(ping);
-    }, 25000);
+    }, 30000);
   };
 
   ws.onmessage = (e) => {
@@ -860,164 +874,189 @@ const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
 
 const NaginiRecover = ({ onBack, bundles }) => {
   const [bundleId, setBundleId] = useState(bundles[0]?.bundle_id || '');
-  // shardsRef is the TRUE source — state is just for render
-  const shardsRef = React.useRef([]);
-  const [shards, setShards] = useState([]);
+  const [sessionId, setSessionId] = useState(null);
+  const [sessionInfo, setSessionInfo] = useState(null); // {n, threshold, label}
+  const [collected, setCollected] = useState(0);
   const [locating, setLocating] = useState(false);
   const [result, setResult] = useState(null);
-  const [lastScan, setLastScan] = useState(null); // debug info
-  const bundle = bundles.find(b => b.bundle_id === bundleId);
+  const [lastResult, setLastResult] = useState(null);
+  const [starting, setStarting] = useState(false);
 
-  const addShard = (s) => {
-    const already = shardsRef.current.find(x => x.shard_index === s.shard_index);
-    if (already) return false; // duplicate
-    shardsRef.current = [...shardsRef.current, s];
-    setShards([...shardsRef.current]);
-    return true;
+  const startSession = async () => {
+    setStarting(true);
+    setLastResult(null);
+    try {
+      const r = await post('/api/nagini/session/start', { bundle_id: bundleId });
+      if (r.ok) {
+        setSessionId(r.session_id);
+        setSessionInfo({ n: r.n, threshold: r.threshold, label: r.label });
+        setCollected(0);
+        toast.success('✅ Сесія відкрита. Скануй локації.');
+      } else {
+        toast.error('❌ ' + (r.error || 'Помилка'));
+      }
+    } catch(e) { toast.error('❌ ' + e.message); }
+    setStarting(false);
+  };
+
+  const cancelSession = async () => {
+    if (sessionId) {
+      post('/api/nagini/session/cancel', { session_id: sessionId }).catch(()=>{});
+    }
+    setSessionId(null);
+    setSessionInfo(null);
+    setCollected(0);
+    setLastResult(null);
   };
 
   const scan = () => {
-    if (locating) return;
+    if (!sessionId || locating) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
         const acc = Math.round(pos.coords.accuracy || 0);
-        const currentShards = [...shardsRef.current]; // snapshot before async
-        console.log('[Nagini] scan at', lat.toFixed(6), lon.toFixed(6), 'acc:', acc, 'have shards:', currentShards.map(s=>s.shard_index));
         try {
-          const r = await post('/api/nagini/recover', {
-            bundle_id: bundleId,
+          const r = await post('/api/nagini/session/scan', {
+            session_id: sessionId,
             lat, lon,
-            shards: currentShards,
           });
-          console.log('[Nagini] recover response:', r);
-          setLastScan({ lat: lat.toFixed(5), lon: lon.toFixed(5), acc, ok: r.ok, matched: r.matched, shard: r.shard_index, err: r.error });
-
-          if (r.ok && r.matched) {
-            if (r.reconstructed) {
-              setResult(r);
-              shardsRef.current = [];
-              setShards([]);
-              toast.success('🔓 Секрет розшифровано!', {duration: 5000});
-            } else {
-              const isNew = addShard({shard_index: r.shard_index, shard_hex: r.shard_hex});
-              if (isNew) {
-                const collected = shardsRef.current.length;
-                const remaining = (bundle?.threshold || 1) - collected;
-                if (remaining > 0) {
-                  toast.success(`✅ Shard #${r.shard_index} зібраний! Ще ${remaining} локацій`, {duration: 4000});
-                } else {
-                  toast.success(`✅ Shard #${r.shard_index} — достатньо! Надсилаю...`, {duration: 4000});
-                  // Auto-reconstruct if we have enough
-                  setTimeout(() => {
-                    post('/api/nagini/recover', { bundle_id: bundleId, lat, lon, shards: shardsRef.current })
-                      .then(r2 => { if (r2.reconstructed) { setResult(r2); shardsRef.current=[]; setShards([]); } })
-                      .catch(()=>{});
-                  }, 500);
-                }
+          setLastResult({ lat: lat.toFixed(5), lon: lon.toFixed(5), acc, ...r });
+          if (r.ok) {
+            if (r.matched) {
+              setCollected(r.collected);
+              if (r.reconstructed) {
+                setResult(r);
+                setSessionId(null);
+                toast.success('🔓 Секрет відновлено!', { duration: 5000 });
               } else {
-                toast('⚠️ Цей shard вже зібраний', {icon:'ℹ️'});
+                toast.success(`✅ Шард #${r.shard_index} зібрано! Ще ${r.remaining}`, { duration: 3000 });
               }
+            } else {
+              toast.error('❌ ' + (r.error || 'Шард не знайдено тут'), { duration: 3000 });
             }
-          } else {
-            const errMsg = r.error || 'Шард не знайдено в цій точці (~200м)';
-            toast.error('❌ ' + errMsg, {duration: 4000});
           }
         } catch(e) {
-          console.error('[Nagini] recover error:', e);
-          toast.error('❌ Помилка: ' + (e.message || 'мережа'), {duration: 4000});
-          setLastScan({ err: e.message });
+          setLastResult({ err: e.message });
+          toast.error('❌ ' + e.message);
         }
         setLocating(false);
       },
       (err) => {
         setLocating(false);
-        toast.error('❌ GPS: ' + err.message, {duration: 4000});
-        setLastScan({ err: 'GPS: ' + err.message });
+        setLastResult({ err: 'GPS: ' + err.message });
+        toast.error('GPS: ' + err.message);
       },
-      {enableHighAccuracy: true, timeout: 12000, maximumAge: 0}
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   };
 
+  // ── Результат ──
   if (result) return (
     <div className="flex flex-col h-full">
-      <Header title="Secret Recovered 🔓" onBack={onBack} />
+      <Header title="🔓 Секрет відновлено" onBack={onBack} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="rounded-2xl bg-emerald-900/10 border border-emerald-800/30 p-5 text-center">
-          <div className="text-4xl mb-3">🔓</div>
-          <div className="text-emerald-400 font-bold text-lg">Secret Reconstructed</div>
-          <div className="text-gray-500 text-xs mt-1">{result.collected} of {result.threshold} shards collected</div>
+          <div className="text-5xl mb-3">🔓</div>
+          <div className="text-emerald-400 font-bold text-lg">Успішно!</div>
+          <div className="text-gray-500 text-xs mt-1">{result.collected} з {result.threshold} шардів зібрано</div>
         </div>
         <div className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-500 text-xs">Recovered secret (Base64)</span>
-            <button onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success('Copied!'); }}
-              className="text-emerald-500 text-xs">Copy</button>
+            <span className="text-gray-500 text-xs">Відновлений секрет (Base64)</span>
+            <button onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success('Скопійовано!'); }}
+              className="text-emerald-500 text-xs font-semibold">📋 Копіювати</button>
           </div>
-          <div className="font-mono text-emerald-300 text-xs break-all">{result.secret_b64}</div>
+          <div className="font-mono text-emerald-300 text-xs break-all select-all">{result.secret_b64}</div>
         </div>
         <div className="bg-amber-900/10 border border-amber-800/20 rounded-xl p-3 text-xs text-amber-500">
-          ⚠️ Save this immediately. This screen will not show it again.
+          ⚠️ Збережи зараз. Цей екран більше не покаже секрет.
         </div>
-        <Btn onClick={onBack} className="w-full bg-emerald-600">Done</Btn>
+        <Btn onClick={onBack} className="w-full bg-emerald-600">Готово</Btn>
       </div>
     </div>
   );
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Recover Secret" onBack={onBack} />
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {bundles.length > 1 && (
+      <Header title="Відновити секрет" onBack={onBack} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {/* Bundle select */}
+        {bundles.length > 1 && !sessionId && (
           <div>
-            <div className="text-gray-400 text-xs mb-2">Select bundle</div>
-            <select value={bundleId} onChange={e => { setBundleId(e.target.value); setShards([]); shardsRef.current = []; }}
-              className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm focus:outline-none">
+            <div className="text-gray-400 text-xs mb-1">Оберіть bundle</div>
+            <select value={bundleId} onChange={e => setBundleId(e.target.value)}
+              className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm">
               {bundles.map(b => <option key={b.bundle_id} value={b.bundle_id}>{b.label || b.bundle_id.slice(0,12)}</option>)}
             </select>
           </div>
         )}
-        {bundle && (
-          <div className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-4">
-            <div className="text-gray-400 text-xs mb-2">Progress: {shards.length}/{bundle.threshold} shards needed</div>
-            <div className="flex gap-1">
-              {Array.from({length: bundle.n}, (_,i) => (
-                <div key={i} className={`h-2 flex-1 rounded-full transition-all ${i < shards.length ? 'bg-emerald-500' : 'bg-gray-800'}`} />
-              ))}
+
+        {/* Start session */}
+        {!sessionId ? (
+          <div className="space-y-3">
+            <div className="bg-blue-900/10 border border-blue-800/20 rounded-xl p-3 text-xs text-blue-400">
+              Натисни "Почати відновлення", потім скануй кожну локацію по черзі. Сесія зберігається на сервері — стан не губиться.
             </div>
+            {bundles.length === 0 ? (
+              <div className="text-gray-500 text-sm text-center py-4">Немає bundles. Спочатку створи.</div>
+            ) : (
+              <Btn onClick={startSession} disabled={starting} className="w-full bg-emerald-600 py-4 text-base font-semibold">
+                {starting ? '⏳ Відкриваю сесію...' : '🔑 Почати відновлення'}
+              </Btn>
+            )}
           </div>
-        )}
-        <div className="bg-blue-900/10 border border-blue-800/20 rounded-xl p-4 text-xs text-blue-400">
-          📍 Перейди до однієї зі збережених локацій і натисни кнопку. GPS повинен бути в межах ~200м.
-        </div>
-        {lastScan && (
-          <div className={`rounded-xl p-3 text-xs font-mono border ${lastScan.matched ? 'bg-emerald-900/20 border-emerald-800/30 text-emerald-400' : 'bg-gray-800/40 border-gray-700/30 text-gray-500'}`}>
-            <div>📡 {lastScan.lat}, {lastScan.lon} (±{lastScan.acc}м)</div>
-            {lastScan.matched ? <div>✅ Shard #{lastScan.shard} знайдено</div> : <div>❌ {lastScan.err || 'No match'}</div>}
-          </div>
-        )}
-        <Btn onClick={scan} disabled={locating} className="w-full bg-emerald-600 hover:bg-emerald-500 py-4 text-base font-semibold">
-          {locating ? '📡 Отримую GPS...' : '📍 Сканувати цю локацію'}
-        </Btn>
-        {shards.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-emerald-600 text-xs font-semibold">Зібрані шарди:</div>
-              <button onClick={() => setShards([])} className="text-gray-600 hover:text-red-500 text-xs">✕ Скинути</button>
-            </div>
-            {shards.map(s => (
-              <div key={s.shard_index} className="text-xs font-mono text-emerald-500 bg-emerald-900/10 rounded-lg px-3 py-1.5 flex items-center gap-2">
-                <span className="text-emerald-400">✓</span> Shard #{s.shard_index} зібраний
+        ) : (
+          <div className="space-y-3">
+            {/* Progress */}
+            <div className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-gray-400 text-xs">Прогрес: {collected}/{sessionInfo?.threshold} шардів</div>
+                <button onClick={cancelSession} className="text-gray-600 text-xs">✕ Скасувати</button>
               </div>
-            ))}
+              <div className="flex gap-1">
+                {Array.from({length: sessionInfo?.n || 3}, (_, i) => (
+                  <div key={i} className={`h-3 flex-1 rounded-full transition-all ${i < collected ? 'bg-emerald-500' : 'bg-gray-800'}`} />
+                ))}
+              </div>
+              {collected > 0 && sessionInfo && (
+                <div className="text-emerald-500 text-xs mt-1">
+                  {collected >= sessionInfo.threshold ? '✅ Достатньо — реконструкція...' : `Ще ${sessionInfo.threshold - collected} локацій`}
+                </div>
+              )}
+            </div>
+
+            {/* Last scan result */}
+            {lastResult && (
+              <div className={`rounded-xl p-3 text-xs font-mono border ${lastResult.matched ? 'bg-emerald-900/20 border-emerald-800/30 text-emerald-400' : 'bg-gray-800/40 border-gray-700/30 text-gray-400'}`}>
+                {lastResult.err ? (
+                  <div>❌ {lastResult.err}</div>
+                ) : (
+                  <>
+                    <div>📡 {lastResult.lat}, {lastResult.lon} (±{lastResult.acc}м)</div>
+                    {lastResult.matched ? <div className="text-emerald-400 mt-0.5">✅ Шард #{lastResult.shard_index} знайдено</div>
+                      : <div className="text-gray-500 mt-0.5">❌ Шард не знайдено тут</div>}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Scan button */}
+            <Btn onClick={scan} disabled={locating} className="w-full bg-emerald-600 hover:bg-emerald-500 py-5 text-lg font-bold">
+              {locating ? '📡 Отримую GPS...' : '📍 Сканувати цю локацію'}
+            </Btn>
+
+            <div className="text-gray-600 text-xs text-center">
+              GPS повинен бути в межах ~200м від збереженої локації
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 };
+
 
 const NaginiDMS = ({ onBack, bundle }) => {
   const [status, setStatus] = useState(null);
@@ -1263,8 +1302,8 @@ const MainApp = ({ onLogout }) => {
   useEffect(() => {
     reload();
     const i = setInterval(() => {
-      if (!document.hidden) reload(); // skip when tab is hidden
-    }, 10000); // 10s — profile changes rarely
+      if (!document.hidden) reload();
+    }, 30000); // 30s — profile changes rarely
     return () => clearInterval(i);
   }, [reload]);
 
@@ -1936,7 +1975,7 @@ const ChatView = ({ peer, onBack, profile }) => {
     load(false);
     const i = setInterval(() => {
       if (!document.hidden) load(false);
-    }, 15000); // always 15s — WS fires instantly anyway
+    }, 20000); // WS fires instantly, poll is fallback
     return () => clearInterval(i);
   }, []);
   useEffect(() => { end.current?.scrollIntoView({behavior:'instant', block:'end'}); }, [msgs]);
@@ -2248,7 +2287,7 @@ const GroupView = ({ group, onBack, profile }) => {
     }
   });
 
-  useEffect(() => { load(); const i=setInterval(()=>{if(!document.hidden)load();},10000); return()=>clearInterval(i); }, []);
+  useEffect(() => { load(); const i=setInterval(()=>{if(!document.hidden)load();},20000); return()=>clearInterval(i); }, []);
   useEffect(() => { end.current?.scrollIntoView({behavior:'instant', block:'end'}); }, [posts]);
 
   const send = async () => {
@@ -3701,22 +3740,28 @@ const isAnon = (t) => ['veil_transfer','ring_transfer','stealth_transfer','stash
 const ExplorerView = ({ onBack }) => {
   const [blocks, setBlocks] = useState([]); const [h, setH] = useState(0); const [sel, setSel] = useState(null); const [loading, setLoading] = useState(true);
   useEffect(() => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!cancelled) { setLoading(false); }
+    }, 10000); // safety timeout
     (async () => {
       try {
         const hd = await get('/api/chain/height');
-        setH(hd.height||0);
-        const height = hd.height||0;
-        const start = Math.max(0, height - 100); // 100 blocks, not 200
+        if (cancelled) return;
+        const height = hd.height || 0;
+        setH(height);
+        if (height === 0) { clearTimeout(timer); setLoading(false); return; }
+        const start = Math.max(0, height - 50); // 50 blocks — faster load
         const bd = await get(`/api/blocks/range?start=${start}&end=${height}`);
-        setBlocks((bd.blocks||bd||[]).reverse());
+        if (cancelled) return;
+        setBlocks((bd.blocks || bd || []).reverse());
       } catch(e) {
-        console.error('Explorer load:', e);
+        // ignore
       }
       clearTimeout(timer);
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     })();
+    return () => { cancelled = true; clearTimeout(timer); };
   }, []);
 
   if (sel) {
