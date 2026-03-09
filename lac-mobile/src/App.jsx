@@ -654,15 +654,14 @@ const NaginiSetup = ({ onBack }) => {
     if (secretType === 'seed') {
       const seed = localStorage.getItem('lac_seed') || '';
       if (!seed) { toast.error('❌ Seed не знайдено! Перезайдіть в акаунт.'); return; }
-      const enc = new TextEncoder().encode(seed);
-      let bin = ''; enc.forEach(b => bin += String.fromCharCode(b));
-      secretB64 = btoa(bin);
-      setLog(`Seed: ${seed.slice(0,8)}... (${seed.length} chars)`);
+      // Safe base64: use Uint8Array→btoa method
+      const enc2 = new TextEncoder().encode(seed);
+      secretB64 = btoa(String.fromCharCode(...enc2));
+      setLog(`Seed: ${seed.slice(0,8)}... (${seed.length} chars) → b64 len=${secretB64.length}`);
     } else {
       if (!customSecret.trim()) { toast.error('Введіть секретний текст'); return; }
-      const enc = new TextEncoder().encode(customSecret.trim());
-      let bin = ''; enc.forEach(b => bin += String.fromCharCode(b));
-      secretB64 = btoa(bin);
+      const encC = new TextEncoder().encode(customSecret.trim());
+      secretB64 = btoa(String.fromCharCode(...encC));
     }
 
     const validLocs = locations.filter(l => l.lat && l.lon);
@@ -968,7 +967,33 @@ const NaginiRecover = ({ onBack, bundles }) => {
             <button onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success('Скопійовано!'); }}
               className="text-emerald-500 text-xs font-semibold">📋 Копіювати</button>
           </div>
-          <div className="font-mono text-emerald-300 text-xs break-all select-all">{result.secret_b64}</div>
+          {/* Decoded text — показуємо людино-читабельний текст */}
+          {(() => {
+            const decoded = result.secret_text || (() => {
+              try {
+                const raw = atob(result.secret_b64);
+                const bytes = new Uint8Array(raw.length);
+                for(let i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
+                return new TextDecoder('utf-8').decode(bytes);
+              } catch { return ''; }
+            })();
+            return decoded ? (
+              <div>
+                <div className="text-gray-500 text-xs mb-1">📋 Розшифрований текст</div>
+                <div className="p-3 bg-black/30 rounded-xl text-emerald-300 text-sm font-mono break-all select-all border border-emerald-900/30"
+                  onClick={() => { navigator.clipboard.writeText(decoded); toast.success('Скопійовано!'); }}>
+                  {decoded}
+                </div>
+              </div>
+            ) : null;
+          })()}
+          <div className="mt-2">
+            <div className="text-gray-600 text-[9px] mb-1">Raw Base64 (tap to copy)</div>
+            <div className="text-gray-700 text-[9px] font-mono break-all" 
+              onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success('Base64 скопійовано'); }}>
+              {result.secret_b64}
+            </div>
+          </div>
         </div>
         <div className="bg-amber-900/10 border border-amber-800/20 rounded-xl p-3 text-xs text-amber-500">
           ⚠️ Збережи зараз. Цей екран більше не покаже секрет.

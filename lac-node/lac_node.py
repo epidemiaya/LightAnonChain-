@@ -818,7 +818,7 @@ def auto_mining_loop():
         try:
             time.sleep(10)
 
-            # ── Phase 1: read state (short lock) ──────────────────
+            # ── Phase 1a: register miners (short lock ~1ms) ─────────
             with S.lock:
                 eligible_miners = []
                 for addr in list(S.active_sessions):
@@ -838,14 +838,30 @@ def auto_mining_loop():
                     if lvl >= 7:
                         S.mining_coordinator.submit_proof(addr)
 
-                block_data  = S.mining_coordinator.mine_block()
-                prev_hash   = S.chain[-1]['hash'] if S.chain else '0'
-                next_index  = len(S.chain)
+                # Read snapshots — lock released immediately after
+                prev_hash    = S.chain[-1]['hash'] if S.chain else '0'
+                next_index   = len(S.chain)
                 mempool_snap = S.mempool[:50]
                 eph_snap     = S.ephemeral_msgs[:20]
                 pending_snap = list(getattr(S, 'pending_txs', []))
 
+            # ── Phase 1b: mine_block OUTSIDE lock (~CPU only) ─────
+            # This is the expensive call — lottery selection, proofs
+            # HTTP requests can be served freely during this time
+            block_data = S.mining_coordinator.mine_block()
+            # Yield to gevent between phases
+            try:
+                from gevent import sleep as _gs; _gs(0)
+            except ImportError:
+                pass
+
             # ── Phase 2: heavy computation OUTSIDE lock ────────────
+            # Yield to gevent so HTTP requests can be served
+            try:
+                from gevent import sleep as _gsleep
+                _gsleep(0)
+            except ImportError:
+                pass
             BLOCK_REWARD_CAP = 190.0
             raw_total = sum(block_data['rewards'].values())
             scale = min(1.0, BLOCK_REWARD_CAP / raw_total) if raw_total > 0 else 1.0
@@ -937,6 +953,12 @@ def auto_mining_loop():
                     S.zero_history.add_block(block=new_block, utxo_delta={},
                                              spent_key_images=list(S.spent_key_images))
 
+            # Yield again after state write
+            try:
+                from gevent import sleep as _gsleep2
+                _gsleep2(0)
+            except ImportError:
+                pass
             # ── Phase 4: save + invalidate cache (no lock needed) ──
             try:
                 if S.mining_coordinator and S.mining_coordinator.poet:
@@ -7236,8 +7258,13 @@ def nagini_session_scan():
             shares = [(s['shard_index'], bytes.fromhex(s['shard_hex'])) for s in sess['shards']]
             secret = _nag_combine(shares)
             os.remove(sess_path)  # cleanup
+            decoded_text = ''
+            try: decoded_text = secret.decode('utf-8')
+            except: pass
             return jsonify({'ok':True,'matched':True,'shard_index':matched_idx,
-                           'reconstructed':True,'secret_b64':base64.b64encode(secret).decode(),
+                           'reconstructed':True,
+                           'secret_b64':base64.b64encode(secret).decode(),
+                           'secret_text':decoded_text,
                            'collected':collected,'threshold':bundle['threshold']})
         except Exception as e:
             return jsonify({'ok':True,'matched':True,'shard_index':matched_idx,
