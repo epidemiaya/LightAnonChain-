@@ -3167,15 +3167,16 @@ def explorer_chain():
     with S.lock:
         chain_len = len(S.chain)
         start = max(0, chain_len - 200)
-        blocks = []
-        for i in range(start, chain_len):
-            block = S.chain[i]
-            b = {'index': block.get('index', i), 'timestamp': block.get('timestamp'),
-                 'hash': block.get('hash','')[:16], 'miner': block.get('miner',''),
-                 'tx_count': len(block.get('transactions',[])),
-                 'total_reward': block.get('total_reward', 0),
-                 'mining_winners_count': block.get('mining_winners_count', 0)}
-            blocks.append(b)
+        chain_slice = list(S.chain[start:])  # fast shallow copy
+    
+    blocks = []
+    for i, block in enumerate(chain_slice):
+        b = {'index': block.get('index', start + i), 'timestamp': block.get('timestamp'),
+             'hash': block.get('hash','')[:16], 'miner': block.get('miner',''),
+             'tx_count': len(block.get('transactions',[])),
+             'total_reward': block.get('total_reward', 0),
+             'mining_winners_count': block.get('mining_winners_count', 0)}
+        blocks.append(b)
     
     result = list(reversed(blocks))  # newest first
     _cache_set('explorer:chain', result, ttl=10)
@@ -4112,6 +4113,9 @@ def get_wallet_transactions():
         return jsonify(cached_wtx)
     
     with S.lock:
+        full_scan = request.args.get('full', '0') == '1'
+        blocks_to_scan = list(S.chain if full_scan else S.chain[-2000:])
+        
         transactions = {
             'received': [],
             'sent': [],
@@ -4124,10 +4128,6 @@ def get_wallet_transactions():
         total_received = 0
         total_sent = 0
         total_burned = 0
-        
-        # Scan blocks - limit to last 2000 for speed, full scan for "all" param
-        full_scan = request.args.get('full', '0') == '1'
-        blocks_to_scan = S.chain if full_scan else S.chain[-2000:]
         
         for block in blocks_to_scan:
             block_index = block['index']
@@ -6277,16 +6277,23 @@ def _schedule_save():
 def _bg_save_worker():
     """Background thread: coalesces rapid saves into one disk write"""
     import time as _t
+    _last_chain_len = [0]
     while True:
         try:
             _save_queue.get(timeout=2)
-            # Drain any additional queued saves (coalesce)
+            # Drain all queued saves (coalesce)
+            while True:
+                try: _save_queue.get_nowait()
+                except: break
+            # Small delay to catch any more queued saves
+            _t.sleep(0.05)
             while True:
                 try: _save_queue.get_nowait()
                 except: break
             # Actually write
             try:
                 S.save_sync()
+                _last_chain_len[0] = len(S.chain) if S else 0
             except Exception as e:
                 print(f'⚠️ BG save error: {e}')
         except Exception:
@@ -6535,25 +6542,31 @@ def chain_stats():
     cached = _cache_get('stats:chain')
     if cached: return jsonify(cached)
     try:
+        # --- Snapshot under lock (~1ms, no chain scan) ---
         with S.lock:
             total_wallets = len(S.wallets)
             
-            # === BLOCK HEIGHT (reliable even after pruning) ===
+            # === BLOCK HEIGHT ===
             if S.chain:
                 block_height = S.chain[-1].get('index', len(S.chain) - 1) + 1
             else:
                 block_height = 0
             
-            # === GROUND TRUTH #1: Wallet balances ===
-            balances = sorted([w.get('balance', 0) for w in S.wallets.values()], reverse=True)
-            on_wallets = round(sum(balances), 2)
+            # Snapshot wallets (fast copy of just the values we need)
+            wallet_values = list(S.wallets.values())
             stash_balance = round(S.stash_pool.get('total_balance', 0), 2)
-            
-            # === GROUND TRUTH #2: Level distribution ===
-            levels = {}
-            for w in S.wallets.values():
-                lv = w.get('level', 0)
-                levels[f"L{lv}"] = levels.get(f"L{lv}", 0) + 1
+            cnt_snapshot = dict(getattr(S, 'counters', {}))
+            chain_snapshot = list(S.chain)  # shallow copy - fast
+        
+        # --- All heavy computation OUTSIDE lock ---
+        balances = sorted([w.get('balance', 0) for w in wallet_values], reverse=True)
+        on_wallets = round(sum(balances), 2)
+        levels = {}
+        for w in wallet_values:
+            lv = w.get('level', 0)
+            levels[f"L{lv}"] = levels.get(f"L{lv}", 0) + 1
+        
+
             
             # === EMISSION: Mining (most reliable source) ===
             # Block reward is ALWAYS 190 LAC per block, distributed among 19 winners
@@ -6563,7 +6576,7 @@ def chain_stats():
             
             # === EMISSION: Other sources (from counters + chain scan) ===
             # Counters track real-time events going forward
-            cnt = getattr(S, 'counters', {})
+            cnt = cnt_snapshot
             
             # Chain scan for TX types and supplemental emission data
             chain_faucet = 0
@@ -6575,7 +6588,7 @@ def chain_stats():
             total_tx = 0
             total_l2_msgs = 0
             
-            for b in S.chain:
+            for b in chain_snapshot:
                 total_l2_msgs += len(b.get('ephemeral_msgs', []))
                 txs = b.get('transactions', [])
                 total_tx += len(txs)
@@ -6659,7 +6672,7 @@ def chain_stats():
             # FEES: counter + chain scan fallback
             est_burned_fees = cnt.get('burned_fees', 0)
             if est_burned_fees == 0:
-                for b in S.chain:
+                for b in chain_snapshot:
                     for tx in b.get('transactions', []):
                         fee = tx.get('fee', 0) or 0
                         if fee > 0:
