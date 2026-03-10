@@ -177,7 +177,7 @@ const i18n = {
     noMsgYet:'No messages yet', sendFirst:'Send the first message', writeFirst:'Write the first message',
     ephAutoDelete:'Messages self-destruct after 5 min', onChainZH:'On-chain · Zero-History L3→L2→L1',
     privateGroup:'Private group · Invite only', groupCopied:'Group link copied!',
-    enterAddr:'Enter @username or lac1… address', startChat:'Start Chat',
+    enterAddr:'Enter @username or lac1... address', startChat:'Start Chat',
     groupName:'Group name', groupType:'Group type', create:'Create',
     public:'Public', private:'Private', l1:'L1 Blockchain', l2:'L2 Ephemeral',
     totalBalance:'Total Balance', send:'Send', faucet:'Faucet',
@@ -188,12 +188,12 @@ const i18n = {
     refresh:'Refresh', copied:'Copied!', copy:'Copy', share:'Share',
     recipient:'Recipient', amount:'Amount', message:'Message',
     sendNormal:'Normal Transfer', sendVeil:'VEIL Transfer (Anonymous)',
-    fee:'Fee', sendBtn:'Send', sending:'Sending…',
+    fee:'Fee', sendBtn:'Send', sending:'Sending...',
     stashTitle:'STASH Pool', anonSafe:'Anonymous Vault',
-    stashDesc:'Deposit → secret key → withdraw to ANY wallet. Zero link.',
+    stashDesc:'Deposit -> secret key -> withdraw to ANY wallet. Zero link.',
     deposit:'Deposit', withdraw:'Withdraw', savedKeys:'Saved Keys',
     poolLac:'Pool', activeKeys:'Active Keys', redeemed:'Redeemed',
-    depositSuccess:'Deposit successful!', stashKey:'STASH KEY — TAP TO COPY',
+    depositSuccess:'Deposit successful!', stashKey:'STASH KEY - TAP TO COPY',
     stashWarn:'Anyone with this key can withdraw. Keep it safe!',
     withdrawKey:'Paste STASH key here', noKeys:'No saved keys',
     tapCopy:'Tap to copy', deleteKey:'Delete', markUsed:'Mark used',
@@ -201,7 +201,7 @@ const i18n = {
     winnersBlock:'Winners / Block', minBalance:'Min. Balance', yourBalance:'Your Balance',
     yourLevel:'Your Level', miningChance:'Mining Chance',
     totalEarned:'Total Earned', recentRewards:'Recent Rewards', noRewards:'No rewards yet',
-    miningExplain:'PoET — fair mining without energy waste',
+    miningExplain:'PoET - fair mining without energy waste',
     diceGame:'Dice Game', placeBet:'Place Bet', betAmount:'Bet Amount',
     redBlack:'Red / Black', overUnder:'Over / Under', roll:'Roll!',
     youWon:'You won!', youLost:'You lost', gameHistory:'History',
@@ -210,7 +210,7 @@ const i18n = {
     backupKey:'Back up your secret key', logout:'Log Out', saveSeedFirst:'Save seed first!',
     language:'Language', seedWarning:'Your seed will be shown.\nMake sure nobody is watching!\nShow seed?',
     makeSureSaved:'Make sure your seed is saved!',
-    panicMsg:'This will erase ALL local data. Your wallet remains on the network — restore anytime with your seed.',
+    panicMsg:'This will erase ALL local data. Your wallet remains on the network - restore anytime with your seed.',
     dashboard:'Dashboard', supply:'Supply', onWallets:'On wallets', totalMined:'Total Mined',
     burnedForever:'Burned forever', inStash:'In STASH Pool', totalEmitted:'Total Emitted',
     blocks:'Blocks', wallets:'Wallets',
@@ -218,17 +218,15 @@ const i18n = {
     burns:'Burns', usernames:'Usernames', topBalances:'Top Balances', levelDist:'Level Distribution',
     walletsCount:'wallets', l2encrypted:'L2 encrypted (auto-deleted)',
     diceLost:'Dice lost', diceWon:'Dice won',
-    explorer:'Explorer', loadingBlocks:'Loading blocks…', time:'Time', miner:'Miner',
+    explorer:'Explorer', loadingBlocks:'Loading blocks...', time:'Time', miner:'Miner',
     transactions:'Transactions', noTxInBlock:'No transactions',
     anonymous:'Anonymous', from:'From', to:'To',
-    noContacts:'No contacts yet', addContact:'Add Contact', enterContact:'Enter @username or lac1… address',
-    add:'Add',
-    timeLock:'Time-Lock', lockFunds:'Lock funds for the future',
+    noContacts:'No contacts yet', addContact:'Add Contact', enterContact:'Enter @username or lac1... address',
+    add:'Add', timeLock:'Time-Lock', lockFunds:'Lock funds for the future',
     welcome:'Welcome to LAC', privacyFirst:'Privacy-first blockchain', createWallet:'Create Wallet',
     importSeed:'Import Seed', backupSeed:'Back Up Your Seed', writeSeedDown:'Write it down! Lost seed = lost wallet.',
-    seedSaved:'I saved my seed →', enterSeed:'Enter your seed phrase',
-    loginBtn:'Sign In',
-    loading:'Loading…', error:'Error', success:'Success', cancel:'Cancel', confirm:'Confirm', save:'Save',
+    seedSaved:'I saved my seed', enterSeed:'Enter your seed phrase', loginBtn:'Sign In',
+    loading:'Loading...', error:'Error', success:'Success', cancel:'Cancel', confirm:'Confirm', save:'Save',
     back:'Back', done:'Done', close:'Close', search:'Search', more:'More',
   },
   uk: {
@@ -237,9 +235,9 @@ const i18n = {
     noGroups:'Немає груп', createGroup:'Створити групу', newMessage:'Нове повідомлення',
     ephemeral:'Тимчасове', burnAfterRead:'Знищити після перегляду', replyTo:'Відповісти', online:'онлайн',
     noMsgYet:'Повідомлень поки немає', sendFirst:'Надішліть перше повідомлення', writeFirst:'Напишіть перше повідомлення',
-    ephAutoDelete:'Повідомлення самознищуються через 5 хв', onChainZH:'On-chain · Zero-History L3→L2→L1',
+    ephAutoDelete:'Повідомлення самознищуються через 5 хв', onChainZH:'On-chain · Zero-History L3->L2->L1',
     privateGroup:'Приватна група · Тільки за запрошенням', groupCopied:'Посилання скопійовано!',
-    enterAddr:'Введіть @нікнейм або lac1… адресу', startChat:'Почати чат',
+    enterAddr:'Введіть @нікнейм або lac1... адресу', startChat:'Почати чат',
     groupName:'Назва групи', groupType:'Тип групи', create:'Створити',
     public:'Публічна', private:'Приватна', l1:'L1 Блокчейн', l2:'L2 Тимчасова',
     totalBalance:'Загальний баланс', send:'Надіслати', faucet:'Кран',
@@ -250,12 +248,12 @@ const i18n = {
     refresh:'Оновити', copied:'Скопійовано!', copy:'Копіювати', share:'Поділитися',
     recipient:'Отримувач', amount:'Сума', message:'Повідомлення',
     sendNormal:'Звичайний переказ', sendVeil:'VEIL переказ (Анонімний)',
-    fee:'Комісія', sendBtn:'Надіслати', sending:'Надсилання…',
+    fee:'Комісія', sendBtn:'Надіслати', sending:'Надсилання...',
     stashTitle:'STASH Пул', anonSafe:'Анонімний сейф',
-    stashDesc:'Депозит → секретний ключ → виведення на БУДЬ-ЯКИЙ гаманець. Нульовий зв\'язок.',
+    stashDesc:'Депозит -> секретний ключ -> виведення на БУДЬ-ЯКИЙ гаманець. Нульовий зв\'язок.',
     deposit:'Депозит', withdraw:'Вивести', savedKeys:'Збережені ключі',
     poolLac:'Пул', activeKeys:'Активні ключі', redeemed:'Використано',
-    depositSuccess:'Депозит успішний!', stashKey:'STASH КЛЮЧ — НАТИСНІТЬ ДЛЯ КОПІЮВАННЯ',
+    depositSuccess:'Депозит успішний!', stashKey:'STASH КЛЮЧ - НАТИСНІТЬ ДЛЯ КОПІЮВАННЯ',
     stashWarn:'Будь-хто з цим ключем може вивести кошти. Бережіть його!',
     withdrawKey:'Вставте ключ STASH', noKeys:'Немає збережених ключів',
     tapCopy:'Натисніть для копіювання', deleteKey:'Видалити', markUsed:'Позначити як використаний',
@@ -263,16 +261,16 @@ const i18n = {
     winnersBlock:'Переможців / блок', minBalance:'Мін. баланс', yourBalance:'Ваш баланс',
     yourLevel:'Ваш рівень', miningChance:'Шанс майнінгу',
     totalEarned:'Всього зароблено', recentRewards:'Останні нагороди', noRewards:'Нагород поки немає',
-    miningExplain:'PoET — чесний майнінг без витрат енергії',
+    miningExplain:'PoET - чесний майнінг без витрат енергії',
     diceGame:'Гра в кубики', placeBet:'Зробити ставку', betAmount:'Сума ставки',
     redBlack:'Червоне / Чорне', overUnder:'Більше / Менше', roll:'Кинути!',
     youWon:'Ви виграли!', youLost:'Ви програли', gameHistory:'Історія',
     settings:'Налаштування', registerUsername:'Зареєструвати нікнейм', getYourName:'Отримайте свій @нікнейм',
     upgradeLevel:'Підвищити рівень', copyAddress:'Копіювати адресу', exportSeed:'Експорт Seed',
     backupKey:'Збережіть секретний ключ', logout:'Вийти', saveSeedFirst:'Спочатку збережіть seed!',
-    language:'Мова', seedWarning:'Ваш seed буде показано.\nПереконайтеся, що ніхто не бачить!\nПоказати seed?',
-    makeSureSaved:'Переконайтеся, що seed збережено!',
-    panicMsg:'Всі локальні дані будуть видалені. Гаманець залишається в мережі — увійдіть знову через seed.',
+    language:'Мова', seedWarning:'Ваш seed буде показано.\nПереконайтеся що ніхто не бачить!\nПоказати seed?',
+    makeSureSaved:'Переконайтеся що seed збережено!',
+    panicMsg:'Всі локальні дані будуть видалені. Гаманець залишається в мережі - увійдіть знову через seed.',
     dashboard:'Статистика', supply:'Емісія', onWallets:'На гаманцях', totalMined:'Всього намайнено',
     burnedForever:'Спалено назавжди', inStash:'В пулі STASH', totalEmitted:'Всього емітовано',
     blocks:'Блоки', wallets:'Гаманці',
@@ -280,17 +278,15 @@ const i18n = {
     burns:'Спалювання', usernames:'Нікнейми', topBalances:'Топ балансів', levelDist:'Розподіл рівнів',
     walletsCount:'гаманців', l2encrypted:'L2 зашифрованих (авто-видалені)',
     diceLost:'Програно в кубики', diceWon:'Виграно в кубики',
-    explorer:'Провідник', loadingBlocks:'Завантаження блоків…', time:'Час', miner:'Майнер',
+    explorer:'Провідник', loadingBlocks:'Завантаження блоків...', time:'Час', miner:'Майнер',
     transactions:'Транзакції', noTxInBlock:'Немає транзакцій',
     anonymous:'Анонімний', from:'Від', to:'Кому',
-    noContacts:'Контактів поки немає', addContact:'Додати контакт', enterContact:'Введіть @нікнейм або lac1… адресу',
-    add:'Додати',
-    timeLock:'Time-Lock', lockFunds:'Заблокувати кошти на майбутнє',
+    noContacts:'Контактів поки немає', addContact:'Додати контакт', enterContact:'Введіть @нікнейм або lac1... адресу',
+    add:'Додати', timeLock:'Time-Lock', lockFunds:'Заблокувати кошти на майбутнє',
     welcome:'Ласкаво просимо до LAC', privacyFirst:'Блокчейн із захистом приватності', createWallet:'Створити гаманець',
     importSeed:'Імпортувати Seed', backupSeed:'Збережіть ваш Seed', writeSeedDown:'Запишіть! Втрачений seed = втрачений гаманець.',
-    seedSaved:'Я зберіг seed →', enterSeed:'Введіть seed-фразу',
-    loginBtn:'Увійти',
-    loading:'Завантаження…', error:'Помилка', success:'Успіх', cancel:'Скасувати', confirm:'Підтвердити', save:'Зберегти',
+    seedSaved:'Я зберіг seed', enterSeed:'Введіть seed-фразу', loginBtn:'Увійти',
+    loading:'Завантаження...', error:'Помилка', success:'Успіх', cancel:'Скасувати', confirm:'Підтвердити', save:'Зберегти',
     back:'Назад', done:'Готово', close:'Закрити', search:'Пошук', more:'Більше',
   },
   ru: {
@@ -299,9 +295,9 @@ const i18n = {
     noGroups:'Нет групп', createGroup:'Создать группу', newMessage:'Новое сообщение',
     ephemeral:'Временное', burnAfterRead:'Сжечь после просмотра', replyTo:'Ответить', online:'онлайн',
     noMsgYet:'Сообщений пока нет', sendFirst:'Отправьте первое сообщение', writeFirst:'Напишите первое сообщение',
-    ephAutoDelete:'Сообщения самоудаляются через 5 мин', onChainZH:'On-chain · Zero-History L3→L2→L1',
+    ephAutoDelete:'Сообщения самоудаляются через 5 мин', onChainZH:'On-chain · Zero-History L3->L2->L1',
     privateGroup:'Приватная группа · Только по приглашению', groupCopied:'Ссылка скопирована!',
-    enterAddr:'Введите @никнейм или lac1… адрес', startChat:'Начать чат',
+    enterAddr:'Введите @никнейм или lac1... адрес', startChat:'Начать чат',
     groupName:'Название группы', groupType:'Тип группы', create:'Создать',
     public:'Публичная', private:'Приватная', l1:'L1 Блокчейн', l2:'L2 Временная',
     totalBalance:'Общий баланс', send:'Отправить', faucet:'Кран',
@@ -312,12 +308,12 @@ const i18n = {
     refresh:'Обновить', copied:'Скопировано!', copy:'Копировать', share:'Поделиться',
     recipient:'Получатель', amount:'Сумма', message:'Сообщение',
     sendNormal:'Обычный перевод', sendVeil:'VEIL перевод (Анонимный)',
-    fee:'Комиссия', sendBtn:'Отправить', sending:'Отправка…',
+    fee:'Комиссия', sendBtn:'Отправить', sending:'Отправка...',
     stashTitle:'STASH Пул', anonSafe:'Анонимный сейф',
-    stashDesc:'Депозит → секретный ключ → вывод на ЛЮБОЙ кошелёк. Нулевая связь.',
+    stashDesc:'Депозит -> секретный ключ -> вывод на ЛЮБОЙ кошелёк. Нулевая связь.',
     deposit:'Депозит', withdraw:'Вывести', savedKeys:'Сохранённые ключи',
     poolLac:'Пул', activeKeys:'Активные ключи', redeemed:'Использован',
-    depositSuccess:'Депозит успешен!', stashKey:'STASH КЛЮЧ — НАЖМИТЕ ДЛЯ КОПИРОВАНИЯ',
+    depositSuccess:'Депозит успешен!', stashKey:'STASH КЛЮЧ - НАЖМИТЕ ДЛЯ КОПИРОВАНИЯ',
     stashWarn:'Любой с этим ключом может вывести средства. Храните его!',
     withdrawKey:'Вставьте ключ STASH', noKeys:'Нет сохранённых ключей',
     tapCopy:'Нажмите для копирования', deleteKey:'Удалить', markUsed:'Отметить как использованный',
@@ -325,16 +321,16 @@ const i18n = {
     winnersBlock:'Победителей / блок', minBalance:'Мин. баланс', yourBalance:'Ваш баланс',
     yourLevel:'Ваш уровень', miningChance:'Шанс майнинга',
     totalEarned:'Всего заработано', recentRewards:'Последние награды', noRewards:'Наград пока нет',
-    miningExplain:'PoET — честный майнинг без затрат энергии',
+    miningExplain:'PoET - честный майнинг без затрат энергии',
     diceGame:'Игра в кости', placeBet:'Сделать ставку', betAmount:'Сумма ставки',
     redBlack:'Красное / Чёрное', overUnder:'Больше / Меньше', roll:'Бросить!',
     youWon:'Вы выиграли!', youLost:'Вы проиграли', gameHistory:'История',
     settings:'Настройки', registerUsername:'Зарегистрировать никнейм', getYourName:'Получите свой @никнейм',
     upgradeLevel:'Повысить уровень', copyAddress:'Копировать адрес', exportSeed:'Экспорт Seed',
     backupKey:'Сохраните секретный ключ', logout:'Выйти', saveSeedFirst:'Сначала сохраните seed!',
-    language:'Язык', seedWarning:'Ваш seed будет показан.\nУбедитесь, что никто не смотрит!\nПоказать seed?',
-    makeSureSaved:'Убедитесь, что seed сохранён!',
-    panicMsg:'Все локальные данные будут удалены. Кошелёк остаётся в сети — войдите снова через seed.',
+    language:'Язык', seedWarning:'Ваш seed будет показан.\nУбедитесь что никто не смотрит!\nПоказать seed?',
+    makeSureSaved:'Убедитесь что seed сохранён!',
+    panicMsg:'Все локальные данные будут удалены. Кошелёк остаётся в сети - войдите снова через seed.',
     dashboard:'Статистика', supply:'Эмиссия', onWallets:'На кошельках', totalMined:'Всего намайнено',
     burnedForever:'Сожжено навсегда', inStash:'В пуле STASH', totalEmitted:'Всего эмитировано',
     blocks:'Блоки', wallets:'Кошельки',
@@ -342,35 +338,34 @@ const i18n = {
     burns:'Сжигания', usernames:'Никнеймы', topBalances:'Топ балансов', levelDist:'Распределение уровней',
     walletsCount:'кошельков', l2encrypted:'L2 зашифрованных (авто-удалены)',
     diceLost:'Проиграно в кости', diceWon:'Выиграно в кости',
-    explorer:'Обозреватель', loadingBlocks:'Загрузка блоков…', time:'Время', miner:'Майнер',
+    explorer:'Обозреватель', loadingBlocks:'Загрузка блоков...', time:'Время', miner:'Майнер',
     transactions:'Транзакции', noTxInBlock:'Нет транзакций',
     anonymous:'Анонимный', from:'От', to:'Кому',
-    noContacts:'Нет контактов', addContact:'Добавить контакт', enterContact:'Введите @никнейм или lac1… адрес',
-    add:'Добавить',
-    timeLock:'Time-Lock', lockFunds:'Заблокировать средства на будущее',
+    noContacts:'Нет контактов', addContact:'Добавить контакт', enterContact:'Введите @никнейм или lac1... адрес',
+    add:'Добавить', timeLock:'Time-Lock', lockFunds:'Заблокировать средства на будущее',
     welcome:'Добро пожаловать в LAC', privacyFirst:'Блокчейн с защитой приватности', createWallet:'Создать кошелёк',
     importSeed:'Импортировать Seed', backupSeed:'Сохраните ваш Seed', writeSeedDown:'Запишите! Потерянный seed = потерянный кошелёк.',
-    seedSaved:'Я сохранил seed →', enterSeed:'Введите seed-фразу',
-    loginBtn:'Войти',
-    loading:'Загрузка…', error:'Ошибка', success:'Успех', cancel:'Отмена', confirm:'Подтвердить', save:'Сохранить',
+    seedSaved:'Я сохранил seed', enterSeed:'Введите seed-фразу', loginBtn:'Войти',
+    loading:'Загрузка...', error:'Ошибка', success:'Успех', cancel:'Отмена', confirm:'Подтвердить', save:'Сохранить',
     back:'Назад', done:'Готово', close:'Закрыть', search:'Поиск', more:'Ещё',
   }
-};
+}
+;
 const getLang = () => { const l = localStorage.getItem('lac_lang'); return ['en','uk','ru'].includes(l) ? l : 'en'; };
 const LangCtx = React.createContext({ lang: 'en', setLang: () => {}, t: (k) => k });
 const useT = () => React.useContext(LangCtx);
 
 // ─── Shared Components ────────────────────────────────
 const Header = ({ title, onBack, right }) => (
-  <header className="flex items-center gap-3 px-4 py-3.5 bg-[#070d1e]/95 backdrop-blur-xl border-b border-white/[0.06] sticky top-0 z-10">
-    {onBack && <button onClick={onBack} className="p-1.5 -ml-1 rounded-xl active:bg-white/5 transition"><ArrowLeft className="w-5 h-5 text-[#B8E6FF]/70" /></button>}
-    <h1 className="text-white font-semibold tracking-tight text-[17px] flex-1">{title}</h1>
+  <header className="flex items-center gap-3 px-4 py-3.5 bg-[#0a1f18]/90 backdrop-blur-lg border-b border-cyan-900/30 sticky top-0 z-10">
+    {onBack && <button onClick={onBack} className="p-1 -ml-1"><ArrowLeft className="w-5 h-5 text-gray-400" /></button>}
+    <h1 className="text-white font-semibold text-[17px] flex-1">{title}</h1>
     {right}
   </header>
 );
 
 const Card = ({ children, className = '', gradient, onClick }) => (
-  <div onClick={onClick} className={`rounded-2xl p-4 border border-white/[0.07] ${gradient || 'bg-white/[0.04] backdrop-blur-xl'} ${onClick?'cursor-pointer active:opacity-75 transition-opacity':''} ${className}`}>{children}</div>
+  <div onClick={onClick} className={`rounded-2xl p-4 border border-cyan-900/20 ${gradient || 'bg-[#0d1b35]'} ${onClick?'cursor-pointer active:bg-cyan-900/10':''} ${className}`}>{children}</div>
 );
 
 const StatBox = ({ icon, label, value, color = 'text-cyan-400', small }) => (
@@ -380,50 +375,52 @@ const StatBox = ({ icon, label, value, color = 'text-cyan-400', small }) => (
   </div>
 );
 
-const Btn = ({ children, onClick, color = 'cyan', disabled, loading, full, ghost, small, className = '' }) => {
+const Btn = ({ children, onClick, color = 'emerald', disabled, loading, full, ghost, small, className = '' }) => {
   const colors = {
-    cyan: ghost ? 'bg-cyan-400/10 text-cyan-400 border border-cyan-400/30' : 'bg-gradient-to-b from-[#00E5FF] to-[#0099BB] text-[#070d1e] font-bold shadow-lg shadow-cyan-500/20',
-    emerald: ghost ? 'bg-cyan-400/10 text-cyan-400 border border-cyan-400/30' : 'bg-gradient-to-b from-[#00E5FF] to-[#0099BB] text-[#070d1e] font-bold shadow-lg shadow-cyan-500/20',
-    purple: ghost ? 'bg-purple-400/10 text-purple-400 border border-purple-400/30' : 'bg-gradient-to-b from-purple-500 to-purple-700 text-white shadow-lg shadow-purple-600/20',
-    red: ghost ? 'bg-red-400/10 text-red-400 border border-red-400/25' : 'bg-gradient-to-b from-red-500 to-red-700 text-white shadow-lg shadow-red-600/20',
-    gray: 'bg-white/[0.06] text-[#B8E6FF] border border-white/[0.08] hover:bg-white/[0.09]',
-    amber: ghost ? 'bg-amber-400/10 text-amber-400 border border-amber-400/25' : 'bg-gradient-to-b from-amber-400 to-amber-600 text-[#070d1e] font-bold shadow-lg shadow-amber-500/20',
+    emerald: ghost ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-700/40' : 'bg-gradient-to-b from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-600/25',
+    purple: ghost ? 'bg-purple-900/30 text-purple-400 border border-purple-700/40' : 'bg-gradient-to-b from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-600/25',
+    amber: ghost ? 'bg-amber-900/30 text-amber-400 border border-amber-700/40' : 'bg-gradient-to-b from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-600/25',
+    red: ghost ? 'bg-red-900/30 text-red-400 border border-red-700/40' : 'bg-gradient-to-b from-red-500 to-red-600 text-white shadow-lg shadow-red-600/25',
+    gray: 'bg-gray-800 text-gray-300 border border-gray-700',
   };
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled || loading}
-      className={`${colors[color] || colors.gray} ${small ? 'px-3 py-1.5 text-xs rounded-xl' : 'px-4 py-2.5 text-sm rounded-2xl'} font-semibold transition-all duration-150 disabled:opacity-40 active:scale-[0.98] ${full ? 'w-full flex items-center justify-center' : ''} ${className}`}>
-      {loading ? <span className="opacity-60">…</span> : children}
+    <button onClick={onClick} disabled={disabled || loading}
+      className={`${small?'px-3 py-1.5 text-xs':'px-4 py-3 text-sm'} rounded-xl font-semibold transition-all active:scale-[0.98] disabled:opacity-40 ${full?'w-full':''} ${colors[color]} ${className}`}>
+      {loading ? '⏳' : children}
     </button>
   );
 };
 
 const Input = ({ value, onChange, placeholder, mono, type = 'text', right }) => (
   <div className="relative">
-    <input
-      type={type} value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={`w-full bg-white/[0.05] text-white placeholder-[#B8E6FF]/30 px-4 py-3 rounded-2xl border border-white/[0.08] outline-none focus:border-cyan-400/40 focus:bg-white/[0.07] transition text-sm ${mono ? 'font-mono' : ''} ${right ? 'pr-10' : ''}`}
-    />
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      className={`w-full bg-[#0a1628] text-white px-4 py-3 rounded-xl border border-cyan-900/30 outline-none focus:border-cyan-600/50 transition text-sm ${mono?'font-mono':''}`} />
     {right && <div className="absolute right-3 top-1/2 -translate-y-1/2">{right}</div>}
   </div>
 );
 
-const Badge = ({ children, color = 'cyan' }) => {
-  const c = {
-    cyan:'bg-cyan-400/10 text-cyan-400 border-cyan-400/20',
-    emerald:'bg-cyan-400/10 text-cyan-400 border-cyan-400/20',
-    purple:'bg-purple-400/10 text-purple-400 border-purple-400/20',
-    amber:'bg-amber-400/10 text-amber-400 border-amber-400/20',
-    red:'bg-red-400/10 text-red-400 border-red-400/20',
-    blue:'bg-blue-400/10 text-blue-400 border-blue-400/20',
-    gray:'bg-white/5 text-[#B8E6FF]/50 border-white/10',
-    yellow:'bg-yellow-400/10 text-yellow-400 border-yellow-400/20',
+const Badge = ({ children, color = 'emerald' }) => {
+  const COLORS = {
+    emerald: 'bg-cyan-500/25 text-cyan-300 border-cyan-400/50',
+    blue:    'bg-blue-500/25 text-blue-300 border-blue-400/50',
+    purple:  'bg-purple-500/25 text-purple-300 border-purple-400/50',
+    amber:   'bg-amber-500/25 text-amber-300 border-amber-400/50',
+    red:     'bg-red-500/25 text-red-300 border-red-400/50',
+    gray:    'bg-gray-600/50 text-gray-200 border-gray-500/50',
   };
-  return <span className={`text-[10px] px-1.5 py-0.5 rounded-md border font-medium ${c[color]||c.gray}`}>{children}</span>;
+  return <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${COLORS[color] || COLORS.gray}`}>{children}</span>;
 };
+
+const TabBar = ({ tabs, active, onChange }) => (
+  <div className="flex bg-[#0a1628] rounded-xl p-0.5 gap-0.5">
+    {tabs.map(([id, label]) => (
+      <button key={id} onClick={() => onChange(id)}
+        className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${active === id ? 'bg-cyan-600/20 text-cyan-400' : 'text-gray-500'}`}>
+        {label}
+      </button>
+    ))}
+  </div>
+);
 
 const ListItem = React.memo(({ icon, title, sub, right, onClick, badge }) => (
   <button onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-cyan-900/10 active:bg-cyan-900/20 transition border-b border-gray-800/30">
@@ -1300,31 +1297,19 @@ const LoginScreen = ({ onAuth }) => {
   };
 
   if (mode === 'welcome') return (
-    <div className="h-screen flex flex-col items-center justify-center p-8 relative overflow-hidden"
-        style={{background:'radial-gradient(ellipse 80% 80% at 50% -10%, #0d2a4a 0%, #0B1426 60%)'}}>
-        {/* Background frost particles */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full opacity-[0.07]"
-            style={{background:'radial-gradient(circle, #00E5FF, transparent 70%)'}} />
-          <div className="absolute bottom-1/3 right-1/4 w-48 h-48 rounded-full opacity-[0.05]"
-            style={{background:'radial-gradient(circle, #B8E6FF, transparent 70%)'}} />
-        </div>
-        <div className="relative z-10 flex flex-col items-center w-full">
-        {/* Logo */}
-        <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-5 shadow-2xl"
-          style={{background:'linear-gradient(135deg, #00E5FF 0%, #0066AA 100%)',boxShadow:'0 0 40px rgba(0,229,255,0.25)'}}>
-          <span className="text-3xl font-black text-[#0B1426]">L</span>
-        </div>
-        <h1 className="text-4xl font-thin text-white mb-1 tracking-wide" style={{fontWeight:100}}>LAC</h1>
-        <p className="text-[#00E5FF] text-sm mb-1 tracking-wider">{t('privacyFirst')}</p>
-        <p className="text-[#B8E6FF]/30 text-xs mb-8 tracking-widest uppercase">Zero-History · VEIL · STASH · PoET</p>
-          {refCode && <div className="bg-[#00E5FF]/5 border border-[#00E5FF]/20 rounded-2xl px-4 py-2 mb-4"><p className="text-[#00E5FF]/80 text-xs text-center">🎁 Referral: <span className="font-mono font-bold">{refCode}</span> · +50 LAC bonus!</p></div>}
-          <div className="w-full max-w-sm space-y-3">
-            <Btn onClick={create} color="cyan" full loading={loading}>{t('createWallet')}</Btn>
-            <Btn onClick={() => setMode('import')} color="gray" full>{t('importSeed')}</Btn>
-          </div>
-        </div>
+    <div className="h-screen bg-[#070d1e] flex flex-col items-center justify-center p-8">
+      <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-cyan-500 to-cyan-700 flex items-center justify-center mb-6 shadow-2xl shadow-cyan-600/30">
+        <span className="text-4xl font-black text-white">L</span>
       </div>
+      <h1 className="text-3xl font-bold text-white mb-1">LAC</h1>
+      <p className="text-cyan-600 text-sm mb-1">{t('privacyFirst')}</p>
+      <p className="text-gray-600 text-xs mb-6">Zero-History · VEIL · STASH · PoET</p>
+      {refCode && <div className="bg-purple-900/20 border border-purple-700/30 rounded-xl px-4 py-2 mb-6"><p className="text-purple-400 text-xs text-center">🎁 Referral: <span className="font-mono font-bold">{refCode}</span> · +50 LAC bonus!</p></div>}
+      <div className="w-full max-w-sm space-y-3">
+        <Btn onClick={create} color="emerald" full loading={loading}>{t('createWallet')}</Btn>
+        <Btn onClick={() => setMode('import')} color="gray" full>{t('importSeed')}</Btn>
+      </div>
+    </div>
   );
 
   if (mode === 'backup') return (
@@ -1460,8 +1445,8 @@ const MainApp = ({ onLogout }) => {
       nagini: <NaginiView onBack={back} profile={profile} />,
     };
     return (
-      <div className="w-full h-[100dvh] flex items-center justify-center sm:p-4">
-        <div className="w-full h-full max-w-md sm:max-h-[850px] bg-[#070d1e] sm:rounded-3xl sm:shadow-2xl sm:shadow-cyan-500/10 overflow-hidden sm:border sm:border-white/[0.06] flex flex-col relative">
+      <div className="w-full h-[100dvh] bg-[#070d1e] flex items-center justify-center sm:bg-gradient-to-br sm:from-gray-900 sm:to-gray-950 sm:p-4">
+        <div className="w-full h-full max-w-md sm:max-h-[850px] bg-[#070d1e] sm:rounded-3xl sm:shadow-2xl sm:shadow-cyan-900/20 overflow-hidden sm:border sm:border-cyan-900/30 flex flex-col relative">
           {screens[sub.type] || null}
         </div>
       </div>
@@ -1481,15 +1466,15 @@ const MainApp = ({ onLogout }) => {
   ];
 
   return (
-    <div className="w-full h-[100dvh] flex items-center justify-center sm:p-4">
-      <div className="w-full h-full max-w-md sm:max-h-[850px] bg-[#070d1e] sm:rounded-3xl sm:shadow-2xl sm:shadow-cyan-500/10 overflow-hidden sm:border sm:border-white/[0.06] flex flex-col relative">
+    <div className="w-full h-[100dvh] bg-[#070d1e] flex items-center justify-center sm:bg-gradient-to-br sm:from-gray-900 sm:to-gray-950 sm:p-4">
+      <div className="w-full h-full max-w-md sm:max-h-[850px] bg-[#070d1e] sm:rounded-3xl sm:shadow-2xl sm:shadow-cyan-900/20 overflow-hidden sm:border sm:border-cyan-900/30 flex flex-col relative">
         <Toaster position="top-center" toastOptions={{style:{background:'#0f2044',color:'#e5fff5',borderRadius:'14px',border:'1px solid rgba(14,230,138,.15)',fontSize:'13px'}}} />
 
         {/* Hamburger Menu Overlay */}
         {menuOpen && (
           <div className="absolute inset-0 z-50 flex">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
-            <div className="relative w-[280px] h-full bg-[#070d1e]/98 backdrop-blur-xl border-r border-white/[0.06] overflow-y-auto z-10 shadow-2xl">
+            <div className="relative w-[280px] h-full bg-[#0a1628] border-r border-cyan-900/30 overflow-y-auto z-10 shadow-2xl">
               {/* Menu Header */}
               <div className="p-5 border-b border-cyan-900/20">
                 <div className="flex items-center justify-between mb-4">
@@ -1510,7 +1495,7 @@ const MainApp = ({ onLogout }) => {
               {/* Menu Items */}
               <div className="py-2">
                 {menuItems.map((m, i) => (
-                  <button key={i} onClick={m.act} className="w-full flex items-center gap-3 px-5 py-3 text-[#B8E6FF]/70 hover:bg-white/[0.05] hover:text-white transition rounded-xl mx-2 w-[calc(100%-16px)]">
+                  <button key={i} onClick={m.act} className="w-full flex items-center gap-3 px-5 py-3 text-gray-300 hover:bg-cyan-900/20 hover:text-white transition">
                     <m.icon className="w-5 h-5 text-gray-500" /><span className="text-sm font-medium">{m.label}</span>
                   </button>
                 ))}
@@ -1519,7 +1504,7 @@ const MainApp = ({ onLogout }) => {
                 <Btn onClick={() => { if(confirm('Save seed first!')) onLogout(); }} color="red" full>
                   <span className="flex items-center justify-center gap-2"><LogOut className="w-4 h-4" />Logout</span>
                 </Btn>
-                <p className="text-gray-700 text-[10px] text-center mt-3">LAC · Zero-History · PoET Mining</p>
+                <p className="text-gray-700 text-[10px] text-center mt-3">LAC v8 · Zero-History · PoET</p>
               </div>
             </div>
           </div>
@@ -1535,7 +1520,7 @@ const MainApp = ({ onLogout }) => {
         </div>
 
         {/* Bottom Navigation */}
-        <nav className="bg-[#070d1e]/95 backdrop-blur-xl border-t border-white/[0.06] flex shrink-0 pb-[env(safe-area-inset-bottom)]">
+        <nav className="bg-[#0a1628] border-t border-cyan-900/20 flex shrink-0 pb-[env(safe-area-inset-bottom)]">
           {[
             { id: 'chats', icon: MessageCircle, label: t('chats') },
             { id: 'wallet', icon: Wallet, label: t('wallet') },
@@ -1545,7 +1530,7 @@ const MainApp = ({ onLogout }) => {
             { id: 'profile', icon: User, label: t('profile') },
           ].map(n => (
             <button key={n.id} onClick={n.isPanic ? handlePanic : () => setTab(n.id)}
-              className={`flex-1 py-3 flex flex-col items-center gap-0.5 transition-all ${n.isPanic ? 'text-red-500' : tab===n.id?'text-[#00E5FF]':'text-[#B8E6FF]/30'}`}>
+              className={`flex-1 py-3 flex flex-col items-center gap-0.5 transition ${n.isPanic ? 'text-red-500 hover:text-red-400' : tab===n.id?'text-cyan-400':'text-gray-600'}`}>
               <n.icon className="w-5 h-5" />
               <span className="text-[10px] font-medium">{n.label}</span>
             </button>
@@ -1986,7 +1971,7 @@ const ChatView = ({ peer, onBack, profile }) => {
   const mergeServer = (serverMsgs) => {
     const local = localMsgs.current;
     // Dedup key: direction + first 50 chars of text + timestamp in 5s window
-    const msgKey = m => (m.direction||'') + '|' + (m.text||m.message||'').slice(0,50) + '|' + Math.floor((m.timestamp||0)/10);
+    const msgKey = m => m.id ? ('id:'+m.id) : ((m.direction||'') + '|' + (m.text||m.message||'').slice(0,80) + '|' + (m.timestamp||0));
     const serverIndex = new Set(serverMsgs.map(msgKey));
     // Remove optimistic msgs that server confirmed
     const surviving = local.filter(m => m._opt && !serverIndex.has(msgKey(m)));
@@ -2668,34 +2653,24 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
       </div>
       {/* Balance Card */}
       <div className="mx-4 mt-4">
-        <div className="relative overflow-hidden rounded-3xl border border-white/[0.08] p-5"
-            style={{background:'linear-gradient(135deg, #0d1e42 0%, #0B1426 50%, #071832 100%)'}}>
-            {/* frost glow */}
-            <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-20"
-              style={{background:'radial-gradient(circle, #00E5FF 0%, transparent 70%)'}} />
-            <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full opacity-10"
-              style={{background:'radial-gradient(circle, #B8E6FF 0%, transparent 70%)'}} />
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[#B8E6FF]/60 text-xs font-medium tracking-wider uppercase">{t('totalBalance')}</p>
-                <LevelBadge level={p.level??0} />
-              </div>
-              <div className="flex items-end gap-2 mb-1">
-                <span className="text-[42px] leading-none font-thin text-white tracking-tight"
-                  style={{fontWeight:100}}>{fmt(p.balance)}</span>
-                <span className="text-[#00E5FF] text-lg font-semibold mb-1">LAC</span>
-              </div>
-              <div className="flex items-center gap-2 mt-3">
-                <span className="text-[#B8E6FF]/40 text-[11px] font-mono">{sAddr(p.address)}</span>
-                <button onClick={() => cp(p.address)} className="text-[#B8E6FF]/30 hover:text-cyan-400 transition"><Copy className="w-3 h-3" /></button>
-              </div>
+        <Card gradient="bg-gradient-to-br from-purple-600 via-blue-600 to-cyan-600 border-purple-500/30">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-xs">{t('totalBalance')}</p>
+              <p className="text-4xl font-bold text-white mt-1">{fmt(p.balance)}</p>
+              <p className="text-purple-200 text-lg">LAC</p>
             </div>
+            <LevelBadge level={p.level??0} />
           </div>
-          <div className="grid grid-cols-2 gap-2 mt-3">
-            <Btn onClick={() => onNav({type:'send'})} color="cyan" small>↗ {t('send')}</Btn>
+          <div className="flex items-center gap-2 mt-3">
+            <span className="text-purple-200/60 text-[11px] font-mono">{sAddr(p.address)}</span>
+            <button onClick={() => cp(p.address)} className="text-purple-200/40 hover:text-white"><Copy className="w-3 h-3" /></button>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            <Btn onClick={() => onNav({type:'send'})} color="emerald" small>↗ {t('send')}</Btn>
             <Btn onClick={async () => { try { const r=await post('/api/faucet'); toast.success(`+${r.added||30} LAC`); onRefresh(); } catch(e){ toast.error(e.message); } }} color="gray" small>🚰 {t('faucet')}</Btn>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Quick Grid */}
@@ -2706,10 +2681,9 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
           {icon:'🎲',label:t('dice'),act:()=>onNav({type:'dice'})},
           {icon:'👥',label:t('contacts'),act:()=>onNav({type:'contacts'})},
         ].map((a,i) => (
-          <button key={i} onClick={a.act}
-            className="flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-white/[0.04] border border-white/[0.06] active:bg-white/[0.08] transition-all">
+          <button key={i} onClick={a.act} className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-[#0a1628] border border-cyan-900/15 active:bg-cyan-900/20">
             <span className="text-xl">{a.icon}</span>
-            <span className="text-[#B8E6FF]/50 text-[10px] font-medium">{a.label}</span>
+            <span className="text-gray-500 text-[10px]">{a.label}</span>
           </button>
         ))}
       </div>
@@ -2717,14 +2691,9 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
       {/* Mining */}
       <div className="mx-4 mt-3">
         <Card>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-cyan-400/10 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-[#00E5FF]" />
-              </div>
-              <span className="text-white text-sm font-semibold">{t('mining')}</span>
-            </div>
-            <button onClick={() => onNav({type:'mining'})} className="text-[#00E5FF]/70 text-xs hover:text-[#00E5FF] transition">{t('miningDetails')} →</button>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2"><Zap className="w-4 h-4 text-cyan-400" /><span className="text-white text-sm font-semibold">{t('mining')}</span></div>
+            <button onClick={() => onNav({type:'mining'})} className="text-cyan-500 text-xs">{t('miningDetails')} →</button>
           </div>
           <MiningMini />
         </Card>
