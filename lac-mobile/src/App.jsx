@@ -2695,7 +2695,7 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
             <Btn onClick={() => onNav({type:'send'})} color="cyan" small>↗ {t('send')}</Btn>
             <Btn onClick={async () => { try { const r=await post('/api/faucet'); toast.success(`+${r.added||30} LAC`); onRefresh(); } catch(e){ toast.error(e.message); } }} color="gray" small>🚰 {t('faucet')}</Btn>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Quick Grid */}
