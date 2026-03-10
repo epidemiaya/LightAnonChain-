@@ -1318,12 +1318,13 @@ const LoginScreen = ({ onAuth }) => {
         <h1 className="text-4xl font-thin text-white mb-1 tracking-wide" style={{fontWeight:100}}>LAC</h1>
         <p className="text-[#00E5FF] text-sm mb-1 tracking-wider">{t('privacyFirst')}</p>
         <p className="text-[#B8E6FF]/30 text-xs mb-8 tracking-widest uppercase">Zero-History · VEIL · STASH · PoET</p>
-      {refCode && <div className="bg-purple-900/20 border border-purple-700/30 rounded-xl px-4 py-2 mb-6"><p className="text-purple-400 text-xs text-center">🎁 Referral: <span className="font-mono font-bold">{refCode}</span> · +50 LAC bonus!</p></div>}
-      <div className="w-full max-w-sm space-y-3">
-        <Btn onClick={create} color="emerald" full loading={loading}>{t('createWallet')}</Btn>
-        <Btn onClick={() => setMode('import')} color="gray" full>{t('importSeed')}</Btn>
+          {refCode && <div className="bg-[#00E5FF]/5 border border-[#00E5FF]/20 rounded-2xl px-4 py-2 mb-4"><p className="text-[#00E5FF]/80 text-xs text-center">🎁 Referral: <span className="font-mono font-bold">{refCode}</span> · +50 LAC bonus!</p></div>}
+          <div className="w-full max-w-sm space-y-3">
+            <Btn onClick={create} color="cyan" full loading={loading}>{t('createWallet')}</Btn>
+            <Btn onClick={() => setMode('import')} color="gray" full>{t('importSeed')}</Btn>
+          </div>
+        </div>
       </div>
-    </div>
   );
 
   if (mode === 'backup') return (
