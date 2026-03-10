@@ -2689,12 +2689,13 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
                 <span className="text-[#B8E6FF]/40 text-[11px] font-mono">{sAddr(p.address)}</span>
                 <button onClick={() => cp(p.address)} className="text-[#B8E6FF]/30 hover:text-cyan-400 transition"><Copy className="w-3 h-3" /></button>
               </div>
-          <div className="grid grid-cols-2 gap-2 mt-4">
-            <Btn onClick={() => onNav({type:'send'})} color="emerald" small>↗ {t('send')}</Btn>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <Btn onClick={() => onNav({type:'send'})} color="cyan" small>↗ {t('send')}</Btn>
             <Btn onClick={async () => { try { const r=await post('/api/faucet'); toast.success(`+${r.added||30} LAC`); onRefresh(); } catch(e){ toast.error(e.message); } }} color="gray" small>🚰 {t('faucet')}</Btn>
           </div>
-                    </div>
-          </div></Card>
+        </Card>
       </div>
 
       {/* Quick Grid */}
