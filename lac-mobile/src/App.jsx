@@ -252,7 +252,7 @@ const i18n = {
     sendNormal:'Звичайний переказ', sendVeil:'VEIL переказ (Анонімний)',
     fee:'Комісія', sendBtn:'Надіслати', sending:'Надсилання…',
     stashTitle:'STASH Пул', anonSafe:'Анонімний сейф',
-    stashDesc:'Депозит → секретний ключ → виведення на БУДЬ-ЯКИЙ гаманець. Нульовий зв'язок.',
+    stashDesc:'Депозит → секретний ключ → виведення на БУДЬ-ЯКИЙ гаманець. Нульовий зв\'язок.',
     deposit:'Депозит', withdraw:'Вивести', savedKeys:'Збережені ключі',
     poolLac:'Пул', activeKeys:'Активні ключі', redeemed:'Використано',
     depositSuccess:'Депозит успішний!', stashKey:'STASH КЛЮЧ — НАТИСНІТЬ ДЛЯ КОПІЮВАННЯ',
@@ -464,7 +464,6 @@ const LevelBadge = ({ level }) => {
       {level >= 7 && <span className="text-white/80 text-[8px] font-bold">GOD</span>}
     </div>
   );
-};
 };
 
 // ━━━ PROFILE TAB ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
