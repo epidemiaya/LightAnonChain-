@@ -6542,29 +6542,25 @@ def chain_stats():
     cached = _cache_get('stats:chain')
     if cached: return jsonify(cached)
     try:
-        # --- Snapshot under lock (~1ms, no chain scan) ---
         with S.lock:
             total_wallets = len(S.wallets)
             
-            # === BLOCK HEIGHT ===
+            # === BLOCK HEIGHT (reliable even after pruning) ===
             if S.chain:
                 block_height = S.chain[-1].get('index', len(S.chain) - 1) + 1
             else:
                 block_height = 0
             
-            # Snapshot wallets (fast copy of just the values we need)
-            wallet_values = list(S.wallets.values())
+            # === GROUND TRUTH #1: Wallet balances ===
+            balances = sorted([w.get('balance', 0) for w in S.wallets.values()], reverse=True)
+            on_wallets = round(sum(balances), 2)
             stash_balance = round(S.stash_pool.get('total_balance', 0), 2)
-            cnt_snapshot = dict(getattr(S, 'counters', {}))
-            chain_snapshot = list(S.chain)  # shallow copy - fast
-        
-        # --- All heavy computation OUTSIDE lock ---
-        balances = sorted([w.get('balance', 0) for w in wallet_values], reverse=True)
-        on_wallets = round(sum(balances), 2)
-        levels = {}
-        for w in wallet_values:
-            lv = w.get('level', 0)
-            levels[f"L{lv}"] = levels.get(f"L{lv}", 0) + 1
+            
+            # === GROUND TRUTH #2: Level distribution ===
+            levels = {}
+            for w in S.wallets.values():
+                lv = w.get('level', 0)
+                levels[f"L{lv}"] = levels.get(f"L{lv}", 0) + 1
         
 
             
@@ -6576,7 +6572,7 @@ def chain_stats():
             
             # === EMISSION: Other sources (from counters + chain scan) ===
             # Counters track real-time events going forward
-            cnt = cnt_snapshot
+            cnt = getattr(S, 'counters', {})
             
             # Chain scan for TX types and supplemental emission data
             chain_faucet = 0
@@ -6588,7 +6584,7 @@ def chain_stats():
             total_tx = 0
             total_l2_msgs = 0
             
-            for b in chain_snapshot:
+            for b in S.chain:
                 total_l2_msgs += len(b.get('ephemeral_msgs', []))
                 txs = b.get('transactions', [])
                 total_tx += len(txs)
@@ -6672,7 +6668,7 @@ def chain_stats():
             # FEES: counter + chain scan fallback
             est_burned_fees = cnt.get('burned_fees', 0)
             if est_burned_fees == 0:
-                for b in chain_snapshot:
+                for b in S.chain:
                     for tx in b.get('transactions', []):
                         fee = tx.get('fee', 0) or 0
                         if fee > 0:
