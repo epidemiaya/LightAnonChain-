@@ -243,6 +243,78 @@ const i18n = {
     // Generic
     loading:'Loading…', error:'Error', success:'Success', cancel:'Cancel', confirm:'Confirm', save:'Save',
     back:'Back', done:'Done', close:'Close', search:'Search', more:'More',
+  
+    // ── Nagini ──
+    naginiTitle:'Nagini', naginiSubtitle:'Geographic Secret Distribution',
+    naginiChecking:'Checking server...',
+    naginiReady:'Ready — Nagini active, seed found',
+    naginiNoSeed:'Seed not found. Please log out and log in again.',
+    naginiUnavailable:'Server does not support Nagini',
+    naginiInstall:'Run: pip install cryptography on the server',
+    naginiConnErr:'Connection error: ',
+    naginiCreate:'Create', naginiNewBundle:'New bundle',
+    naginiRecover:'Recover', naginiHowWorks:'How it works',
+    naginiHow1:'Your seed is split into N shards (Shamir Secret Sharing)',
+    naginiHow2:'Each shard is encrypted with the GPS key of a specific place',
+    naginiHow3:'Collect K shards (visit K places) → seed recovered',
+    naginiHow4:'Without GPS coordinates the shard cannot be decrypted',
+    naginiYourBundles:'Your bundles', naginiLocations:'locations',
+    naginiThreshold:'threshold', naginiActive:'Active',
+    naginiCreateBundle:'Create Bundle', naginiStep:'Step',
+    naginiWhatProtect:'What do you want to protect?',
+    naginiLacSeed:t('naginiLacSeed'), naginiCustomText:'Custom text',
+    naginiSeedFound:'Seed found', naginiWillSplit:'chars) — will be split into shards.',
+    naginiSeedMissing:'Seed missing! Log out and log in again.',
+    naginiSecretPlaceholder:'Secret text, key, or anything important...',
+    naginiLabelPlaceholder:'Label (e.g. Kyiv backup)',
+    naginiNext:'Next →',
+    naginiSetGPS:'Set GPS locations. Each shard is tied to a place.',
+    naginiCanary:'Canary', naginiTrap:'trap',
+    naginiPlaceName:'Place name (e.g. Central Park)',
+    naginiLatitude:'Latitude', naginiLongitude:'Longitude',
+    naginiUseMyLocation:'Use my location now',
+    naginiGettingGPS:'Getting GPS...',
+    naginiAddLocation:'+ Add location',
+    naginiMinLocations:'Minimum locations to recover',
+    naginiAnyOf:'Any', naginiOfLocations:'of',
+    naginiConfirm:'Review & Confirm',
+    naginiSummary:'Summary',
+    naginiSecret:'Secret',
+    naginiWithGPS:'locations with GPS',
+    naginiCanaryAt:'Canary trap at location #',
+    naginiCreating:'Creating...',
+    naginiCreateBtn:'Create Bundle',
+    naginiCreated:'Bundle Created',
+    nagiниBundleId:'Bundle ID',
+    naginiWarning:'Write down the place names separately from this device. GPS coordinates are NOT stored on the server.',
+    naginiDone:'Done',
+    naginiDelete:'Delete Bundle', naginiDeleting:t('naginiDeleting'),
+    naginiConfirmDelete:t('naginiConfirmDelete'),
+    naginiManageDMS:'Manage Dead Man's Switch',
+    naginiSetupDMS:'Setup Dead Man's Switch',
+    naginiStartSession:'Start Recovery Session',
+    naginiStarting:'Starting...',
+    naginiSessionOpen:'Session opened. Start scanning locations.',
+    naginiScanLocation:'Scan Location',
+    naginiScanning:'Scanning...',
+    naginiScanGPS:'Scan with GPS',
+    naginiShardsCollected:'shards collected',
+    naginiNeedMore:'Need', naginiMore:'more',
+    naginiRecovered:'Secret Recovered!',
+    naginiCopied:'Copied to clipboard',
+    naginiCancelSession:'Cancel Session',
+    naginiSelectBundle:'Select bundle to recover',
+    naginiDMSTitle:"Dead Man's Switch",
+    naginiDMSDesc:'If you stop checking in within the set interval, a LAC message is sent to your wallet automatically.',
+    naginiDMSInterval:'Alert interval',
+    naginiOwnerName:'Your name (shown in alert message)',
+    naginiEmergencyMsg:'Emergency message (optional)',
+    naginiAlertInfo:'Alert will be sent as a LAC message to your own wallet if you miss a check-in.',
+    naginiActivateDMS:t('naginiActivateDMS'), naginiActivating:t('naginiActivating'),
+    naginiCheckinNow:'Check In Now — Reset Timer',
+    naginiLastCheckin:'Last check-in', naginiInterval:'Interval',
+    naginiOwner:'Owner', naginiAlertChannel:'Alert channel',
+    naginiUntilAlert:'until alert fires', naginiNever:'Never',
   },
   uk: {
     // Навігація
@@ -318,9 +390,222 @@ const i18n = {
     // Загальне
     loading:'Завантаження…', error:'Помилка', success:'Успіх', cancel:'Скасувати', confirm:'Підтвердити', save:'Зберегти',
     back:'Назад', done:'Готово', close:'Закрити', search:'Пошук', more:'Більше',
+  
+    // ── Nagini ──
+    naginiTitle:'Nagini', naginiSubtitle:'Географічний розподіл секретів',
+    naginiChecking:'Перевірка сервера...',
+    naginiReady:'Готово — Nagini активний, seed знайдено',
+    naginiNoSeed:'Seed не знайдено. Виконайте вихід і вхід знову.',
+    naginiUnavailable:'Сервер не підтримує Nagini',
+    naginiInstall:'Виконайте: pip install cryptography на сервері',
+    naginiConnErr:'Помилка підключення: ',
+    naginiCreate:'Створити', naginiNewBundle:'Новий bundle',
+    naginiRecover:'Відновити', naginiHowWorks:'Як це працює',
+    naginiHow1:'Ваш seed розбивається на N шардів (Shamir Secret Sharing)',
+    naginiHow2:'Кожен шард зашифрований GPS-ключем конкретного місця',
+    naginiHow3:'Зберіть K шардів (відвідайте K місць) → seed відновлено',
+    naginiHow4:'Без GPS-координат шард не розшифрувати',
+    naginiYourBundles:'Ваші bundles', naginiLocations:'локацій',
+    naginiThreshold:'threshold', naginiActive:'Активний',
+    naginiCreateBundle:'Створити Bundle', naginiStep:'Крок',
+    naginiWhatProtect:'Що хочете захистити?',
+    naginiLacSeed:'LAC Seed', naginiCustomText:t('naginiCustomText'),
+    naginiSeedFound:'Seed знайдено', naginiWillSplit:'символів) — буде розбито на шарди.',
+    naginiSeedMissing:'Seed відсутній! Виконайте вихід і вхід знову.',
+    naginiSecretPlaceholder:'Секретний текст, ключ, або будь-що важливе...',
+    naginiLabelPlaceholder:'Назва (напр. Київ backup)',
+    naginiNext:'Далі →',
+    naginiSetGPS:'Встановіть GPS локації. Кожен шард прив'язаний до місця.',
+    naginiCanary:'Canary', naginiTrap:'пастка',
+    naginiPlaceName:'Назва місця (напр. Центральний парк)',
+    naginiLatitude:'Широта', naginiLongitude:'Довгота',
+    naginiUseMyLocation:'Використати моє місце зараз',
+    naginiGettingGPS:'Отримання GPS...',
+    naginiAddLocation:'+ Додати локацію',
+    naginiMinLocations:'Мінімум локацій для відновлення',
+    naginiAnyOf:'Будь-які', naginiOfLocations:'з',
+    naginiConfirm:'Перевірка та підтвердження',
+    naginiSummary:t('naginiSummary'),
+    naginiSecret:'Секрет',
+    naginiWithGPS:'локацій з GPS',
+    naginiCanaryAt:'Canary пастка на локації #',
+    naginiCreating:'Створюю...',
+    naginiCreateBtn:'Створити Bundle',
+    naginiCreated:'Bundle створено',
+    nagiниBundleId:'Bundle ID',
+    naginiWarning:'Запишіть назви місць окремо від пристрою. GPS координати НЕ зберігаються на сервері.',
+    naginiDone:'Готово',
+    naginiDelete:'Видалити Bundle', naginiDeleting:'Видаляю...',
+    naginiConfirmDelete:'Видалити цей bundle? Це незворотно.',
+    naginiManageDMS:'Керувати Dead Man's Switch',
+    naginiSetupDMS:'Налаштувати Dead Man's Switch',
+    naginiStartSession:'Почати сесію відновлення',
+    naginiStarting:'Запускаю...',
+    naginiSessionOpen:'Сесія відкрита. Скануйте локації.',
+    naginiScanLocation:'Сканувати локацію',
+    naginiScanning:'Сканую...',
+    naginiScanGPS:'Сканувати з GPS',
+    naginiShardsCollected:'шардів зібрано',
+    naginiNeedMore:'Потрібно ще', naginiMore:'',
+    naginiRecovered:'Секрет відновлено!',
+    naginiCopied:'Скопійовано в буфер',
+    naginiCancelSession:'Скасувати сесію',
+    naginiSelectBundle:'Оберіть bundle для відновлення',
+    naginiDMSTitle:"Dead Man's Switch",
+    naginiDMSDesc:'Якщо ви перестанете відмічатися протягом заданого інтервалу, LAC повідомлення буде відправлено на ваш гаманець автоматично.',
+    naginiDMSInterval:'Інтервал сповіщення',
+    naginiOwnerName:'Ваше ім'я (відображається в повідомленні)',
+    naginiEmergencyMsg:'Екстрене повідомлення (необов'язково)',
+    naginiAlertInfo:'Сповіщення буде надіслано як LAC повідомлення на ваш гаманець якщо пропустите відмітку.',
+    naginiActivateDMS:'Активувати DMS', naginiActivating:'Активую...',
+    naginiCheckinNow:'Відмітитися зараз — скинути таймер',
+    naginiLastCheckin:'Остання відмітка', naginiInterval:'Інтервал',
+    naginiOwner:'Власник', naginiAlertChannel:'Канал сповіщення',
+    naginiUntilAlert:'до спрацювання', naginiNever:'Ніколи',
+  },
+  ru: {
+    // Navigation
+    chats:'Чаты', wallet:'Кошелёк', explore:'Обзор', profile:'Профиль', panic:'ПАНИКА',
+    // Chat
+    messages:'Сообщения', groups:'Группы', noMessages:'Нет сообщений', startConvo:'Начните разговор',
+    noGroups:'Нет групп', createGroup:'Создать группу', newMessage:'Новое сообщение',
+    ephemeral:'Временное', burnAfterRead:'Сжечь после просмотра', replyTo:'Ответить', online:'онлайн',
+    noMsgYet:'Сообщений пока нет', sendFirst:'Отправьте первое', writeFirst:'Напишите первое',
+    ephAutoDelete:'Сообщения самоудаляются через 5 мин', onChainZH:'On-chain · Zero-History',
+    privateGroup:'Приватная группа · Только по приглашению', groupCopied:'Ссылка скопирована!',
+    enterAddr:'Введите @никнейм или lac1... адрес', startChat:'Начать чат',
+    groupName:'Название группы', groupType:'Тип группы', create:'Создать',
+    public:'Публичная', private:'Приватная', l1:'L1 Блокчейн', l2:'L2 Временная',
+    // Wallet
+    totalBalance:'Общий баланс', send:'Отправить', faucet:'Кран',
+    veil:'VEIL', stash:'STASH', dice:'Кости', contacts:'Контакты',
+    mining:'Майнинг', miningDetails:'Подробнее', levelProgress:'Прогресс уровня',
+    recentTx:'Последние транзакции', viewAll:'Все', noTx:'Нет транзакций',
+    lacEarned:'LAC заработано', active:'Активный', waiting:'Ожидание',
+    refresh:'Обновить', copied:'Скопировано!', copy:'Копировать', share:'Поделиться',
+    recipient:'Получатель', amount:'Сумма', message:'Сообщение',
+    sendNormal:'Обычный перевод', sendVeil:'VEIL перевод (Анонимный)',
+    fee:'Комиссия', sendBtn:'Отправить', sending:'Отправка...',
+    stashTitle:'STASH Пул', anonSafe:'Анонимный сейф',
+    stashDesc:'Депозит -> секретный ключ -> вывод на ЛЮБОЙ кошелёк.',
+    deposit:'Депозит', withdraw:'Вывести', savedKeys:'Сохранённые ключи',
+    poolLac:'Пул', activeKeys:'Активные ключи', redeemed:'Использован',
+    depositSuccess:'Депозит успешен!', stashKey:'STASH КЛЮЧ — НАЖМИТЕ ДЛЯ КОПИРОВАНИЯ',
+    stashWarn:'Любой с этим ключом может вывести средства. Храните его!',
+    withdrawKey:'Вставьте ключ STASH', noKeys:'Нет сохранённых ключей',
+    tapCopy:'Нажмите для копирования', deleteKey:'Удалить', markUsed:'Отметить как использованный',
+    // Mining
+    miningInfo:'Инфо майнинга', blockReward:'Награда за блок',
+    winnersBlock:'Победителей / блок', minBalance:'Мин. баланс', yourBalance:'Ваш баланс',
+    yourLevel:'Ваш уровень', miningChance:'Шанс майнинга',
+    totalEarned:'Всего заработано', recentRewards:'Последние награды', noRewards:'Наград пока нет',
+    miningExplain:'PoET — честный майнинг без затрат энергии',
+    // Dice
+    diceGame:'Игра в кости', placeBet:'Сделать ставку', betAmount:'Сумма ставки',
+    redBlack:'Красное / Чёрное', overUnder:'Больше / Меньше', roll:'Бросить!',
+    youWon:'Вы выиграли!', youLost:'Вы проиграли', gameHistory:'История',
+    // Settings
+    settings:'Настройки', registerUsername:'Зарегистрировать никнейм', getYourName:'Получите свой @никнейм',
+    upgradeLevel:'Повысить уровень', copyAddress:'Копировать адрес', exportSeed:'Экспорт Seed',
+    backupKey:'Сохраните секретный ключ', logout:'Выйти', saveSeedFirst:'Сначала сохраните seed!',
+    language:'Язык', seedWarning:'Ваш seed будет показан.\nУбедитесь что никто не смотрит!\nПоказать?',
+    makeSureSaved:'Убедитесь что seed сохранён!',
+    panicMsg:'Все локальные данные будут удалены. Кошелёк остаётся в сети — войдите снова через seed.',
+    // Dashboard
+    dashboard:'Статистика', supply:'Эмиссия', onWallets:'На кошельках', totalMined:'Всего намайнено',
+    burnedForever:'Сожжено навсегда', inStash:'В пуле STASH', totalEmitted:'Всего эмитировано',
+    blocks:'Блоки', wallets:'Кошельки', txCount:'TX', allTimeTx:'Транзакции за всё время',
+    normal:'Обычные', burns:'Сжигания', usernames:'Никнеймы',
+    topBalances:'Топ балансов', levelDist:'Распределение уровней',
+    walletsCount:'кошельков', l2encrypted:'L2 зашифрованных (авто-удалены)',
+    diceLost:'Проиграно в кости', diceWon:'Выиграно в кости',
+    // Explorer
+    explorer:'Обозреватель', loadingBlocks:'Загрузка блоков...', time:'Время', miner:'Майнер',
+    transactions:'Транзакции', noTxInBlock:'Нет транзакций',
+    anonymous:'Анонимный', from:'От', to:'Кому',
+    // Contacts
+    noContacts:'Нет контактов', addContact:'Добавить контакт', enterContact:'Введите @никнейм или lac1...',
+    add:'Добавить', timeLock:'Time-Lock', lockFunds:'Заблокировать средства на будущее',
+    // Login
+    welcome:'Добро пожаловать в LAC', privacyFirst:'Блокчейн с защитой приватности',
+    createWallet:'Создать кошелёк', importSeed:'Импортировать Seed',
+    backupSeed:'Сохраните ваш Seed', writeSeedDown:'Запишите! Потерянный seed = потерянный кошелёк.',
+    seedSaved:'Я сохранил seed', enterSeed:'Введите seed-фразу', loginBtn:'Войти',
+    // Common
+    loading:'Загрузка...', error:'Ошибка', success:'Успех',
+    cancel:'Отмена', confirm:'Подтвердить', save:'Сохранить',
+    back:'Назад', done:'Готово', close:'Закрыть', search:'Поиск', more:'Ещё',
+    // Nagini
+    naginiTitle:'Nagini', naginiSubtitle:'Географическое распределение секретов',
+    naginiChecking:'Проверка сервера...',
+    naginiReady:'Готово — Nagini активен, seed найден',
+    naginiNoSeed:'Seed не найден. Выйдите и войдите снова.',
+    naginiUnavailable:'Сервер не поддерживает Nagini',
+    naginiInstall:'Выполните: pip install cryptography на сервере',
+    naginiConnErr:'Ошибка подключения: ',
+    naginiCreate:'Создать', naginiNewBundle:'Новый bundle',
+    naginiRecover:'Восстановить', naginiHowWorks:'Как это работает',
+    naginiHow1:'Ваш seed разбивается на N шардов (Shamir Secret Sharing)',
+    naginiHow2:'Каждый шард зашифрован GPS-ключом конкретного места',
+    naginiHow3:'Соберите K шардов (посетите K мест) — seed восстановлен',
+    naginiHow4:'Без GPS-координат шард не расшифровать',
+    naginiYourBundles:'Ваши bundles', naginiLocations:'локаций',
+    naginiThreshold:'порог', naginiActive:'Активный',
+    naginiCreateBundle:'Создать Bundle', naginiStep:'Шаг',
+    naginiWhatProtect:'Что хотите защитить?',
+    naginiLacSeed:'LAC Seed', naginiCustomText:'Свой текст',
+    naginiSeedFound:'Seed найден', naginiWillSplit:'символов) — будет разбит на шарды.',
+    naginiSeedMissing:'Seed отсутствует! Выйдите и войдите снова.',
+    naginiSecretPlaceholder:'Секретный текст, ключ, или что-то важное...',
+    naginiLabelPlaceholder:'Название (напр. Kyiv backup)',
+    naginiNext:'Далее →',
+    naginiSetGPS:'Установите GPS локации. Каждый шард привязан к месту.',
+    naginiCanary:'Canary', naginiTrap:'ловушка',
+    naginiPlaceName:'Название места (напр. Центральный парк)',
+    naginiLatitude:'Широта', naginiLongitude:'Долгота',
+    naginiUseMyLocation:'Использовать моё место сейчас',
+    naginiGettingGPS:'Получение GPS...',
+    naginiAddLocation:'+ Добавить локацию',
+    naginiMinLocations:'Минимум локаций для восстановления',
+    naginiAnyOf:'Любые', naginiOfLocations:'из',
+    naginiConfirm:'Проверка и подтверждение',
+    naginiSummary:'Итог', naginiSecret:'Секрет',
+    naginiWithGPS:'локаций с GPS',
+    naginiCanaryAt:'Canary ловушка на локации #',
+    naginiCreating:'Создаю...', naginiCreateBtn:'Создать Bundle',
+    naginiCreated:'Bundle создан', nagiниBundleId:'Bundle ID',
+    naginiWarning:'Запишите названия мест отдельно от устройства. GPS координаты НЕ хранятся на сервере.',
+    naginiDone:'Готово',
+    naginiDelete:'Удалить Bundle', naginiDeleting:'Удаляю...',
+    naginiConfirmDelete:'Удалить этот bundle? Это необратимо.',
+    naginiManageDMS:'Управлять Dead Man\'s Switch',
+    naginiSetupDMS:'Настроить Dead Man\'s Switch',
+    naginiStartSession:'Начать сессию восстановления',
+    naginiStarting:'Запускаю...',
+    naginiSessionOpen:'Сессия открыта. Сканируйте локации.',
+    naginiScanLocation:'Сканировать локацию',
+    naginiScanning:'Сканирую...',
+    naginiScanGPS:'Сканировать с GPS',
+    naginiShardsCollected:'шардов собрано',
+    naginiNeedMore:'Нужно ещё', naginiMore:'',
+    naginiRecovered:'Секрет восстановлен!',
+    naginiCopied:'Скопировано в буфер',
+    naginiCancelSession:'Отменить сессию',
+    naginiSelectBundle:'Выберите bundle для восстановления',
+    naginiDMSTitle:"Dead Man's Switch",
+    naginiDMSDesc:'Если вы перестанете отмечаться — LAC сообщение отправится на ваш кошелёк автоматически.',
+    naginiDMSInterval:'Интервал оповещения',
+    naginiOwnerName:'Ваше имя (в сообщении)',
+    naginiEmergencyMsg:'Экстренное сообщение (необязательно)',
+    naginiAlertInfo:'Оповещение будет отправлено как LAC сообщение на ваш кошелёк при пропуске отметки.',
+    naginiActivateDMS:'Активировать DMS', naginiActivating:'Активирую...',
+    naginiCheckinNow:'Отметиться сейчас — сбросить таймер',
+    naginiLastCheckin:'Последняя отметка', naginiInterval:'Интервал',
+    naginiOwner:'Владелец', naginiAlertChannel:'Канал оповещения',
+    naginiUntilAlert:'до срабатывания', naginiNever:'Никогда',
   }
 };
-const getLang = () => localStorage.getItem('lac_lang') || 'en';
+const getLang = () => { const l = localStorage.getItem('lac_lang'); return ['en','uk','ru'].includes(l) ? l : 'en'; };
 const LangCtx = React.createContext({ lang: 'en', setLang: () => {}, t: (k) => k });
 const useT = () => React.useContext(LangCtx);
 
@@ -525,10 +810,10 @@ const NaginiView = ({ onBack, profile }) => {
       try {
         const r = await get('/api/nagini/status');
         setAvailable(r.available);
-        if (!r.available) setDebug('❌ pip install cryptography — пакет не встановлено на сервері!');
+        if (!r.available) setDebug(t('naginiInstall'));
       } catch(e) {
         setAvailable(false);
-        setDebug('❌ Помилка підключення до сервера: ' + e.message);
+        setDebug(t('naginiConnErr') + e.message);
       }
       try {
         const r2 = await get('/api/nagini/bundles');
@@ -558,10 +843,10 @@ const NaginiView = ({ onBack, profile }) => {
           available ? (hasSeed ? 'bg-emerald-900/20 border-emerald-800/30 text-emerald-400' : 'bg-amber-900/20 border-amber-800/30 text-amber-400') :
           'bg-red-900/20 border-red-800/30 text-red-400'
         }`}>
-          {available === null && '⏳ Перевірка сервера...'}
-          {available === true && hasSeed && '✅ Готово — Nagini активний, seed знайдено'}
-          {available === true && !hasSeed && '⚠️ Seed не знайдено. Виконайте вихід і вхід знову.'}
-          {available === false && (debug || '❌ Сервер не підтримує Nagini')}
+          {available === null && t('naginiChecking')}
+          {available === true && hasSeed && t('naginiReady')}
+          {available === true && !hasSeed && t('naginiNoSeed')}
+          {available === false && (debug || t('naginiUnavailable'))}
         </div>
 
         {/* Actions */}
@@ -570,13 +855,13 @@ const NaginiView = ({ onBack, profile }) => {
             <button onClick={() => setScreen('setup')}
               className="p-4 rounded-2xl bg-emerald-900/20 border border-emerald-800/30 text-center active:bg-emerald-900/40">
               <div className="text-2xl mb-1">🔐</div>
-              <div className="text-emerald-400 text-sm font-semibold">Створити</div>
-              <div className="text-gray-500 text-[10px]">Новий bundle</div>
+              <div className="text-emerald-400 text-sm font-semibold">{t('naginiCreate')}</div>
+              <div className="text-gray-500 text-[10px]">{t('naginiNewBundle')}</div>
             </button>
             <button onClick={() => setScreen('recover')} disabled={bundles.length === 0}
               className="p-4 rounded-2xl bg-blue-900/20 border border-blue-800/30 text-center active:bg-blue-900/40 disabled:opacity-40">
               <div className="text-2xl mb-1">🔓</div>
-              <div className="text-blue-400 text-sm font-semibold">Відновити</div>
+              <div className="text-blue-400 text-sm font-semibold">{t('naginiRecover')}</div>
               <div className="text-gray-500 text-[10px]">{bundles.length} bundle{bundles.length !== 1 ? 's' : ''}</div>
             </button>
           </div>
@@ -585,7 +870,7 @@ const NaginiView = ({ onBack, profile }) => {
         {/* Bundle list */}
         {bundles.length > 0 && (
           <div>
-            <div className="text-gray-500 text-xs font-medium mb-2">Ваші bundles</div>
+            <div className="text-gray-500 text-xs font-medium mb-2">{t('naginiYourBundles')}</div>
             {bundles.map(b => (
               <button key={b.bundle_id} onClick={() => { setSelBundle(b); setScreen('bundle'); }}
                 className="w-full flex items-center justify-between p-3 rounded-xl bg-[#0d1a12]/80 border border-emerald-900/20 mb-2 active:bg-emerald-900/20">
@@ -602,10 +887,10 @@ const NaginiView = ({ onBack, profile }) => {
         {/* How it works */}
         <div className="bg-[#0d1a12]/60 border border-emerald-900/20 rounded-xl p-3 text-xs text-gray-500 space-y-1">
           <div className="text-emerald-400 font-semibold mb-1">🐍 Як це працює</div>
-          <div>1. Твій seed розбивається на N шардів (Shamir Secret Sharing)</div>
-          <div>2. Кожен шард зашифрований GPS-ключем конкретного місця</div>
-          <div>3. Зібери K шардів (відвідай K місць) → seed відновлено</div>
-          <div>4. Без GPS-координат шард не розшифрувати</div>
+          <div>1. {t('naginiHow1')}</div>
+          <div>2. {t('naginiHow2')}</div>
+          <div>3. {t('naginiHow3')}</div>
+          <div>4. {t('naginiHow4')}</div>
         </div>
       </div>
     </div>
@@ -653,13 +938,13 @@ const NaginiSetup = ({ onBack }) => {
     let secretB64 = '';
     if (secretType === 'seed') {
       const seed = localStorage.getItem('lac_seed') || '';
-      if (!seed) { toast.error('❌ Seed не знайдено! Перезайдіть в акаунт.'); return; }
+      if (!seed) { toast.error(t('naginiSeedMissing')); return; }
       // Safe base64: use Uint8Array→btoa method
       const enc2 = new TextEncoder().encode(seed);
       secretB64 = btoa(String.fromCharCode(...enc2));
       setLog(`Seed: ${seed.slice(0,8)}... (${seed.length} chars) → b64 len=${secretB64.length}`);
     } else {
-      if (!customSecret.trim()) { toast.error('Введіть секретний текст'); return; }
+      if (!customSecret.trim()) { toast.error(t('naginiSecretPlaceholder').split('...')[0]+'...'); return; }
       const encC = new TextEncoder().encode(customSecret.trim());
       secretB64 = btoa(String.fromCharCode(...encC));
     }
@@ -696,7 +981,7 @@ const NaginiSetup = ({ onBack }) => {
 
   if (step === 99 && result) return (
     <div className="flex flex-col h-full">
-      <Header title="✅ Bundle створено" onBack={onBack} />
+      <Header title={t('naginiCreated')} onBack={onBack} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="text-center py-6">
           <div className="text-5xl mb-3">✅</div>
@@ -722,9 +1007,9 @@ const NaginiSetup = ({ onBack }) => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Step 1: Secret */}
         {step === 1 && <>
-          <div className="text-gray-400 text-sm">Що хочеш захистити?</div>
+          <div className="text-gray-400 text-sm">{t('naginiWhatProtect')}</div>
           <div className="grid grid-cols-2 gap-2">
-            {[['seed','🔑 LAC Seed'],['custom','✏️ Свій текст']].map(([v,l]) => (
+            {[['seed',('🔑 ' + t('naginiLacSeed'))],['custom',('✏️ ' + t('naginiCustomText'))]].map(([v,l]) => (
               <button key={v} onClick={() => setSecretType(v)}
                 className={`p-3 rounded-xl border text-sm transition-all ${secretType===v?'border-emerald-500 bg-emerald-900/20 text-emerald-400':'border-gray-800 text-gray-500'}`}>
                 {l}
@@ -736,13 +1021,13 @@ const NaginiSetup = ({ onBack }) => {
               ? 'bg-emerald-900/10 border-emerald-800/20 text-emerald-400'
               : 'bg-red-900/20 border-red-700/30 text-red-400'}`}>
               {localStorage.getItem('lac_seed')
-                ? `✅ Seed знайдено (${localStorage.getItem('lac_seed').length} символів). Буде розбито на шарди.`
-                : '❌ Seed відсутній! Виконайте вихід і вхід знову.'}
+                ? `✅ ${t('naginiSeedFound')} (${localStorage.getItem('lac_seed').length} ${t('naginiWillSplit')}`
+                : t('naginiSeedMissing')}
             </div>
           )}
           {secretType === 'custom' && (
             <textarea value={customSecret} onChange={e => setCustomSecret(e.target.value)}
-              placeholder="Секретний текст, ключ, або будь-що важливе..."
+              {...{placeholder: t('naginiSecretPlaceholder')}}
               className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl p-3 text-white text-sm resize-none h-24" />
           )}
           <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Назва (напр. Kyiv backup)" />
@@ -754,12 +1039,12 @@ const NaginiSetup = ({ onBack }) => {
 
         {/* Step 2: Locations */}
         {step === 2 && <>
-          <div className="text-gray-400 text-sm">Встанови GPS локації. Кожен шард прив'язаний до місця.</div>
+          <div className="text-gray-400 text-sm">{t('naginiSetGPS')}</div>
           {locations.map((loc, i) => (
             <div key={i} className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${canaryIdx===i?'bg-amber-900/40 text-amber-400':'bg-emerald-900/30 text-emerald-500'}`}>
-                  {canaryIdx===i ? '🪤 Canary' : `#${i+1}`}
+                  {canaryIdx===i ? ('🪤 ' + t('naginiCanary')) : `#${i+1}`}
                 </span>
                 <div className="flex gap-2">
                   <button onClick={() => setCanaryIdx(canaryIdx===i ? null : i)}
@@ -772,16 +1057,16 @@ const NaginiSetup = ({ onBack }) => {
                 </div>
               </div>
               <Input value={loc.name} onChange={e => setLoc(i,'name',e.target.value)}
-                placeholder={`Місце #${i+1} (напр. Центральний парк)`} />
+                {...{placeholder: t('naginiPlaceName')}} />
               <div className="grid grid-cols-2 gap-2">
                 <input value={loc.lat} onChange={e => setLoc(i,'lat',e.target.value)}
-                  placeholder="Широта" className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
+                  {...{placeholder: t('naginiLatitude')}} className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
                 <input value={loc.lon} onChange={e => setLoc(i,'lon',e.target.value)}
-                  placeholder="Довгота" className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
+                  {...{placeholder: t('naginiLongitude')}} className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
               </div>
               <button onClick={() => getGPS(i)} disabled={locating===i}
                 className="w-full text-xs py-2 rounded-lg bg-emerald-900/20 border border-emerald-900/30 text-emerald-500 disabled:opacity-50">
-                {locating===i ? '📡 GPS...' : '📍 Використати моє місце зараз'}
+                {locating===i ? t('naginiGettingGPS') : t('naginiUseMyLocation')}
               </button>
               {loc.lat && loc.lon && <div className="text-emerald-600 text-[10px]">✓ {parseFloat(loc.lat).toFixed(5)}, {parseFloat(loc.lon).toFixed(5)}</div>}
             </div>
@@ -793,7 +1078,7 @@ const NaginiSetup = ({ onBack }) => {
             </button>
           )}
           <div className="bg-[#0d1a12]/60 rounded-xl p-3">
-            <div className="text-gray-400 text-xs mb-2">Мінімум локацій для відновлення</div>
+            <div className="text-gray-400 text-xs mb-2">{t('naginiMinLocations')}</div>
             <div className="flex gap-2">
               {Array.from({length: locations.length-1}, (_,i) => i+2).map(v => (
                 <button key={v} onClick={() => setThreshold(v)}
@@ -812,10 +1097,10 @@ const NaginiSetup = ({ onBack }) => {
 
         {/* Step 3: Confirm */}
         {step === 3 && <>
-          <div className="text-gray-400 text-sm">Перевір і підтвердь</div>
+          <div className="text-gray-400 text-sm">{t('naginiConfirm')}</div>
           <div className="bg-[#0d1a12]/60 rounded-xl p-3 text-xs text-gray-400 space-y-1">
             <div className="text-emerald-400 font-semibold mb-1">Підсумок</div>
-            <div>• Секрет: {secretType === 'seed' ? `LAC Seed (${(localStorage.getItem('lac_seed')||'').length} chars)` : 'Свій текст'}</div>
+            <div>• {t('naginiSecret')}: {secretType === 'seed' ? `LAC Seed (${(localStorage.getItem('lac_seed')||'').length} chars)` : 'Свій текст'}</div>
             <div>• {locations.filter(l=>l.lat&&l.lon).length} локацій з GPS</div>
             <div>• Threshold: {threshold} з {locations.length}</div>
             {canaryIdx !== null && <div>• Canary пастка на локації #{canaryIdx+1} 🪤</div>}
@@ -824,7 +1109,7 @@ const NaginiSetup = ({ onBack }) => {
             <div className="bg-black/40 rounded-xl p-3 text-[10px] font-mono text-gray-400 whitespace-pre-wrap break-all">{log}</div>
           ) : null}
           <Btn onClick={submit} disabled={loading} className="w-full bg-emerald-600 py-4 text-base">
-            {loading ? '⏳ Створюю...' : '✅ Створити Bundle'}
+            {loading ? t('naginiCreating') : ('✅ ' + t('naginiCreateBtn'))}
           </Btn>
         </>}
       </div>
@@ -861,10 +1146,10 @@ const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
           ))}
         </div>
         <Btn onClick={onDMS} className="w-full bg-[#0d1a12] border border-emerald-800/40 text-emerald-400">
-          ⏰ {bundle.has_dms ? 'Manage' : 'Setup'} Dead Man's Switch
+          ⏰ {bundle.has_dms ? t('naginiManageDMS') : t('naginiSetupDMS')}
         </Btn>
         <Btn onClick={del} disabled={deleting} className="w-full bg-red-900/20 border border-red-800/30 text-red-400">
-          {deleting ? 'Deleting...' : '🗑 Delete Bundle'}
+          {deleting ? 'Deleting...' : ('🗑 ' + t('naginiDelete'))}
         </Btn>
       </div>
     </div>
@@ -890,9 +1175,9 @@ const NaginiRecover = ({ onBack, bundles }) => {
         setSessionId(r.session_id);
         setSessionInfo({ n: r.n, threshold: r.threshold, label: r.label });
         setCollected(0);
-        toast.success('✅ Сесія відкрита. Скануй локації.');
+        toast.success('✅ ' + t('naginiSessionOpen'));
       } else {
-        toast.error('❌ ' + (r.error || 'Помилка'));
+        toast.error('❌ ' + (r.error || t('error')));
       }
     } catch(e) { toast.error('❌ ' + e.message); }
     setStarting(false);
@@ -1099,7 +1384,7 @@ const NaginiDMS = ({ onBack, bundle }) => {
     setLoading(true);
     try {
       const r = await post('/api/nagini/dms/setup', { bundle_id: bundle.bundle_id, ...form });
-      if (r.ok) { toast.success('DMS activated!'); setStatus({ ...r, configured: true, hours_left: form.interval_hours }); }
+      if (r.ok) { toast.success(t('naginiActivateDMS') + '!'); setStatus({ ...r, configured: true, hours_left: form.interval_hours }); }
       else toast.error(r.error || 'Failed');
     } finally { setLoading(false); }
   };
@@ -1109,7 +1394,7 @@ const NaginiDMS = ({ onBack, bundle }) => {
     try {
       const r = await post('/api/nagini/dms/checkin', { bundle_id: bundle.bundle_id });
       if (r.ok) {
-        toast.success('✅ Checked in! Timer reset.');
+        toast.success('✅ ' + t('naginiCheckinNow').split('—')[1]?.trim() || 'Timer reset!');
         const hoursLeft = form.interval_hours || status?.interval_hours || 24;
         setStatus(s => ({ ...s, last_checkin: r.last_checkin, hours_left: hoursLeft }));
       }
@@ -1144,7 +1429,7 @@ const NaginiDMS = ({ onBack, bundle }) => {
               </div>
             ))}
             <Btn onClick={checkin} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 py-4 text-base font-semibold">
-              {loading ? 'Saving...' : '✅ Check In Now — Reset Timer'}
+              {loading ? t('naginiActivating') : t('naginiCheckinNow')}
             </Btn>
           </>
         ) : (
@@ -1548,7 +1833,7 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
     // Poll as fallback — WS handles real-time, poll only catches missed events
     const i = setInterval(() => {
       if (!document.hidden && !_wsConnected) load();
-      else if (!document.hidden) load(); // light refresh even with WS
+      // WS connected - skip poll, WS push handles real-time
     }, 30000);
     return () => clearInterval(i);
   }, []);
@@ -1940,7 +2225,7 @@ const ChatView = ({ peer, onBack, profile }) => {
   const mergeServer = (serverMsgs) => {
     const local = localMsgs.current;
     // Dedup key: direction + first 50 chars of text + timestamp in 5s window
-    const msgKey = m => (m.direction||'') + '|' + (m.text||m.message||'').slice(0,50) + '|' + Math.floor((m.timestamp||0)/10);
+    const msgKey = m => m.id ? ('id:'+m.id) : ((m.direction||'')+'|'+(m.text||m.message||'').slice(0,80)+'|'+(m.timestamp||0));
     const serverIndex = new Set(serverMsgs.map(msgKey));
     // Remove optimistic msgs that server confirmed
     const surviving = local.filter(m => m._opt && !serverIndex.has(msgKey(m)));
@@ -3941,8 +4226,8 @@ const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
             if(show){ cp(s); prompt('Your seed (copied to clipboard):', s); }
           } else { toast.error('No seed found'); }
         }} />
-        <ListItem icon={<Globe className="w-5 h-5 text-cyan-400"/>} title={t('language')} sub={lang==='uk'?'🇺🇦 Українська':'🇬🇧 English'}
-          onClick={() => setLang(lang==='uk'?'en':'uk')} />
+        <ListItem icon={<Globe className="w-5 h-5 text-cyan-400"/>} title={t('language')} sub={lang==='uk'?'🇺🇦 Українська':lang==='ru'?'🇷🇺 Русский':'🇬🇧 English'}
+          onClick={() => setLang(lang==='uk'?'ru':lang==='ru'?'en':'uk')} />
         <ListItem icon={<span className="text-lg">🤝</span>} title="Referral" sub="Invite friends, earn LAC"
           onClick={() => onNav({type:'referral'})} />
           <ListItem icon={<span className="text-lg">🐍</span>} title="Nagini" sub="Geographic secret backup"

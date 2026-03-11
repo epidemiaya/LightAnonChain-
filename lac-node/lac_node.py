@@ -2198,6 +2198,7 @@ def send_message():
         
         # Create message
         msg = {
+            'id': str(uuid.uuid4()),
             'from': from_display,
             'from_address': from_addr,
             'to': to_address,
