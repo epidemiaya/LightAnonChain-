@@ -1523,7 +1523,7 @@ def ping():
 def register():
     """Register new wallet"""
     ip = get_client_ip()
-    if not rate_limit_check(ip, max_requests=5, window=3600):
+    if not rate_limit_check(ip, max_requests=20, window=3600):
         return jsonify({'error': 'Rate limit exceeded'}), 429
     
     data = request.get_json() or {}
@@ -1552,7 +1552,7 @@ def register():
                 pass
         
         S.wallets[addr] = {
-            'balance': 0,
+            'balance': 30,  # Welcome bonus — enough to start
             'level': 0,
             'key_id': key_id,
             'created_at': int(time.time()),
@@ -1601,16 +1601,17 @@ def register():
                         'timestamp': int(time.time()),
                     })
         
-        S.save()
-        
-        return jsonify({
-            'ok': True,
-            'address': addr,
-            'username': username or 'Anonymous',
-            'balance': ref_bonus,
-            'level': 0,
-            'ref_bonus': ref_bonus
-        })
+    S.counters['emitted_faucet'] = S.counters.get('emitted_faucet', 0) + 30  # welcome bonus
+    _schedule_save()
+    
+    return jsonify({
+        'ok': True,
+        'address': addr,
+        'username': username or 'Anonymous',
+        'balance': ref_bonus,
+        'level': 0,
+        'ref_bonus': ref_bonus
+    })
 
 @app.route('/api/crypto/status', methods=['GET'])
 def crypto_status_endpoint():
