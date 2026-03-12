@@ -71,7 +71,7 @@ const api = async (path, opts = {}) => {
   const h = { 'Content-Type': 'application/json' };
   if (seed) h['X-Seed'] = seed;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000); // 12s max
+  const timeout = setTimeout(() => controller.abort(), 5000); // 5s max
   try {
     const r = await fetch(API_BASE + path, {
       method: opts.method || 'GET',
@@ -85,7 +85,7 @@ const api = async (path, opts = {}) => {
     return d;
   } catch(e) {
     clearTimeout(timeout);
-    if (e.name === 'AbortError') throw new Error('Timeout (12s) — сервер не відповів');
+    if (e.name === 'AbortError') throw new Error('Timeout (5s) — server did not respond');
     throw e;
   }
 };
@@ -278,6 +278,7 @@ const i18n = {
     naginiCheckinNow:"Check In Now - Reset Timer", naginiLastCheckin:"Last check-in",
     naginiInterval:"Interval", naginiOwner:"Owner", naginiAlertChannel:"Alert channel",
     naginiUntilAlert:"until alert fires", naginiNever:"Never",
+    menuTitle:"Menu", deadManSwitch:"Dead Man's Switch", usernameMenu:"Username", validatorMenu:"Validator",
   },
   uk: {
     chats:"Чати", wallet:"Гаманець", explore:"Огляд", profile:"Профіль", panic:"ПАНІК",
@@ -388,6 +389,7 @@ const i18n = {
     naginiCheckinNow:"Відмітитися зараз - скинути таймер", naginiLastCheckin:"Остання відмітка",
     naginiInterval:"Інтервал", naginiOwner:"Власник", naginiAlertChannel:"Канал сповіщення",
     naginiUntilAlert:"до спрацювання", naginiNever:"Ніколи",
+    menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Нікнейм", validatorMenu:"Валідатор",
   },
   ru: {
     chats:"Чаты", wallet:"Кошелёк", explore:"Обзор", profile:"Профиль", panic:"ПАНИКА",
@@ -498,6 +500,7 @@ const i18n = {
     naginiCheckinNow:"Отметиться сейчас - сбросить таймер", naginiLastCheckin:"Последняя отметка",
     naginiInterval:"Интервал", naginiOwner:"Владелец", naginiAlertChannel:"Канал оповещения",
     naginiUntilAlert:"до срабатывания", naginiNever:"Никогда",
+    menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Никнейм", validatorMenu:"Валидатор",
   }
 }
 const getLang = () => { const l = localStorage.getItem('lac_lang'); return ['en','uk','ru'].includes(l) ? l : 'en'; };
@@ -697,6 +700,7 @@ const NaginiView = ({ onBack, profile }) => {
   const [available, setAvailable] = useState(null);
   const [debug, setDebug] = useState('');
   const [loading, setLoading] = useState(true);
+  const { t } = useT();
 
   const hasSeed = !!localStorage.getItem('lac_seed');
 
@@ -738,10 +742,10 @@ const NaginiView = ({ onBack, profile }) => {
           available ? (hasSeed ? 'bg-emerald-900/20 border-emerald-800/30 text-emerald-400' : 'bg-amber-900/20 border-amber-800/30 text-amber-400') :
           'bg-red-900/20 border-red-800/30 text-red-400'
         }`}>
-          {available === null && '⏳ Перевірка сервера...'}
-          {available === true && hasSeed && '✅ Готово — Nagini активний, seed знайдено'}
-          {available === true && !hasSeed && '⚠️ Seed не знайдено. Виконайте вихід і вхід знову.'}
-          {available === false && (debug || '❌ Сервер не підтримує Nagini')}
+          {available === null && `⏳ ${t('naginiChecking')}`}
+          {available === true && hasSeed && `✅ ${t('naginiReady')}`}
+          {available === true && !hasSeed && `⚠️ ${t('naginiNoSeed')}`}
+          {available === false && (debug || `❌ ${t('naginiUnavailable')}`)}
         </div>
 
         {/* Actions */}
@@ -750,13 +754,13 @@ const NaginiView = ({ onBack, profile }) => {
             <button onClick={() => setScreen('setup')}
               className="p-4 rounded-2xl bg-emerald-900/20 border border-emerald-800/30 text-center active:bg-emerald-900/40">
               <div className="text-2xl mb-1">🔐</div>
-              <div className="text-emerald-400 text-sm font-semibold">Створити</div>
-              <div className="text-gray-500 text-[10px]">Новий bundle</div>
+              <div className="text-emerald-400 text-sm font-semibold">{t('naginiCreate')}</div>
+              <div className="text-gray-500 text-[10px]">{t('naginiNewBundle')}</div>
             </button>
             <button onClick={() => setScreen('recover')} disabled={bundles.length === 0}
               className="p-4 rounded-2xl bg-blue-900/20 border border-blue-800/30 text-center active:bg-blue-900/40 disabled:opacity-40">
               <div className="text-2xl mb-1">🔓</div>
-              <div className="text-blue-400 text-sm font-semibold">Відновити</div>
+              <div className="text-blue-400 text-sm font-semibold">{t('naginiRecover')}</div>
               <div className="text-gray-500 text-[10px]">{bundles.length} bundle{bundles.length !== 1 ? 's' : ''}</div>
             </button>
           </div>
@@ -765,13 +769,13 @@ const NaginiView = ({ onBack, profile }) => {
         {/* Bundle list */}
         {bundles.length > 0 && (
           <div>
-            <div className="text-gray-500 text-xs font-medium mb-2">Ваші bundles</div>
+            <div className="text-gray-500 text-xs font-medium mb-2">{t('naginiYourBundles')}</div>
             {bundles.map(b => (
               <button key={b.bundle_id} onClick={() => { setSelBundle(b); setScreen('bundle'); }}
                 className="w-full flex items-center justify-between p-3 rounded-xl bg-[#0d1a12]/80 border border-emerald-900/20 mb-2 active:bg-emerald-900/20">
                 <div className="text-left">
                   <div className="text-white text-sm font-medium">{b.label || 'Bundle'}</div>
-                  <div className="text-gray-500 text-[10px]">{b.n} локацій · threshold {b.threshold} · {b.has_canary ? '🪤' : ''}{b.has_dms ? '⏰' : ''}</div>
+                  <div className="text-gray-500 text-[10px]">{b.n} {t('naginiLocations')} · {t('naginiThreshold')} {b.threshold} · {b.has_canary ? '🪤' : ''}{b.has_dms ? '⏰' : ''}</div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-600" />
               </button>
@@ -781,11 +785,11 @@ const NaginiView = ({ onBack, profile }) => {
 
         {/* How it works */}
         <div className="bg-[#0d1a12]/60 border border-emerald-900/20 rounded-xl p-3 text-xs text-gray-500 space-y-1">
-          <div className="text-emerald-400 font-semibold mb-1">🐍 Як це працює</div>
-          <div>1. Твій seed розбивається на N шардів (Shamir Secret Sharing)</div>
-          <div>2. Кожен шард зашифрований GPS-ключем конкретного місця</div>
-          <div>3. Зібери K шардів (відвідай K місць) → seed відновлено</div>
-          <div>4. Без GPS-координат шард не розшифрувати</div>
+          <div className="text-emerald-400 font-semibold mb-1">🐍 {t('naginiHowWorks')}</div>
+          <div>1. {t('naginiHow1')}</div>
+          <div>2. {t('naginiHow2')}</div>
+          <div>3. {t('naginiHow3')}</div>
+          <div>4. {t('naginiHow4')}</div>
         </div>
       </div>
     </div>
@@ -1508,7 +1512,7 @@ const MainApp = ({ onLogout }) => {
     reload();
     const i = setInterval(() => {
       if (!document.hidden) reload();
-    }, 30000); // 30s — profile changes rarely
+    }, 60000); // 60s — profile changes rarely
     return () => clearInterval(i);
   }, [reload]);
 
@@ -1603,15 +1607,15 @@ const MainApp = ({ onLogout }) => {
   }
 
   const menuItems = [
-    { icon: User, label: 'Profile', act: () => { setTab('profile'); setMenuOpen(false); } },
-    { icon: Activity, label: 'Explorer', act: () => { setSub({type:'explorer'}); setMenuOpen(false); } },
-    { icon: Zap, label: 'Mining', act: () => { setSub({type:'mining'}); setMenuOpen(false); } },
-    { icon: Timer, label: 'Time-Lock', act: () => { setSub({type:'timelock'}); setMenuOpen(false); } },
-    { icon: Skull, label: 'Dead Man Switch', act: () => { setSub({type:'dms'}); setMenuOpen(false); } },
-    { icon: Lock, label: 'STASH Pool', act: () => { setSub({type:'stash'}); setMenuOpen(false); } },
-    { icon: Hash, label: 'Username', act: () => { setSub({type:'username'}); setMenuOpen(false); } },
-    { icon: TrendingUp, label: 'Dashboard', act: () => { setSub({type:'dashboard'}); setMenuOpen(false); } },
-    { icon: Shield, label: 'Validator', act: () => { setSub({type:'validator'}); setMenuOpen(false); } },
+    { icon: User, label: t('profile'), act: () => { setTab('profile'); setMenuOpen(false); } },
+    { icon: Activity, label: t('explorer'), act: () => { setSub({type:'explorer'}); setMenuOpen(false); } },
+    { icon: Zap, label: t('mining'), act: () => { setSub({type:'mining'}); setMenuOpen(false); } },
+    { icon: Timer, label: t('timeLock'), act: () => { setSub({type:'timelock'}); setMenuOpen(false); } },
+    { icon: Skull, label: t('deadManSwitch'), act: () => { setSub({type:'dms'}); setMenuOpen(false); } },
+    { icon: Lock, label: t('stashTitle'), act: () => { setSub({type:'stash'}); setMenuOpen(false); } },
+    { icon: Hash, label: t('usernameMenu'), act: () => { setSub({type:'username'}); setMenuOpen(false); } },
+    { icon: TrendingUp, label: t('dashboard'), act: () => { setSub({type:'dashboard'}); setMenuOpen(false); } },
+    { icon: Shield, label: t('validatorMenu'), act: () => { setSub({type:'validator'}); setMenuOpen(false); } },
   ];
 
   return (
@@ -1627,7 +1631,7 @@ const MainApp = ({ onLogout }) => {
               {/* Menu Header */}
               <div className="p-5 border-b border-emerald-900/20">
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-white font-bold text-lg">Menu</span>
+                  <span className="text-white font-bold text-lg">{t('menuTitle')}</span>
                   <button onClick={() => setMenuOpen(false)} className="text-gray-500"><X className="w-5 h-5" /></button>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-[#0f2a22] rounded-xl border border-emerald-900/20">
@@ -1650,8 +1654,8 @@ const MainApp = ({ onLogout }) => {
                 ))}
               </div>
               <div className="border-t border-emerald-900/20 p-5">
-                <Btn onClick={() => { if(confirm('Save seed first!')) onLogout(); }} color="red" full>
-                  <span className="flex items-center justify-center gap-2"><LogOut className="w-4 h-4" />Logout</span>
+                <Btn onClick={() => { if(confirm(t('makeSureSaved'))) onLogout(); }} color="red" full>
+                  <span className="flex items-center justify-center gap-2"><LogOut className="w-4 h-4" />{t('logout')}</span>
                 </Btn>
                 <p className="text-gray-700 text-[10px] text-center mt-3">LAC v8 · Zero-History · PoET</p>
               </div>
@@ -3041,21 +3045,26 @@ const STASHView = ({ onBack, onDone }) => {
   const noms = [{c:0,a:100},{c:1,a:1000},{c:2,a:10000},{c:3,a:100000}];
 
   const saveKey = (k, amount) => {
-    const entry = { key: k, amount, created: Date.now(), used: false };
-    const updated = [...savedKeys, entry];
-    setSavedKeys(updated);
-    localStorage.setItem('lac_stash_keys', JSON.stringify(updated));
+    setSavedKeys(prev => {
+      const updated = [...prev, { key: k, amount, created: Date.now(), used: false }];
+      localStorage.setItem('lac_stash_keys', JSON.stringify(updated));
+      return updated;
+    });
   };
   const delKey = (idx) => {
-    const updated = savedKeys.filter((_, i) => i !== idx);
-    setSavedKeys(updated);
-    localStorage.setItem('lac_stash_keys', JSON.stringify(updated));
+    setSavedKeys(prev => {
+      const updated = prev.filter((_, i) => i !== idx);
+      localStorage.setItem('lac_stash_keys', JSON.stringify(updated));
+      return updated;
+    });
     toast.success('Key deleted');
   };
   const markUsed = (keyStr) => {
-    const updated = savedKeys.map(s => s.key === keyStr ? {...s, used: true} : s);
-    setSavedKeys(updated);
-    localStorage.setItem('lac_stash_keys', JSON.stringify(updated));
+    setSavedKeys(prev => {
+      const updated = prev.map(s => s.key === keyStr.trim() ? {...s, used: true} : s);
+      localStorage.setItem('lac_stash_keys', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const dep = async () => {
@@ -3071,9 +3080,10 @@ const STASHView = ({ onBack, onDone }) => {
   };
   const wdr = async () => {
     setLd(true);
+    const keyToUse = key.trim();
     try {
-      const r = await post('/api/stash/withdraw',{stash_key:key.trim()});
-      markUsed(key.trim());
+      const r = await post('/api/stash/withdraw',{stash_key:keyToUse});
+      markUsed(keyToUse);
       toast.success(`💰 +${fmt(r.amount)} LAC withdrawn!`);
       setRes({t:'wdr', a:r.amount});
       setKey('');
