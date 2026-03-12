@@ -1279,7 +1279,7 @@ def auto_cleanup():
                 # ===== REACTIONS CLEANUP (older than 7 days) =====
                 week_ago = now - 604800
                 stale_rxn = [k for k, v in S.reactions.items()
-                             if int(k.split('|')[-1] or 0) < week_ago]
+                             if (lambda s: int(s) if s.isdigit() else 0)(k.split('|')[-1]) < week_ago]
                 for k in stale_rxn:
                     del S.reactions[k]
                 if stale_rxn:
@@ -2198,7 +2198,7 @@ def send_message():
         
         # Create message
         msg = {
-            'id': str(uuid.uuid4()),
+            'id': str(_uuid.uuid4()),
             'from': from_display,
             'from_address': from_addr,
             'to': to_address,
