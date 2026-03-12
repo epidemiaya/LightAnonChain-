@@ -1757,40 +1757,15 @@ def get_wallet_mining():
     with S.lock:
         if addr not in S.wallets:
             return jsonify({'error': 'Wallet not found'}), 404
-        
         wallet = S.wallets[addr]
-        
-        # Primary: scan blockchain (works for all old + new blocks)
-        mining_rewards = []
-        total_mined = 0
-
-        for block in S.chain:
-            for reward in block.get('mining_rewards', []):
-                if reward.get('address') == addr:
-                    mining_rewards.append({
-                        'block': block.get('index', 0),
-                        'timestamp': block.get('timestamp', 0),
-                        'reward': reward.get('reward', 0),
-                        'confirmed': True
-                    })
-                    total_mined += reward.get('reward', 0)
-
-        # Supplement with wallet history for any gaps (new blocks without address in chain)
-        chain_blocks = {r['block'] for r in mining_rewards}
-        for entry in wallet.get('mining_history', []):
-            if entry.get('block') not in chain_blocks:
-                mining_rewards.append({
-                    'block': entry.get('block'),
-                    'timestamp': entry.get('timestamp'),
-                    'reward': entry.get('reward', 0),
-                    'confirmed': True
-                })
-                total_mined += entry.get('reward', 0)
-        
-        # Sort by block descending, limit
-        mining_rewards.sort(key=lambda x: x.get('block', 0), reverse=True)
-        mining_rewards = mining_rewards[:limit]
-        
+        # Fast: wallet.mining_history only — no chain scan
+        history = wallet.get('mining_history', [])
+        total_mined = sum(e.get('reward', 0) for e in history)
+        mining_rewards = sorted(
+            [{'block': e.get('block', 0), 'timestamp': e.get('timestamp', 0),
+              'reward': e.get('reward', 0), 'confirmed': True} for e in history],
+            key=lambda x: x['block'], reverse=True
+        )[:limit]
         _wm_res = {
             'ok': True,
             'mining_rewards': mining_rewards,
