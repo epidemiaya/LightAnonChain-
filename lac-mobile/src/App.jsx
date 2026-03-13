@@ -2885,10 +2885,13 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
 const MiningMini = () => {
   const [d, setD] = useState(null);
   useEffect(() => {
-    const load = () => get('/api/wallet/mining?limit=20').then(setD).catch(() => {});
+    let timer;
+    const load = () => get('/api/wallet/mining?limit=20').then(setD).catch(() => {
+      timer = setTimeout(load, 5000); // retry in 5s on error
+    });
     load();
-    const i = setInterval(load, 60000); // mining stats change every ~30s block
-    return () => clearInterval(i);
+    const i = setInterval(load, 60000);
+    return () => { clearInterval(i); clearTimeout(timer); };
   }, []);
   if (!d) return <p className="text-gray-600 text-xs">Loading…</p>;
   const earned = d.total_mined || 0;
