@@ -2380,7 +2380,7 @@ def inbox():
                                conv.get('timestamp', 0) > last_read) else 0
 
     result_inbox = {'ok': True, 'messages': messages, 'count': len(messages)}
-    _cache_set(ck_inbox, result_inbox, ttl=5)
+    _cache_set(ck_inbox, result_inbox, ttl=10)
     return jsonify(result_inbox)
 
 @app.route('/api/chat', methods=['GET'])
@@ -2939,7 +2939,7 @@ def group_posts():
             enriched_posts.append(ep)
         
         result_gp = {'ok': True, 'posts': enriched_posts}
-        _cache_set(ck_gp, result_gp, ttl=5)
+        _cache_set(ck_gp, result_gp, ttl=10)
         return jsonify(result_gp)
 
 @app.route('/api/group.post', methods=['POST'])

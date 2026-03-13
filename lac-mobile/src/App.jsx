@@ -71,7 +71,7 @@ const api = async (path, opts = {}) => {
   const h = { 'Content-Type': 'application/json' };
   if (seed) h['X-Seed'] = seed;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000); // 5s max
+  const timeout = setTimeout(() => controller.abort(), 15000); // 15s max
   try {
     const r = await fetch(API_BASE + path, {
       method: opts.method || 'GET',
@@ -2885,16 +2885,10 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
 const MiningMini = () => {
   const [d, setD] = useState(null);
   useEffect(() => {
-    let timer;
-    const load = () => {
-      const seed = localStorage.getItem("lac_seed");
-      fetch("/api/wallet/mining?limit=20", {headers:{"X-Seed":seed,"Content-Type":"application/json"}})
-        .then(r=>r.json()).then(setD)
-        .catch(() => { timer = setTimeout(load, 5000); });
-    };
+    const load = () => get('/api/wallet/mining?limit=20').then(setD).catch(() => {});
     load();
-    const i = setInterval(load, 60000);
-    return () => { clearInterval(i); clearTimeout(timer); };
+    const i = setInterval(load, 60000); // mining stats change every ~30s block
+    return () => clearInterval(i);
   }, []);
   if (!d) return <p className="text-gray-600 text-xs">Loading…</p>;
   const earned = d.total_mined || 0;
