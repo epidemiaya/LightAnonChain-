@@ -2886,9 +2886,12 @@ const MiningMini = () => {
   const [d, setD] = useState(null);
   useEffect(() => {
     let timer;
-    const load = () => get('/api/wallet/mining?limit=20').then(setD).catch(() => {
-      timer = setTimeout(load, 5000); // retry in 5s on error
-    });
+    const load = () => {
+      const seed = localStorage.getItem("lac_seed");
+      fetch("/api/wallet/mining?limit=20", {headers:{"X-Seed":seed,"Content-Type":"application/json"}})
+        .then(r=>r.json()).then(setD)
+        .catch(() => { timer = setTimeout(load, 5000); });
+    };
     load();
     const i = setInterval(load, 60000);
     return () => { clearInterval(i); clearTimeout(timer); };
