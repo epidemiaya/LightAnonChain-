@@ -948,10 +948,13 @@ def auto_mining_loop():
                 if S.pruning and S.pruning.should_prune(len(S.chain)):
                     S.pruning.prune_old_blocks()
 
-                # Zero-history
-                if S.zero_history:
+            # ── Zero-history OUTSIDE lock (commitment can take 40s!) ──
+            if S.zero_history:
+                try:
                     S.zero_history.add_block(block=new_block, utxo_delta={},
                                              spent_key_images=list(S.spent_key_images))
+                except Exception as e:
+                    print(f"⚠️ zero_history.add_block error: {e}")
 
             # Yield again after state write
             try:
@@ -2380,7 +2383,7 @@ def inbox():
                                conv.get('timestamp', 0) > last_read) else 0
 
     result_inbox = {'ok': True, 'messages': messages, 'count': len(messages)}
-    _cache_set(ck_inbox, result_inbox, ttl=10)
+    _cache_set(ck_inbox, result_inbox, ttl=5)
     return jsonify(result_inbox)
 
 @app.route('/api/chat', methods=['GET'])
@@ -2939,7 +2942,7 @@ def group_posts():
             enriched_posts.append(ep)
         
         result_gp = {'ok': True, 'posts': enriched_posts}
-        _cache_set(ck_gp, result_gp, ttl=10)
+        _cache_set(ck_gp, result_gp, ttl=5)
         return jsonify(result_gp)
 
 @app.route('/api/group.post', methods=['POST'])
