@@ -279,20 +279,26 @@ const i18n = {
     naginiInterval:"Interval", naginiOwner:"Owner", naginiAlertChannel:"Alert channel",
     naginiUntilAlert:"until alert fires", naginiNever:"Never",
     menuTitle:"Menu", deadManSwitch:"Dead Man's Switch", usernameMenu:"Username", validatorMenu:"Validator",
+    miningActive:"Mining Active", miningWaiting:"Mining Waiting",
+    blockReward2:"Block Reward", minBalance2:"Min Balance", yourBalance2:"Your Balance",
+    miningInfo2:"Mining Info", recentRewards2:"Recent Rewards",
+    recentGames:"Recent Games", notEnoughLac:"Not enough LAC",
     validatorActive:"Validator Active", validatorReady:"Validator Ready",
     validatorOff:"Validator OFF", enableValidator:"Enable Validator",
     disableValidator:"Disable Validator", requiredLevel:"Required Level",
-    commitInterval:"Commitment Interval", validatorInfo:"Validator Info",
-    howValidator:"How to become a Validator", createTimelock:"Create TimeLock",
-    pendingLocks:"Pending Locks", normalTransfer:"Normal Transfer",
-    holdRecord:"Hold to record", releaseToSend:"Release to send", sendImage:"Send Image",
-    noDmsConfig:"No DMS configured", blocksMined:"Blocks Mined",
-    dmsInterval:"Interval", dmsOwner:"Owner", dmsAlertChannel:"Alert channel",
-    txTransfer:"Transfer", txStealth:"Stealth", txStashIn:"STASH In",
-    txStashOut:"STASH Out", txDiceBurn:"Dice Burn", txDiceWin:"Dice Win",
-    txTimelock:"TimeLock", txUnlock:"Unlock", txLevelUp:"Level Up", txReferral:"Referral",
-    alreadyTaken:"Already taken", yourInviteCode:"Your Invite Code", noBlocks:"No blocks",
-    miningActive:"Mining Active", miningWaiting:"Mining Waiting",
+    minValidators2:"Min Validators", commitInterval:"Commitment Interval",
+    validatorInfo:"Validator Info", howValidator:"How to become a Validator",
+    createTimelock:"Create TimeLock", pendingLocks:"Pending Locks",
+    normalTransfer:"Normal Transfer", holdRecord:"Hold to record",
+    releaseToSend:"Release to send", sendImage:"Send Image",
+    noDmsConfig:"No DMS configured", keyDeleted2:"Key deleted",
+    blocksMined:"Blocks Mined", dmsInterval:"Interval", dmsOwner:"Owner",
+    dmsAlertChannel:"Alert channel", txTransfer:"Transfer", txStealth:"Stealth",
+    txStashIn:"STASH In", txStashOut:"STASH Out", txDiceBurn:"Dice Burn",
+    txDiceWin:"Dice Win", txTimelock:"TimeLock", txUnlock:"Unlock",
+    txLevelUp:"Level Up", txFaucet2:"Faucet", txReward2:"Reward", txReferral:"Referral",
+    alreadyTaken:"Already taken", enterGroupName2:"Enter group name",
+    yourInviteCode:"Your Invite Code", noBlocks:"No blocks",
   },
   uk: {
     chats:"Чати", wallet:"Гаманець", explore:"Огляд", profile:"Профіль", panic:"ПАНІК",
@@ -405,19 +411,25 @@ const i18n = {
     naginiUntilAlert:"до спрацювання", naginiNever:"Ніколи",
     menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Нікнейм", validatorMenu:"Валідатор",
     miningActive:"Майнінг активний", miningWaiting:"Очікування майнінгу",
+    blockReward2:"Нагорода за блок", minBalance2:"Мін. баланс", yourBalance2:"Ваш баланс",
+    miningInfo2:"Інфо про майнінг", recentRewards2:"Останні нагороди",
+    recentGames:"Останні ігри", notEnoughLac:"Недостатньо LAC",
     validatorActive:"Валідатор активний", validatorReady:"Валідатор готовий",
     validatorOff:"Валідатор вимкнено", enableValidator:"Увімкнути валідатор",
     disableValidator:"Вимкнути валідатор", requiredLevel:"Необхідний рівень",
-    commitInterval:"Інтервал підтверджень", validatorInfo:"Інфо про валідатор",
-    howValidator:"Як стати валідатором", createTimelock:"Створити TimeLock",
-    pendingLocks:"Активні блокування", normalTransfer:"Звичайний переказ",
-    holdRecord:"Тримайте для запису", releaseToSend:"Відпустіть для надсилання", sendImage:"Надіслати зображення",
-    noDmsConfig:"DMS не налаштовано", blocksMined:"Блоків намайнено",
-    dmsInterval:"Інтервал", dmsOwner:"Власник", dmsAlertChannel:"Канал сповіщення",
-    txTransfer:"Переказ", txStealth:"Прихований", txStashIn:"STASH Вхід",
-    txStashOut:"STASH Вихід", txDiceBurn:"Кубики-Програш", txDiceWin:"Кубики-Виграш",
-    txTimelock:"TimeLock", txUnlock:"Розблокування", txLevelUp:"Підвищення рівня", txReferral:"Реферал",
-    alreadyTaken:"Вже зайнято", yourInviteCode:"Ваш код запрошення", noBlocks:"Немає блоків",
+    minValidators2:"Мін. валідаторів", commitInterval:"Інтервал підтверджень",
+    validatorInfo:"Інфо про валідатор", howValidator:"Як стати валідатором",
+    createTimelock:"Створити TimeLock", pendingLocks:"Активні блокування",
+    normalTransfer:"Звичайний переказ", holdRecord:"Тримайте для запису",
+    releaseToSend:"Відпустіть для надсилання", sendImage:"Надіслати зображення",
+    noDmsConfig:"DMS не налаштовано", keyDeleted2:"Ключ видалено",
+    blocksMined:"Блоків намайнено", dmsInterval:"Інтервал", dmsOwner:"Власник",
+    dmsAlertChannel:"Канал сповіщення", txTransfer:"Переказ", txStealth:"Прихований",
+    txStashIn:"STASH Вхід", txStashOut:"STASH Вихід", txDiceBurn:"Кубики - Програш",
+    txDiceWin:"Кубики - Виграш", txTimelock:"TimeLock", txUnlock:"Розблокування",
+    txLevelUp:"Підвищення рівня", txFaucet2:"Кран", txReward2:"Нагорода", txReferral:"Реферал",
+    alreadyTaken:"Вже зайнято", enterGroupName2:"Введіть назву групи",
+    yourInviteCode:"Ваш код запрошення", noBlocks:"Немає блоків",
   },
   ru: {
     chats:"Чаты", wallet:"Кошелёк", explore:"Обзор", profile:"Профиль", panic:"ПАНИКА",
@@ -530,19 +542,25 @@ const i18n = {
     naginiUntilAlert:"до срабатывания", naginiNever:"Никогда",
     menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Никнейм", validatorMenu:"Валидатор",
     miningActive:"Майнинг активен", miningWaiting:"Ожидание майнинга",
+    blockReward2:"Награда за блок", minBalance2:"Мин. баланс", yourBalance2:"Ваш баланс",
+    miningInfo2:"Инфо о майнинге", recentRewards2:"Последние награды",
+    recentGames:"Последние игры", notEnoughLac:"Недостаточно LAC",
     validatorActive:"Валидатор активен", validatorReady:"Валидатор готов",
     validatorOff:"Валидатор выключен", enableValidator:"Включить валидатор",
     disableValidator:"Выключить валидатор", requiredLevel:"Необходимый уровень",
-    commitInterval:"Интервал подтверждений", validatorInfo:"Инфо о валидаторе",
-    howValidator:"Как стать валидатором", createTimelock:"Создать TimeLock",
-    pendingLocks:"Активные блокировки", normalTransfer:"Обычный перевод",
-    holdRecord:"Держите для записи", releaseToSend:"Отпустите для отправки", sendImage:"Отправить изображение",
-    noDmsConfig:"DMS не настроен", blocksMined:"Блоков намайнено",
-    dmsInterval:"Интервал", dmsOwner:"Владелец", dmsAlertChannel:"Канал оповещения",
-    txTransfer:"Перевод", txStealth:"Скрытый", txStashIn:"STASH Вход",
-    txStashOut:"STASH Выход", txDiceBurn:"Кубики-Проигрыш", txDiceWin:"Кубики-Выигрыш",
-    txTimelock:"TimeLock", txUnlock:"Разблокировка", txLevelUp:"Повышение уровня", txReferral:"Реферал",
-    alreadyTaken:"Уже занято", yourInviteCode:"Ваш код приглашения", noBlocks:"Нет блоков",
+    minValidators2:"Мин. валидаторов", commitInterval:"Интервал подтверждений",
+    validatorInfo:"Инфо о валидаторе", howValidator:"Как стать валидатором",
+    createTimelock:"Создать TimeLock", pendingLocks:"Активные блокировки",
+    normalTransfer:"Обычный перевод", holdRecord:"Держите для записи",
+    releaseToSend:"Отпустите для отправки", sendImage:"Отправить изображение",
+    noDmsConfig:"DMS не настроен", keyDeleted2:"Ключ удалён",
+    blocksMined:"Блоков намайнено", dmsInterval:"Интервал", dmsOwner:"Владелец",
+    dmsAlertChannel:"Канал оповещения", txTransfer:"Перевод", txStealth:"Скрытый",
+    txStashIn:"STASH Вход", txStashOut:"STASH Выход", txDiceBurn:"Кубики - Проигрыш",
+    txDiceWin:"Кубики - Выигрыш", txTimelock:"TimeLock", txUnlock:"Разблокировка",
+    txLevelUp:"Повышение уровня", txFaucet2:"Кран", txReward2:"Награда", txReferral:"Реферал",
+    alreadyTaken:"Уже занято", enterGroupName2:"Введите название группы",
+    yourInviteCode:"Ваш код приглашения", noBlocks:"Нет блоков",
   }
 }
 const getLang = () => { const l = localStorage.getItem('lac_lang'); return ['en','uk','ru'].includes(l) ? l : 'en'; };
@@ -735,7 +753,8 @@ const BitcoinWalletTab = ({ onMenu }) => {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 🐍 NAGINI — Geographic Secret Distribution
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const NaginiView = ({ onBack, profile }) => {
+const NaginiView = ({
+  const { t } = useT(); onBack, profile }) => {
   const [screen, setScreen] = useState('home'); // home | setup | recover | bundle | dms
   const [bundles, setBundles] = useState([]);
   const [selBundle, setSelBundle] = useState(null);
@@ -816,7 +835,7 @@ const NaginiView = ({ onBack, profile }) => {
               <button key={b.bundle_id} onClick={() => { setSelBundle(b); setScreen('bundle'); }}
                 className="w-full flex items-center justify-between p-3 rounded-xl bg-[#0d1a12]/80 border border-emerald-900/20 mb-2 active:bg-emerald-900/20">
                 <div className="text-left">
-                  <div className="text-white text-sm font-medium">{b.label || 'Bundle'}</div>
+                  <div className="text-white text-sm font-medium">{b.label || t('naginiBundleId')}</div>
                   <div className="text-gray-500 text-[10px]">{b.n} {t('naginiLocations')} · {t('naginiThreshold')} {b.threshold} · {b.has_canary ? '🪤' : ''}{b.has_dms ? '⏰' : ''}</div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-600" />
@@ -839,7 +858,8 @@ const NaginiView = ({ onBack, profile }) => {
 };
 
 
-const NaginiSetup = ({ onBack }) => {
+const NaginiSetup = ({
+  const { t } = useT(); onBack }) => {
   const [step, setStep] = useState(1);
   const [secretType, setSecretType] = useState('seed');
   const [customSecret, setCustomSecret] = useState('');
@@ -985,12 +1005,12 @@ const NaginiSetup = ({ onBack }) => {
             <div key={i} className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${canaryIdx===i?'bg-amber-900/40 text-amber-400':'bg-emerald-900/30 text-emerald-500'}`}>
-                  {canaryIdx===i ? '🪤 Canary' : `#${i+1}`}
+                  {canaryIdx===i ? t('naginiCanary') : `#${i+1}`}
                 </span>
                 <div className="flex gap-2">
                   <button onClick={() => setCanaryIdx(canaryIdx===i ? null : i)}
                     className={`text-[10px] px-2 py-1 rounded-lg border ${canaryIdx===i?'border-amber-700/50 text-amber-400':'border-gray-700/30 text-gray-600'}`}>
-                    🪤 trap
+                    🪤 {t('naginiTrap')}
                   </button>
                   {locations.length > 2 && (
                     <button onClick={() => removeLocation(i)} className="text-gray-600 text-xs">✕</button>
@@ -998,16 +1018,16 @@ const NaginiSetup = ({ onBack }) => {
                 </div>
               </div>
               <Input value={loc.name} onChange={e => setLoc(i,'name',e.target.value)}
-                placeholder={`Місце #${i+1} (напр. Центральний парк)`} />
+                placeholder={`${t('naginiPlaceName').replace('(e.g. Central Park)', '')}(${i+1})`} />
               <div className="grid grid-cols-2 gap-2">
                 <input value={loc.lat} onChange={e => setLoc(i,'lat',e.target.value)}
-                  placeholder="Широта" className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
+                  placeholder={t('naginiLatitude')} className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
                 <input value={loc.lon} onChange={e => setLoc(i,'lon',e.target.value)}
-                  placeholder="Довгота" className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
+                  placeholder={t('naginiLongitude')} className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
               </div>
               <button onClick={() => getGPS(i)} disabled={locating===i}
                 className="w-full text-xs py-2 rounded-lg bg-emerald-900/20 border border-emerald-900/30 text-emerald-500 disabled:opacity-50">
-                {locating===i ? '📡 GPS...' : '📍 Використати моє місце зараз'}
+                {locating===i ? t('naginiGettingGPS') : t('naginiUseMyLocation')}
               </button>
               {loc.lat && loc.lon && <div className="text-emerald-600 text-[10px]">✓ {parseFloat(loc.lat).toFixed(5)}, {parseFloat(loc.lon).toFixed(5)}</div>}
             </div>
@@ -1050,7 +1070,7 @@ const NaginiSetup = ({ onBack }) => {
             <div className="bg-black/40 rounded-xl p-3 text-[10px] font-mono text-gray-400 whitespace-pre-wrap break-all">{log}</div>
           ) : null}
           <Btn onClick={submit} disabled={loading} className="w-full bg-emerald-600 py-4 text-base">
-            {loading ? '⏳ Створюю...' : '✅ Створити Bundle'}
+            {loading ? t('naginiCreating') : t('naginiCreateBtn')}
           </Btn>
         </>}
       </div>
@@ -1059,26 +1079,27 @@ const NaginiSetup = ({ onBack }) => {
 };
 
 
-const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
+const NaginiBundleDetail = ({
+  const { t } = useT(); bundle, onBack, onDMS }) => {
   const [deleting, setDeleting] = useState(false);
   const del = async () => {
-    if (!window.confirm('Delete this bundle? Cannot be undone.')) return;
+    if (!window.confirm(t('naginiConfirmDelete'))) return;
     setDeleting(true);
     await post('/api/nagini/delete', {bundle_id: bundle.bundle_id});
     onBack();
   };
   return (
     <div className="flex flex-col h-full">
-      <Header title={bundle.label || 'Bundle'} onBack={onBack} />
+      <Header title={bundle.label || t('naginiBundleId')} onBack={onBack} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="rounded-2xl bg-[#0d1f18] border border-emerald-800/30 p-4 space-y-1">
           {[
-            ['Bundle ID', bundle.bundle_id.slice(0,16)+'...'],
-            ['Locations', `${bundle.n} total`],
-            ['Threshold', `${bundle.threshold} required to recover`],
-            ['Created', new Date(bundle.created_at*1000).toLocaleString()],
-            ['Canary', bundle.has_canary ? '🪤 Active' : 'None'],
-            ["Dead Man's Switch", bundle.has_dms ? '⏰ Active' : 'Not configured'],
+            [t('naginiBundleId'), bundle.bundle_id.slice(0,16)+'...'],
+            [t('naginiLocations'), `${bundle.n} ${t('naginiLocations')}`],
+            [t('naginiThreshold'), `${bundle.threshold} required to recover`],
+            [t('naginiCreated')||'Created', new Date(bundle.created_at*1000).toLocaleString()],
+            [t('naginiCanary'), bundle.has_canary ? '🪤 '+t('naginiActive') : t('naginiNever')],
+            [t('naginiDMSTitle'), bundle.has_dms ? '⏰ Active' : t('noDmsConfig')],
           ].map(([k,v]) => (
             <div key={k} className="flex justify-between items-center py-2 border-b border-gray-800/20">
               <span className="text-gray-500 text-sm">{k}</span>
@@ -1087,7 +1108,7 @@ const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
           ))}
         </div>
         <Btn onClick={onDMS} className="w-full bg-[#0d1a12] border border-emerald-800/40 text-emerald-400">
-          ⏰ {bundle.has_dms ? 'Manage' : 'Setup'} Dead Man's Switch
+          ⏰ {bundle.has_dms ? t('naginiManageDMS') : t('naginiSetupDMS')}
         </Btn>
         <Btn onClick={del} disabled={deleting} className="w-full bg-red-900/20 border border-red-800/30 text-red-400">
           {deleting ? 'Deleting...' : '🗑 Delete Bundle'}
@@ -1097,7 +1118,8 @@ const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
   );
 };
 
-const NaginiRecover = ({ onBack, bundles }) => {
+const NaginiRecover = ({
+  const { t } = useT(); onBack, bundles }) => {
   const [bundleId, setBundleId] = useState(bundles[0]?.bundle_id || '');
   const [sessionId, setSessionId] = useState(null);
   const [sessionInfo, setSessionInfo] = useState(null); // {n, threshold, label}
@@ -1309,7 +1331,8 @@ const NaginiRecover = ({ onBack, bundles }) => {
 };
 
 
-const NaginiDMS = ({ onBack, bundle }) => {
+const NaginiDMS = ({
+  const { t } = useT(); onBack, bundle }) => {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ interval_hours: 24, owner_name: '', emergency_message: '' });
