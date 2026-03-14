@@ -279,6 +279,29 @@ const i18n = {
     naginiInterval:"Interval", naginiOwner:"Owner", naginiAlertChannel:"Alert channel",
     naginiUntilAlert:"until alert fires", naginiNever:"Never",
     menuTitle:"Menu", deadManSwitch:"Dead Man's Switch", usernameMenu:"Username", validatorMenu:"Validator",
+    miningActive:t('miningActive'), miningWaiting:t('miningWaiting'),
+    blockReward:"Block Reward", minBalance:"Min Balance", yourBalance:"Your Balance",
+    miningInfo:"Mining Info", recentRewards:"Recent Rewards", noRewards:"No rewards yet",
+    betAmount:"Bet Amount", recentGames:"Recent Games", notEnoughLac:"Not enough LAC",
+    validatorActive:"Validator Active", validatorReady:"Validator Ready",
+    validatorOff:"Validator OFF", enableValidator:"Enable Validator",
+    disableValidator:"Disable Validator", requiredLevel:"Required Level",
+    minValidators:"Min Validators", commitInterval:"Commitment Interval",
+    validatorInfo:"Validator Info", howValidator:"How to become a Validator",
+    createTimelock:"Create TimeLock", pendingLocks:"Pending Locks",
+    normalTransfer:"Normal Transfer", noTxFound:"No transactions",
+    holdRecord:"Hold to record", releaseToSend:"Release to send", sendImage:"Send Image",
+    noDmsConfig:"No DMS configured", keyDeleted:"Key deleted",
+    blocksMined:"Blocks Mined", miningChanceLabel:"Mining Chance",
+    dmsInterval:"Interval", dmsOwner:"Owner", dmsAlertChannel:"Alert channel",
+    txTransfer:"Transfer", txStealth:"Stealth", txStashIn:"STASH In",
+    txStashOut:"STASH Out", txDiceBurn:"Dice Burn", txDiceWin:"Dice Win",
+    txTimelock:"TimeLock", txUnlock:"Unlock", txLevelUp:"Level Up",
+    txFaucet:"Faucet", txReward:"Reward", txReferral:"Referral",
+    alreadyTaken:"Already taken", noSeedFound:"No seed found",
+    uploadFailed:"Upload failed", recordFailed:"Recording failed",
+    enterGroupName:"Enter group name", groupCreateFailed:"Failed to create group",
+    yourInviteCode:"Your Invite Code", noBlocks:"No blocks"
   },
   uk: {
     chats:"Чати", wallet:"Гаманець", explore:"Огляд", profile:"Профіль", panic:"ПАНІК",
@@ -389,7 +412,30 @@ const i18n = {
     naginiCheckinNow:"Відмітитися зараз - скинути таймер", naginiLastCheckin:"Остання відмітка",
     naginiInterval:"Інтервал", naginiOwner:"Власник", naginiAlertChannel:"Канал сповіщення",
     naginiUntilAlert:"до спрацювання", naginiNever:"Ніколи",
-    menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Нікнейм", validatorMenu:"Валідатор",
+    menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Нікнейм", validatorMenu:"Валідатор",,
+    miningActive:"Майнінг активний", miningWaiting:"Очікування майнінгу",
+    blockReward:"Нагорода за блок", minBalance:"Мін. баланс", yourBalance:"Ваш баланс",
+    miningInfo:"Інфо про майнінг", recentRewards:"Останні нагороди", noRewards:"Нагород поки немає",
+    betAmount:"Сума ставки", recentGames:"Останні ігри", notEnoughLac:"Недостатньо LAC",
+    validatorActive:"Валідатор активний", validatorReady:"Валідатор готовий",
+    validatorOff:"Валідатор вимкнено", enableValidator:"Увімкнути валідатор",
+    disableValidator:"Вимкнути валідатор", requiredLevel:"Необхідний рівень",
+    minValidators:"Мін. валідаторів", commitInterval:"Інтервал підтверджень",
+    validatorInfo:"Інфо про валідатор", howValidator:"Як стати валідатором",
+    createTimelock:"Створити TimeLock", pendingLocks:"Активні блокування",
+    normalTransfer:"Звичайний переказ", noTxFound:"Немає транзакцій",
+    holdRecord:"Тримайте для запису", releaseToSend:"Відпустіть для надсилання", sendImage:"Надіслати зображення",
+    noDmsConfig:"DMS не налаштовано", keyDeleted:"Ключ видалено",
+    blocksMined:"Блоків намайнено", miningChanceLabel:"Шанс майнінгу",
+    dmsInterval:"Інтервал", dmsOwner:"Власник", dmsAlertChannel:"Канал сповіщення",
+    txTransfer:"Переказ", txStealth:"Прихований", txStashIn:"STASH Вхід",
+    txStashOut:"STASH Вихід", txDiceBurn:"Кубики - Програш", txDiceWin:"Кубики - Виграш",
+    txTimelock:"TimeLock", txUnlock:"Розблокування", txLevelUp:"Підвищення рівня",
+    txFaucet:"Кран", txReward:"Нагорода", txReferral:"Реферал",
+    alreadyTaken:"Вже зайнято", noSeedFound:"Seed не знайдено",
+    uploadFailed:"Помилка завантаження", recordFailed:"Помилка запису",
+    enterGroupName:"Введіть назву групи", groupCreateFailed:"Не вдалося створити групу",
+    yourInviteCode:"Ваш код запрошення", noBlocks:"Немає блоків"
   },
   ru: {
     chats:"Чаты", wallet:"Кошелёк", explore:"Обзор", profile:"Профиль", panic:"ПАНИКА",
@@ -500,8 +546,31 @@ const i18n = {
     naginiCheckinNow:"Отметиться сейчас - сбросить таймер", naginiLastCheckin:"Последняя отметка",
     naginiInterval:"Интервал", naginiOwner:"Владелец", naginiAlertChannel:"Канал оповещения",
     naginiUntilAlert:"до срабатывания", naginiNever:"Никогда",
-    menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Никнейм", validatorMenu:"Валидатор",
-  }
+    menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Никнейм", validatorMenu:"Валидатор",,
+    miningActive:"Майнинг активен", miningWaiting:"Ожидание майнинга",
+    blockReward:"Награда за блок", minBalance:"Мин. баланс", yourBalance:"Ваш баланс",
+    miningInfo:"Инфо о майнинге", recentRewards:"Последние награды", noRewards:"Наград пока нет",
+    betAmount:"Сумма ставки", recentGames:"Последние игры", notEnoughLac:"Недостаточно LAC",
+    validatorActive:"Валидатор активен", validatorReady:"Валидатор готов",
+    validatorOff:"Валидатор выключен", enableValidator:"Включить валидатор",
+    disableValidator:"Выключить валидатор", requiredLevel:"Необходимый уровень",
+    minValidators:"Мин. валидаторов", commitInterval:"Интервал подтверждений",
+    validatorInfo:"Инфо о валидаторе", howValidator:"Как стать валидатором",
+    createTimelock:"Создать TimeLock", pendingLocks:"Активные блокировки",
+    normalTransfer:"Обычный перевод", noTxFound:"Нет транзакций",
+    holdRecord:"Держите для записи", releaseToSend:"Отпустите для отправки", sendImage:"Отправить изображение",
+    noDmsConfig:"DMS не настроен", keyDeleted:"Ключ удалён",
+    blocksMined:"Блоков намайнено", miningChanceLabel:"Шанс майнинга",
+    dmsInterval:"Интервал", dmsOwner:"Владелец", dmsAlertChannel:"Канал оповещения",
+    txTransfer:"Перевод", txStealth:"Скрытый", txStashIn:"STASH Вход",
+    txStashOut:"STASH Выход", txDiceBurn:"Кубики - Проигрыш", txDiceWin:"Кубики - Выигрыш",
+    txTimelock:"TimeLock", txUnlock:"Разблокировка", txLevelUp:"Повышение уровня",
+    txFaucet:"Кран", txReward:"Награда", txReferral:"Реферал",
+    alreadyTaken:"Уже занято", noSeedFound:"Seed не найден",
+    uploadFailed:"Ошибка загрузки", recordFailed:"Ошибка записи",
+    enterGroupName:"Введите название группы", groupCreateFailed:"Не удалось создать группу",
+    yourInviteCode:"Ваш код приглашения", noBlocks:"Нет блоков"
+  }}
 }
 const getLang = () => { const l = localStorage.getItem('lac_lang'); return ['en','uk','ru'].includes(l) ? l : 'en'; };
 const LangCtx = React.createContext({ lang: 'en', setLang: () => {}, t: (k) => k });
@@ -669,7 +738,7 @@ const BitcoinWalletTab = ({ onMenu }) => {
             <p className="text-white text-xs text-center break-all font-mono leading-relaxed">{addr}</p>
             <button onClick={copy}
               className="mt-3 w-full py-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm font-medium">
-              {copied ? '✓ Copied!' : 'Copy Address'}
+              {copied ? '✓ '+t('copied') : t('copy')+' '+t('profile')}
             </button>
           </div>
         ) : (
@@ -1317,10 +1386,10 @@ const NaginiDMS = ({ onBack, bundle }) => {
               <div className="text-gray-500 text-sm">until alert fires</div>
             </div>
             {[
-              ['Last check-in', status.last_checkin ? new Date(status.last_checkin*1000).toLocaleString() : 'Never'],
-              ['Interval', `${status.interval_hours}h`],
-              ['Owner', status.owner_name || '—'],
-              ['Alert channel', '📩 LAC message'],
+              ['Last check-in', status.last_checkin ? new Date(status.last_checkin*1000).toLocaleString() : t('naginiNever')],
+              [t('dmsInterval'), `${status.interval_hours}h`],
+              [t('dmsOwner'), status.owner_name || '—'],
+              [t('dmsAlertChannel'), '📩 LAC message'],
             ].map(([k,v]) => (
               <div key={k} className="flex justify-between py-2 border-b border-gray-800/20">
                 <span className="text-gray-500 text-sm">{k}</span>
@@ -1334,7 +1403,7 @@ const NaginiDMS = ({ onBack, bundle }) => {
         ) : (
           <div className="space-y-3">
             <Input value={form.owner_name} onChange={e => setForm(f=>({...f, owner_name: e.target.value}))}
-              placeholder="Your name (shown in alert message)" />
+              placeholder={t('naginiOwnerName')} />
             <div>
               <div className="text-gray-400 text-xs mb-2">Alert interval</div>
               <div className="flex gap-2">
@@ -1347,12 +1416,12 @@ const NaginiDMS = ({ onBack, bundle }) => {
               </div>
             </div>
             <Input value={form.emergency_message} onChange={e => setForm(f=>({...f, emergency_message: e.target.value}))}
-              placeholder="Emergency message (optional)" />
+              placeholder={t('naginiEmergencyMsg')} />
             <div className="bg-emerald-900/10 border border-emerald-800/20 rounded-xl p-3 text-xs text-emerald-500">
               📩 Alert will be sent as a LAC message to your own wallet if you miss a check-in.
             </div>
             <Btn onClick={save} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500">
-              {loading ? 'Activating...' : 'Activate DMS'}
+              {loading ? 'Activating...' : t('naginiActivateDMS')}
             </Btn>
           </div>
         )}
@@ -2074,7 +2143,7 @@ const MicButton = React.memo(({ recording, disabled, onStart, onStop }) => {
       onPointerCancel={handleEnd}
       onPointerLeave={handleEnd}
       disabled={disabled}
-      title={!navigator.mediaDevices ? 'Upload audio via 📎' : recording ? 'Release to send' : 'Hold to record'}
+      title={!navigator.mediaDevices ? 'Upload audio via 📎' : recording ? t('releaseToSend') : t('holdRecord')}
       style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
       className={`w-9 h-9 flex items-center justify-center disabled:opacity-30
         ${recording ? 'text-red-400 scale-125' : 'text-gray-500 hover:text-amber-400'}
@@ -2249,7 +2318,7 @@ const ChatView = ({ peer, onBack, profile }) => {
     } catch(e) {
       console.error('Media upload error:', e);
       toast.dismiss('upload-prog');
-      toast.error('❌ ' + (e.message || 'Upload failed'), {duration: 5000});
+      toast.error('❌ ' + (e.message || t('uploadFailed')), {duration: 5000});
     } finally {
       setUploading(false);
     }
@@ -2271,7 +2340,7 @@ const ChatView = ({ peer, onBack, profile }) => {
 
   const handleVoiceStop = async () => {
     const blob = await voice.stop();
-    if (!blob) { toast.error('Recording failed'); return; }
+    if (!blob) { toast.error(t('recordFailed')); return; }
     if (blob.size < 500) { toast.error('Too short — hold longer'); return; }
     const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
     const file = new File([blob], `voice.${ext}`, { type: blob.type });
@@ -2607,7 +2676,7 @@ const GroupView = ({ group, onBack, profile }) => {
           </div>
           <p className="text-amber-400/60 text-[10px] mt-1">⚡ L2 · auto-delete 5 min</p>
           <button onClick={() => sendGroupMedia(imgPreview.file, 'image')}
-            className="mt-1 px-3 py-1 bg-emerald-600 rounded-lg text-white text-xs block">Send Image</button>
+            className="mt-1 px-3 py-1 bg-emerald-600 rounded-lg text-white text-xs block">{t('sendImage')}</button>
         </div>
       )}
       <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
@@ -2647,12 +2716,12 @@ const NewChat = ({ onBack, onGo }) => {
 const NewGroup = ({ onBack, onDone }) => {
   const [name, setName] = useState(''); const [type, setType] = useState('public'); const [ld, setLd] = useState(false);
   const go = async () => {
-    if (!name.trim()) { toast.error('Enter group name'); return; }
+    if (!name.trim()) { toast.error(t('enterGroupName')); return; }
     setLd(true);
     try {
       const r = await post('/api/group.create',{name:name.trim(),type});
       if (r.ok) { toast.success('Group "'+name.trim()+'" created!'); onDone(); }
-      else { toast.error(r.error || 'Failed to create group', {duration:4000}); }
+      else { toast.error(r.error || t('groupCreateFailed'), {duration:4000}); }
     } catch(e){ toast.error('Error: ' + (e.message||'Unknown'), {duration:4000}); }
     finally { setLd(false); }
   };
@@ -2664,7 +2733,7 @@ const NewGroup = ({ onBack, onDone }) => {
   ];
   return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="Create Group" onBack={onBack} />
     <div className="p-4 space-y-4">
-      <div><label className="text-gray-500 text-xs mb-1 block">Name</label><Input value={name} onChange={setName} placeholder="Group name" /></div>
+      <div><label className="text-gray-500 text-xs mb-1 block">Name</label><Input value={name} onChange={setName} placeholder={t('groupName')} /></div>
       <div><label className="text-gray-500 text-xs mb-2 block">Type</label>
         <div className="space-y-2">
           {types.map(([id,l,d]) => (
@@ -2673,7 +2742,7 @@ const NewGroup = ({ onBack, onDone }) => {
             </button>))}
         </div>
       </div>
-      <Btn onClick={go} color="emerald" full disabled={!name.trim()} loading={ld}>Create Group</Btn>
+      <Btn onClick={go} color="emerald" full disabled={!name.trim()} loading={ld}>{t('createGroup')}</Btn>
     </div></div>);
 };
 
@@ -2716,7 +2785,7 @@ const ReferralView = ({ onBack }) => {
         {/* Your code */}
         <Card gradient="bg-gradient-to-br from-purple-900/20 to-[#0f1f18] border-purple-800/20" className="mb-3">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-purple-400 font-semibold text-sm">Your Invite Code</p>
+            <p className="text-purple-400 font-semibold text-sm">{t('yourInviteCode')}</p>
             <Badge color={ti[2]}>{ti[0]} {ti[1]}</Badge>
           </div>
           <div className="bg-[#060f0c] p-3 rounded-xl border border-purple-900/20 text-center">
@@ -2755,7 +2824,7 @@ const ReferralView = ({ onBack }) => {
           <p className="text-white text-sm font-semibold mb-1">🔥 Burn-to-Boost</p>
           <p className="text-gray-600 text-[10px] mb-2">Burn LAC to boost your tier. 10,000+ = VIP</p>
           <div className="flex gap-2">
-            <input value={boost} onChange={e => setBoost(e.target.value)} placeholder="Amount (min 100)" type="number"
+            <input value={boost} onChange={e => setBoost(e.target.value)} placeholder={t('amount')+' (min 100)'} type="number"
               className="flex-1 bg-[#0a1a15] text-red-400 font-mono text-sm px-3 py-2 rounded-xl border border-red-900/30 outline-none" />
             <Btn onClick={burnBoost} color="red" small loading={ld}>🔥</Btn>
           </div>
@@ -2964,7 +3033,7 @@ const RecentTxs = ({ visible=false }) => {
     }).catch(() => setTxs([]));
   }, [visible]);
   if (!txs) return null;
-  if (txs.length===0) return <p className="text-gray-700 text-sm text-center py-4">No transactions</p>;
+  if (txs.length===0) return <p className="text-gray-700 text-sm text-center py-4">{t('noTxFound')}</p>;
   return <div>{txs.map((tx,i) => <TxRow key={i} tx={tx} />)}</div>;
 };
 
@@ -3010,7 +3079,7 @@ const SendView = ({ onBack, profile, onDone }) => {
     <div className="p-4 space-y-3">
       <button onClick={() => setType('normal')} className="w-full bg-[#0f1f1a] border border-emerald-900/20 rounded-2xl p-4 flex items-center gap-4 active:bg-emerald-900/20">
         <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center"><Send className="w-6 h-6 text-white" /></div>
-        <div className="text-left"><p className="text-white font-semibold">Normal Transfer</p><p className="text-gray-500 text-xs">Public on blockchain · 0.1 LAC fee</p></div>
+        <div className="text-left"><p className="text-white font-semibold">{t('normalTransfer')}</p><p className="text-gray-500 text-xs">Public on blockchain · 0.1 LAC fee</p></div>
       </button>
       <button onClick={() => setType('veil')} className="w-full bg-[#0f1f1a] border border-emerald-900/20 rounded-2xl p-4 flex items-center gap-4 active:bg-purple-900/20">
         <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-fuchsia-600 rounded-2xl flex items-center justify-center"><Eye className="w-6 h-6 text-white" /></div>
@@ -3020,7 +3089,7 @@ const SendView = ({ onBack, profile, onDone }) => {
       </button>
     </div></div>);
 
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={type==='veil'?'VEIL Transfer':'Normal Transfer'} onBack={() => setType(null)} />
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={type==='veil'?'VEIL Transfer':t('normalTransfer')} onBack={() => setType(null)} />
     <div className="p-4 space-y-4">
       <div className={`rounded-xl p-3 border flex items-center gap-2 ${type==='veil'?'bg-purple-900/15 border-purple-700/30':'bg-blue-900/15 border-blue-700/30'}`}>
         {type==='veil'?<Eye className="w-4 h-4 text-purple-400"/>:<Send className="w-4 h-4 text-blue-400"/>}
@@ -3085,7 +3154,7 @@ const STASHView = ({ onBack, onDone }) => {
       localStorage.setItem('lac_stash_keys', JSON.stringify(updated));
       return updated;
     });
-    toast.success('Key deleted');
+    toast.success(t('keyDeleted'));
   };
   const markUsed = (keyStr) => {
     setSavedKeys(prev => {
@@ -3231,9 +3300,9 @@ const TimelockView = ({ onBack, profile, onDone }) => {
           )}
         </div>
       </div>
-      <Btn onClick={go} color="emerald" full loading={ld} disabled={!to||!amt||!delay}>Create TimeLock</Btn>
+      <Btn onClick={go} color="emerald" full loading={ld} disabled={!to||!amt||!delay}>{t('createTimelock')}</Btn>
       {pending.length > 0 && (<div>
-        <p className="text-gray-500 text-xs font-medium mt-4 mb-2">Pending Locks</p>
+        <p className="text-gray-500 text-xs font-medium mt-4 mb-2">{t('pendingLocks')}</p>
         {pending.map((l,i) => <Card key={i} className="mb-2"><p className="text-white text-sm">{fmt(l.amount)} LAC → {sAddr(l.to)}</p><p className="text-gray-600 text-[11px]">Block #{l.unlock_block} · {l.blocks_remaining||'?'} blocks left</p></Card>)}
       </div>)}
     </div></div>);
@@ -3305,7 +3374,7 @@ const DeadManSwitchView = ({ onBack, profile, onDone }) => {
       ) : status?.triggered_at ? (
         <Card><p className="text-red-400 text-sm">💀 DMS was triggered</p><p className="text-gray-600 text-[10px]">Actions were executed. Set up a new one if needed.</p></Card>
       ) : (
-        <Card><p className="text-gray-500 text-sm">No DMS configured</p></Card>
+        <Card><p className="text-gray-500 text-sm">{t('noDmsConfig')}</p></Card>
       )}
 
       {!showSetup && !status?.enabled && <Btn onClick={() => setShowSetup(true)} color="red" full>Configure Dead Man's Switch</Btn>}
@@ -3327,8 +3396,8 @@ const DeadManSwitchView = ({ onBack, profile, onDone }) => {
             {(a.type === 'transfer_all' || a.type === 'transfer' || a.type === 'message') && (
               <Input value={a.to||''} onChange={v => updateAction(i,'to',v)} placeholder="@recipient or lac1..." mono />
             )}
-            {a.type === 'transfer' && <Input value={a.amount||''} onChange={v => updateAction(i,'amount',v)} type="number" placeholder="Amount LAC" />}
-            {a.type === 'message' && <Input value={a.text||''} onChange={v => updateAction(i,'text',v)} placeholder="Message text..." />}
+            {a.type === 'transfer' && <Input value={a.amount||''} onChange={v => updateAction(i,'amount',v)} type="number" placeholder={t('amount')+' LAC'} />}
+            {a.type === 'message' && <Input value={a.text||''} onChange={v => updateAction(i,'text',v)} placeholder={t('message')+'...'} />}
           </Card>
         ))}
 
@@ -3345,6 +3414,7 @@ const DeadManSwitchView = ({ onBack, profile, onDone }) => {
 
 // ━━━ MINING ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const MiningView = ({ onBack, profile }) => {
+  const { t } = useT();
   const [d, setD] = useState(null);
   useEffect(() => {
     const load = () => get('/api/wallet/mining?limit=50').then(setD).catch(()=>{});
@@ -3361,22 +3431,22 @@ const MiningView = ({ onBack, profile }) => {
     <div className="flex-1 overflow-y-auto p-4">
       <Card gradient="bg-gradient-to-br from-emerald-800/30 to-[#0f1f18] border-emerald-700/30" className="mb-4 text-center">
         <div className="text-4xl mb-2">⛏️</div>
-        <p className="text-emerald-400 font-bold text-lg">{mined > 0 ? 'Mining Active' : 'Mining Waiting'}</p>
-        <p className="text-gray-500 text-xs">PoET Consensus · Weighted Lottery</p>
+        <p className="text-emerald-400 font-bold text-lg">{mined > 0 ? t('miningActive') : t('miningWaiting')}</p>
+        <p className="text-gray-500 text-xs">{t('miningActive')+' · PoET'}</p>
       </Card>
       <div className="grid grid-cols-2 gap-2 mb-4">
-        <StatBox label="Your Level" value={`L${p.level??0}`} />
-        <StatBox label="Mining Chance" value={`${[15,20,25,30,35,40,45,50][p.level??0]||15}%`} color="text-emerald-400" />
-        <StatBox label="Blocks Mined" value={mined} />
-        <StatBox label="Total Earned" value={earned > 0 ? fmt(earned)+' LAC' : '0'} color="text-emerald-400" />
+        <StatBox label={t('yourLevel')} value={`L${p.level??0}`} />
+        <StatBox label={t('miningChanceLabel')} value={`${[15,20,25,30,35,40,45,50][p.level??0]||15}%`} color="text-emerald-400" />
+        <StatBox label={t('blocksMined')} value={mined} />
+        <StatBox label={t('totalEarned')} value={earned > 0 ? fmt(earned)+' LAC' : '0'} color="text-emerald-400" />
       </div>
-      <Card><p className="text-white text-sm font-semibold mb-2">Mining Info</p>
-        {[['Block Reward','190 LAC'],['Winners/Block', d?.winners_per_block||'19'],['Min Balance','50 LAC'],['Your Balance',fmt(p.balance)+' LAC']].map(([k,v]) => (
+      <Card><p className="text-white text-sm font-semibold mb-2">{t('miningInfo')}</p>
+        {[[t('blockReward'),'190 LAC'],['Winners/Block', d?.winners_per_block||'19'],[t('minBalance'),'50 LAC'],[t('yourBalance'),fmt(p.balance)+' LAC']].map(([k,v]) => (
           <div key={k} className="flex justify-between py-1.5 border-b border-gray-800/20"><span className="text-gray-500 text-xs">{k}</span><span className="text-white text-xs font-medium">{v}</span></div>
         ))}
       </Card>
       {rewards.length > 0 && (<div className="mt-4">
-        <p className="text-gray-500 text-xs font-medium mb-2">Recent Rewards</p>
+        <p className="text-gray-500 text-xs font-medium mb-2">{t('recentRewards')}</p>
         {rewards.slice(0,10).map((r,i) => <Card key={i} className="mb-1.5"><div className="flex justify-between"><span className="text-emerald-400 text-sm font-semibold">+{fmt(r.reward||r.amount)} LAC</span><span className="text-gray-600 text-[11px]">Block #{r.block}</span></div></Card>)}
       </div>)}
     </div></div>);
@@ -3384,6 +3454,7 @@ const MiningView = ({ onBack, profile }) => {
 
 // ━━━ TRANSACTIONS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const TxsView = ({ onBack }) => {
+  const { t } = useT();
   const [txs, setTxs] = useState([]); const [ld, setLd] = useState(true); const [f, setF] = useState('all');
   useEffect(() => {
     get('/api/wallet/transactions').then(d => { const t=d.transactions||{};
@@ -3401,7 +3472,7 @@ const TxsView = ({ onBack }) => {
   const show = f==='all'?txs:txs.filter(t=>t.dir===f);
   return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="📜 Transactions" onBack={onBack} right={<span className="text-gray-600 text-xs">{show.length}</span>} />
     <div className="flex gap-1 px-4 py-2">
-      {[['all','All'],['received','In'],['sent','Out'],['mined','Mined'],['burned','Burn']].map(([id,l]) => (
+      {[['all','All'],['received','In'],['sent','Out'],['mined',t('txReward')],['burned','Burn']].map(([id,l]) => (
         <button key={id} onClick={() => setF(id)} className={`px-3 py-1 rounded-lg text-[11px] font-semibold ${f===id?'bg-emerald-600 text-white':'bg-gray-800 text-gray-500'}`}>{l}</button>
       ))}
     </div>
@@ -3412,6 +3483,7 @@ const TxsView = ({ onBack }) => {
 
 // ━━━ DICE GAME ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const DiceView = ({ onBack, profile, onRefresh }) => {
+  const { t } = useT();
   const [mode, setMode] = useState('color'); // 'color' or 'number'
   const [bet, setBet] = useState('10');
   const [playing, setPlaying] = useState(false);
@@ -3428,7 +3500,7 @@ const DiceView = ({ onBack, profile, onRefresh }) => {
     if (playing) return;
     const amount = parseFloat(bet) || 0;
     if (amount < 1) { toast.error('Min bet: 1 LAC'); return; }
-    if (amount > (profile?.balance||0)) { toast.error('Not enough LAC'); return; }
+    if (amount > (profile?.balance||0)) { toast.error(t('notEnoughLac')); return; }
     setPlaying(true); setResult(null);
     try {
       const r = await post('/api/dice/play', { type: mode, choice, amount });
@@ -3552,6 +3624,7 @@ const DiceView = ({ onBack, profile, onRefresh }) => {
 
 // ━━━ VALIDATOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const ValidatorView = ({ onBack, profile, onRefresh }) => {
+  const { t } = useT();
   const [status, setStatus] = useState(null);
   const [validators, setValidators] = useState([]);
   const [ld, setLd] = useState(false);
@@ -3566,7 +3639,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
     setLd(true);
     try {
       const r = await post('/api/validator/register', { enable: !status?.validator_mode });
-      toast.success(r.validator_mode ? '🛡️ Validator ON' : 'Validator OFF');
+      toast.success(r.validator_mode ? '🛡️ Validator ON' : t('validatorOff'));
       await load();
       onRefresh();
     } catch(e) { toast.error(e.message); }
@@ -3584,7 +3657,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       <Card gradient={active ? 'bg-gradient-to-br from-purple-900/40 to-[#0f1f18] border-purple-700/30' : 'bg-gradient-to-br from-[#0a2a1f] to-[#0f1f18] border-emerald-800/30'} className="mb-4 text-center">
         <div className="text-4xl mb-2">{active ? '🛡️' : '🔒'}</div>
         <p className={`font-bold text-lg ${active?'text-purple-400':'text-gray-400'}`}>
-          {active ? 'Validator Active' : eligible ? 'Validator Ready' : 'Not Eligible'}
+          {active ? t('validatorActive') : eligible ? t('validatorReady') : 'Not Eligible'}
         </p>
         <p className="text-gray-600 text-xs mt-1">
           {eligible ? 'Zero-History block validation' : `Need Level 5+ (current: L${p.level??0})`}
@@ -3592,7 +3665,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
         {eligible && (
           <div className="mt-4">
             <Btn onClick={toggle} color={active?'red':'purple'} loading={ld}>
-              {active ? 'Disable Validator' : 'Enable Validator'}
+              {active ? t('disableValidator') : t('enableValidator')}
             </Btn>
           </div>
         )}
@@ -3601,7 +3674,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       {/* Stats */}
       {eligible && (
         <div className="grid grid-cols-2 gap-2 mb-4">
-          <StatBox label="Your Level" value={`L${s.level??p.level??0}`} />
+          <StatBox label={t('yourLevel')} value={`L${s.level??p.level??0}`} />
           <StatBox label="Weight" value={s.weight||'—'} color="text-purple-400" />
           <StatBox label="Daily Earning" value={s.estimated_daily_earning?fmt(s.estimated_daily_earning)+' LAC':'—'} color="text-emerald-400" />
           <StatBox label="Yearly Earning" value={s.estimated_yearly_earning?fmt(s.estimated_yearly_earning)+' LAC':'—'} color="text-emerald-400" />
@@ -3609,15 +3682,15 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       )}
 
       {/* Info */}
-      <Card><p className="text-white text-sm font-semibold mb-2">Validator Info</p>
+      <Card><p className="text-white text-sm font-semibold mb-2">{t('validatorInfo')}</p>
         {[
-          ['Required Level', 'L5+'],
+          [t('requiredLevel'), 'L5+'],
           ['L5 Reward', '0.5 LAC/commitment'],
           ['L6 Reward', '1.0 LAC/commitment'],
           ['L7 GOD Reward', '1.0 LAC · 3x weight'],
-          ['Min Validators', s.min_validators||3],
-          ['Commitment Interval', `${s.commitment_interval||30}s`],
-          ['Your Balance', fmt(p.balance)+' LAC'],
+          [t('minValidators'), s.min_validators||3],
+          [t('commitInterval'), `${s.commitment_interval||30}s`],
+          [t('yourBalance'), fmt(p.balance)+' LAC'],
         ].map(([k,v]) => (
           <div key={k} className="flex justify-between py-1.5 border-b border-gray-800/20">
             <span className="text-gray-500 text-xs">{k}</span>
@@ -3647,7 +3720,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       {/* Requirements if not eligible */}
       {!eligible && (
         <Card className="mt-4" gradient="bg-amber-900/10 border-amber-700/20">
-          <p className="text-amber-400 text-sm font-semibold mb-2">How to become a Validator</p>
+          <p className="text-amber-400 text-sm font-semibold mb-2">{t('howValidator')}</p>
           <div className="space-y-2 text-xs text-gray-400">
             <p>1. Reach Level 5 (burn 100,000 LAC total)</p>
             <p>2. Maintain minimum balance</p>
@@ -3681,7 +3754,7 @@ const UsernameView = ({ onBack, onDone }) => {
       </div>
       <div className="flex justify-between text-[11px]"><span className="text-gray-600">3-20 chars · a-z 0-9 _</span><span className="text-amber-400">{cost>0?cost+' LAC':'—'}</span></div>
       {avail===true && <Btn onClick={reg} color="emerald" full loading={ld}>Register @{name} ({cost} LAC)</Btn>}
-      {avail===false && <p className="text-red-400 text-sm text-center">Already taken</p>}
+      {avail===false && <p className="text-red-400 text-sm text-center">{t('alreadyTaken')}</p>}
 
       <Card className="mt-4"><p className="text-white text-sm font-semibold mb-2">💰 Pricing</p>
         {[['3 chars','10,000 LAC'],['4 chars','1,000 LAC'],['5 chars','100 LAC'],['6+ chars','10 LAC']].map(([k,v]) => (
@@ -3963,17 +4036,17 @@ const DashboardView = ({ onBack }) => {
 // ━━━ EXPLORER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const txMeta = (t) => {
   const m = {
-    'normal':['💸','Transfer','emerald'], 'transfer':['💸','Transfer','emerald'],
-    'veil_transfer':['👻','VEIL','purple'], 'ring_transfer':['🔐','Ring','purple'], 'stealth_transfer':['🔒','Stealth','purple'],
-    'stash_deposit':['🎒','STASH In','amber'], 'stash_withdraw':['💰','STASH Out','amber'],
-    'dice_burn':['🎲','Dice Burn','yellow'], 'dice_mint':['🎲','Dice Win','yellow'],
+    'normal':['💸',t('txTransfer'),'emerald'], 'transfer':['💸',t('txTransfer'),'emerald'],
+    'veil_transfer':['👻','VEIL','purple'], 'ring_transfer':['🔐','Ring','purple'], 'stealth_transfer':['🔒',t('txStealth'),'purple'],
+    'stash_deposit':['🎒',t('txStashIn'),'amber'], 'stash_withdraw':['💰',t('txStashOut'),'amber'],
+    'dice_burn':['🎲',t('txDiceBurn'),'yellow'], 'dice_mint':['🎲',t('txDiceWin'),'yellow'],
     'dms_transfer':['💀','DMS Transfer','red'], 'dms_transfer_all':['💀','DMS Transfer','red'],
     'dms_message':['💀','DMS Msg','red'], 'dms_wipe':['💀','DMS Wipe','red'], 'dms_burn_stash':['💀','DMS Burn','red'],
-    'timelock_create':['⏰','TimeLock','blue'], 'timelock_release':['⏰','Unlock','blue'],
-    'burn_level_upgrade':['⬆️','Level Up','red'], 'burn_nickname_change':['✏️','Nickname','red'],
-    'username_register':['👤','Username','emerald'], 'faucet':['🚰','Faucet','gray'],
-    'mining_reward':['⛏️','Reward','emerald'], 'poet_reward':['⛏️','Reward','emerald'],
-    'referral_bonus':['🤝','Referral','purple'], 'referral_boost':['🔥','Ref Boost','red'],
+    'timelock_create':['⏰',t('txTimelock'),'blue'], 'timelock_release':['⏰',t('txUnlock'),'blue'],
+    'burn_level_upgrade':['⬆️',t('txLevelUp'),'red'], 'burn_nickname_change':['✏️','Nickname','red'],
+    'username_register':['👤','Username','emerald'], 'faucet':['🚰',t('txFaucet'),'gray'],
+    'mining_reward':['⛏️',t('txReward'),'emerald'], 'poet_reward':['⛏️',t('txReward'),'emerald'],
+    'referral_bonus':['🤝',t('txReferral'),'purple'], 'referral_boost':['🔥','Ref Boost','red'],
   };
   return m[t] || ['📄', t?.replace(/_/g,' ')||'Event', 'gray'];
 };
@@ -4023,7 +4096,7 @@ const ExplorerView = ({ onBack }) => {
         </Card>
         {reward > 0 && <Card><div className="flex justify-between items-center"><span className="text-gray-400 text-xs">⛏️ {miners} miner{miners>1?'s':''}</span><span className="text-emerald-400 font-bold font-mono">{reward.toFixed(2)} LAC</span></div></Card>}
         <p className="text-gray-500 text-[11px] font-medium">📋 Transactions ({txs.length})</p>
-        {txs.length === 0 ? <p className="text-gray-700 text-[11px] text-center py-4">No transactions</p> :
+        {txs.length === 0 ? <p className="text-gray-700 text-[11px] text-center py-4">{t('noTxFound')}</p> :
           txs.map((tx,i) => {
             const [ic, label, color] = txMeta(tx.type);
             const anon = isAnon(tx.type);
@@ -4050,7 +4123,7 @@ const ExplorerView = ({ onBack }) => {
   return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="⛓ Explorer" onBack={onBack} right={<Badge>#{h} · last 200</Badge>} />
     <div className="flex-1 overflow-y-auto p-4">
       {loading?<p className="text-gray-600 text-center py-8">Loading blocks…</p>:
-        blocks.length===0?<p className="text-gray-600 text-center py-8">No blocks</p>:
+        blocks.length===0?<p className="text-gray-600 text-center py-8">{t('noBlocks')}</p>:
         blocks.map(b => {
           const txs = (b.transactions||[]).filter(t => t.type!=='mining_reward' && t.type!=='poet_reward');
           const msgs = (b.ephemeral_msgs||[]).length;
@@ -4090,7 +4163,7 @@ const ExploreTab = ({ onNav, onMenu }) => {
         {icon:'⛓',title:t('explorer'),sub:t('blocks')+' & '+t('transactions'),type:'explorer'},
         {icon:'📊',title:t('dashboard'),sub:t('topBalances')+', '+t('levelDist'),type:'dashboard'},
         {icon:'⛏️',title:t('mining'),sub:t('totalEarned')+', '+t('recentRewards'),type:'mining'},
-        {icon:'⏰',title:'TimeLock',sub:t('lockFunds'),type:'timelock'},
+        {icon:'⏰',title:t('txTimelock'),sub:t('lockFunds'),type:'timelock'},
         {icon:'💀',title:'Dead Man\'s Switch',sub:'DMS',type:'dms'},
         {icon:'🛡️',title:'Validator',sub:'Zero-History',type:'validator'},
         {icon:'📍',title:'Proof-of-Location',sub:'Prove zone without revealing location',type:'pol'},
@@ -4157,7 +4230,7 @@ const ProfileTab = ({ profile, onNav, onLogout, onRefresh, onMenu }) => {
           const s=localStorage.getItem('lac_seed');
           if(s){ const show=confirm('⚠️ Your seed will be shown.\nMake sure nobody is watching!\n\nShow seed?');
             if(show){ cp(s); prompt('Your seed (copied to clipboard):', s); }
-          } else { toast.error('No seed found'); }
+          } else { toast.error(t('noSeedFound')); }
         }} />
         <ListItem icon={<Globe className="w-5 h-5 text-cyan-400"/>} title={t('language')} sub={lang==='uk'?'🇺🇦 Українська':lang==='ru'?'🇷🇺 Русский':'🇬🇧 English'}
           onClick={() => setLang(lang==='uk'?'ru':lang==='ru'?'en':'uk')} />
