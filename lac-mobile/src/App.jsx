@@ -279,26 +279,6 @@ const i18n = {
     naginiInterval:"Interval", naginiOwner:"Owner", naginiAlertChannel:"Alert channel",
     naginiUntilAlert:"until alert fires", naginiNever:"Never",
     menuTitle:"Menu", deadManSwitch:"Dead Man's Switch", usernameMenu:"Username", validatorMenu:"Validator",
-    miningActive:"Mining Active", miningWaiting:"Mining Waiting",
-    blockReward2:"Block Reward", minBalance2:"Min Balance", yourBalance2:"Your Balance",
-    miningInfo2:"Mining Info", recentRewards2:"Recent Rewards",
-    recentGames:"Recent Games", notEnoughLac:"Not enough LAC",
-    validatorActive:"Validator Active", validatorReady:"Validator Ready",
-    validatorOff:"Validator OFF", enableValidator:"Enable Validator",
-    disableValidator:"Disable Validator", requiredLevel:"Required Level",
-    minValidators2:"Min Validators", commitInterval:"Commitment Interval",
-    validatorInfo:"Validator Info", howValidator:"How to become a Validator",
-    createTimelock:"Create TimeLock", pendingLocks:"Pending Locks",
-    normalTransfer:"Normal Transfer", holdRecord:"Hold to record",
-    releaseToSend:"Release to send", sendImage:"Send Image",
-    noDmsConfig:"No DMS configured", keyDeleted2:"Key deleted",
-    blocksMined:"Blocks Mined", dmsInterval:"Interval", dmsOwner:"Owner",
-    dmsAlertChannel:"Alert channel", txTransfer:"Transfer", txStealth:"Stealth",
-    txStashIn:"STASH In", txStashOut:"STASH Out", txDiceBurn:"Dice Burn",
-    txDiceWin:"Dice Win", txTimelock:"TimeLock", txUnlock:"Unlock",
-    txLevelUp:"Level Up", txFaucet2:"Faucet", txReward2:"Reward", txReferral:"Referral",
-    alreadyTaken:"Already taken", enterGroupName2:"Enter group name",
-    yourInviteCode:"Your Invite Code", noBlocks:"No blocks",
   },
   uk: {
     chats:"Чати", wallet:"Гаманець", explore:"Огляд", profile:"Профіль", panic:"ПАНІК",
@@ -410,26 +390,6 @@ const i18n = {
     naginiInterval:"Інтервал", naginiOwner:"Власник", naginiAlertChannel:"Канал сповіщення",
     naginiUntilAlert:"до спрацювання", naginiNever:"Ніколи",
     menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Нікнейм", validatorMenu:"Валідатор",
-    miningActive:"Майнінг активний", miningWaiting:"Очікування майнінгу",
-    blockReward2:"Нагорода за блок", minBalance2:"Мін. баланс", yourBalance2:"Ваш баланс",
-    miningInfo2:"Інфо про майнінг", recentRewards2:"Останні нагороди",
-    recentGames:"Останні ігри", notEnoughLac:"Недостатньо LAC",
-    validatorActive:"Валідатор активний", validatorReady:"Валідатор готовий",
-    validatorOff:"Валідатор вимкнено", enableValidator:"Увімкнути валідатор",
-    disableValidator:"Вимкнути валідатор", requiredLevel:"Необхідний рівень",
-    minValidators2:"Мін. валідаторів", commitInterval:"Інтервал підтверджень",
-    validatorInfo:"Інфо про валідатор", howValidator:"Як стати валідатором",
-    createTimelock:"Створити TimeLock", pendingLocks:"Активні блокування",
-    normalTransfer:"Звичайний переказ", holdRecord:"Тримайте для запису",
-    releaseToSend:"Відпустіть для надсилання", sendImage:"Надіслати зображення",
-    noDmsConfig:"DMS не налаштовано", keyDeleted2:"Ключ видалено",
-    blocksMined:"Блоків намайнено", dmsInterval:"Інтервал", dmsOwner:"Власник",
-    dmsAlertChannel:"Канал сповіщення", txTransfer:"Переказ", txStealth:"Прихований",
-    txStashIn:"STASH Вхід", txStashOut:"STASH Вихід", txDiceBurn:"Кубики - Програш",
-    txDiceWin:"Кубики - Виграш", txTimelock:"TimeLock", txUnlock:"Розблокування",
-    txLevelUp:"Підвищення рівня", txFaucet2:"Кран", txReward2:"Нагорода", txReferral:"Реферал",
-    alreadyTaken:"Вже зайнято", enterGroupName2:"Введіть назву групи",
-    yourInviteCode:"Ваш код запрошення", noBlocks:"Немає блоків",
   },
   ru: {
     chats:"Чаты", wallet:"Кошелёк", explore:"Обзор", profile:"Профиль", panic:"ПАНИКА",
@@ -541,26 +501,6 @@ const i18n = {
     naginiInterval:"Интервал", naginiOwner:"Владелец", naginiAlertChannel:"Канал оповещения",
     naginiUntilAlert:"до срабатывания", naginiNever:"Никогда",
     menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Никнейм", validatorMenu:"Валидатор",
-    miningActive:"Майнинг активен", miningWaiting:"Ожидание майнинга",
-    blockReward2:"Награда за блок", minBalance2:"Мин. баланс", yourBalance2:"Ваш баланс",
-    miningInfo2:"Инфо о майнинге", recentRewards2:"Последние награды",
-    recentGames:"Последние игры", notEnoughLac:"Недостаточно LAC",
-    validatorActive:"Валидатор активен", validatorReady:"Валидатор готов",
-    validatorOff:"Валидатор выключен", enableValidator:"Включить валидатор",
-    disableValidator:"Выключить валидатор", requiredLevel:"Необходимый уровень",
-    minValidators2:"Мин. валидаторов", commitInterval:"Интервал подтверждений",
-    validatorInfo:"Инфо о валидаторе", howValidator:"Как стать валидатором",
-    createTimelock:"Создать TimeLock", pendingLocks:"Активные блокировки",
-    normalTransfer:"Обычный перевод", holdRecord:"Держите для записи",
-    releaseToSend:"Отпустите для отправки", sendImage:"Отправить изображение",
-    noDmsConfig:"DMS не настроен", keyDeleted2:"Ключ удалён",
-    blocksMined:"Блоков намайнено", dmsInterval:"Интервал", dmsOwner:"Владелец",
-    dmsAlertChannel:"Канал оповещения", txTransfer:"Перевод", txStealth:"Скрытый",
-    txStashIn:"STASH Вход", txStashOut:"STASH Выход", txDiceBurn:"Кубики - Проигрыш",
-    txDiceWin:"Кубики - Выигрыш", txTimelock:"TimeLock", txUnlock:"Разблокировка",
-    txLevelUp:"Повышение уровня", txFaucet2:"Кран", txReward2:"Награда", txReferral:"Реферал",
-    alreadyTaken:"Уже занято", enterGroupName2:"Введите название группы",
-    yourInviteCode:"Ваш код приглашения", noBlocks:"Нет блоков",
   }
 }
 const getLang = () => { const l = localStorage.getItem('lac_lang'); return ['en','uk','ru'].includes(l) ? l : 'en'; };
@@ -623,9 +563,7 @@ const Badge = ({ children, color = 'emerald' }) => {
   return <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${COLORS[color] || COLORS.gray}`}>{children}</span>;
 };
 
-const TabBar = ({tabs, active, onChange }) => {
-  const { t } = useT();
-  return (
+const TabBar = ({ tabs, active, onChange }) => (
   <div className="flex bg-[#0a1a15] rounded-xl p-0.5 gap-0.5">
     {tabs.map(([id, label]) => (
       <button key={id} onClick={() => onChange(id)}
@@ -756,13 +694,13 @@ const BitcoinWalletTab = ({ onMenu }) => {
 // 🐍 NAGINI — Geographic Secret Distribution
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const NaginiView = ({ onBack, profile }) => {
-  const { t } = useT();
   const [screen, setScreen] = useState('home'); // home | setup | recover | bundle | dms
   const [bundles, setBundles] = useState([]);
   const [selBundle, setSelBundle] = useState(null);
   const [available, setAvailable] = useState(null);
   const [debug, setDebug] = useState('');
   const [loading, setLoading] = useState(true);
+  const { t } = useT();
 
   const hasSeed = !!localStorage.getItem('lac_seed');
 
@@ -836,7 +774,7 @@ const NaginiView = ({ onBack, profile }) => {
               <button key={b.bundle_id} onClick={() => { setSelBundle(b); setScreen('bundle'); }}
                 className="w-full flex items-center justify-between p-3 rounded-xl bg-[#0d1a12]/80 border border-emerald-900/20 mb-2 active:bg-emerald-900/20">
                 <div className="text-left">
-                  <div className="text-white text-sm font-medium">{b.label || t('naginiBundleId')}</div>
+                  <div className="text-white text-sm font-medium">{b.label || 'Bundle'}</div>
                   <div className="text-gray-500 text-[10px]">{b.n} {t('naginiLocations')} · {t('naginiThreshold')} {b.threshold} · {b.has_canary ? '🪤' : ''}{b.has_dms ? '⏰' : ''}</div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-600" />
@@ -860,7 +798,6 @@ const NaginiView = ({ onBack, profile }) => {
 
 
 const NaginiSetup = ({ onBack }) => {
-  const { t } = useT();
   const [step, setStep] = useState(1);
   const [secretType, setSecretType] = useState('seed');
   const [customSecret, setCustomSecret] = useState('');
@@ -900,22 +837,22 @@ const NaginiSetup = ({ onBack }) => {
     let secretB64 = '';
     if (secretType === 'seed') {
       const seed = localStorage.getItem('lac_seed') || '';
-      if (!seed) { toast.error(t('naginiNoSeed')); return; }
+      if (!seed) { toast.error('❌ Seed не знайдено! Перезайдіть в акаунт.'); return; }
       // Safe base64: use Uint8Array→btoa method
       const enc2 = new TextEncoder().encode(seed);
       secretB64 = btoa(String.fromCharCode(...enc2));
       setLog(`Seed: ${seed.slice(0,8)}... (${seed.length} chars) → b64 len=${secretB64.length}`);
     } else {
-      if (!customSecret.trim()) { toast.error(t('naginiSeedMissing')); return; }
+      if (!customSecret.trim()) { toast.error('Введіть секретний текст'); return; }
       const encC = new TextEncoder().encode(customSecret.trim());
       secretB64 = btoa(String.fromCharCode(...encC));
     }
 
     const validLocs = locations.filter(l => l.lat && l.lon);
-    if (validLocs.length < 2) { toast.error(t('naginiMinLocations')); return; }
+    if (validLocs.length < 2) { toast.error('Потрібно мінімум 2 локації з GPS'); return; }
 
     setLoading(true);
-    setLog(prev => prev + '\nSending...');
+    setLog(prev => prev + '\nВідправляю на сервер...');
 
     try {
       const body = {
@@ -927,12 +864,12 @@ const NaginiSetup = ({ onBack }) => {
       };
       setLog(prev => prev + `\nLocations: ${JSON.stringify(body.locations)}`);
       const r = await post('/api/nagini/setup', body);
-      setLog(prev => prev + '\nResponse: ' + JSON.stringify(r));
+      setLog(prev => prev + '\nВідповідь: ' + JSON.stringify(r));
       if (r.ok) {
         setResult(r);
         setStep(99); // done
       } else {
-        toast.error(r.error || 'Server error', {duration: 8000});
+        toast.error('❌ ' + (r.error || 'Помилка сервера'), {duration: 8000});
       }
     } catch(e) {
       setLog(prev => prev + '\n❌ Error: ' + e.message);
@@ -948,16 +885,16 @@ const NaginiSetup = ({ onBack }) => {
         <div className="text-center py-6">
           <div className="text-5xl mb-3">✅</div>
           <div className="text-emerald-400 font-bold text-lg">{result.label}</div>
-          <div className="text-gray-500 text-sm mt-1">{result.n} {t('naginiLocations')} · {t('naginiThreshold')} {result.threshold}</div>
+          <div className="text-gray-500 text-sm mt-1">{result.n} локацій · threshold {result.threshold}</div>
           <div className="mt-3 bg-black/30 rounded-xl p-3">
             <div className="text-gray-500 text-xs mb-1">Bundle ID</div>
             <div className="text-emerald-300 text-xs font-mono break-all">{result.bundle_id}</div>
           </div>
         </div>
         <div className="bg-amber-900/10 border border-amber-800/30 rounded-xl p-3 text-xs text-amber-400">
-          {t('naginiWarning')}
+          ⚠️ Запиши назви місць окремо від пристрою. GPS координати не зберігаються на сервері.
         </div>
-        <Btn onClick={onBack} className="w-full bg-emerald-600">{t('naginiDone')}</Btn>
+        <Btn onClick={onBack} className="w-full bg-emerald-600">Готово</Btn>
       </div>
     </div>
   );
@@ -969,9 +906,9 @@ const NaginiSetup = ({ onBack }) => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Step 1: Secret */}
         {step === 1 && <>
-          <div className="text-gray-400 text-sm">{t('naginiWhatProtect')}</div>
+          <div className="text-gray-400 text-sm">Що хочеш захистити?</div>
           <div className="grid grid-cols-2 gap-2">
-            {[['seed','🔑 '+t('naginiLacSeed')],['custom','✏️ '+t('naginiCustomText')]].map(([v,l]) => (
+            {[['seed','🔑 LAC Seed'],['custom','✏️ Свій текст']].map(([v,l]) => (
               <button key={v} onClick={() => setSecretType(v)}
                 className={`p-3 rounded-xl border text-sm transition-all ${secretType===v?'border-emerald-500 bg-emerald-900/20 text-emerald-400':'border-gray-800 text-gray-500'}`}>
                 {l}
@@ -983,35 +920,35 @@ const NaginiSetup = ({ onBack }) => {
               ? 'bg-emerald-900/10 border-emerald-800/20 text-emerald-400'
               : 'bg-red-900/20 border-red-700/30 text-red-400'}`}>
               {localStorage.getItem('lac_seed')
-                ? `✅ ${t('naginiSeedFound')} (${localStorage.getItem('lac_seed').length} ${t('naginiWillSplit')}`
-                : t('naginiSeedMissing')}
+                ? `✅ Seed знайдено (${localStorage.getItem('lac_seed').length} символів). Буде розбито на шарди.`
+                : '❌ Seed відсутній! Виконайте вихід і вхід знову.'}
             </div>
           )}
           {secretType === 'custom' && (
             <textarea value={customSecret} onChange={e => setCustomSecret(e.target.value)}
-              placeholder={t('naginiSecretPlaceholder')}
+              placeholder="Секретний текст, ключ, або будь-що важливе..."
               className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl p-3 text-white text-sm resize-none h-24" />
           )}
-          <Input value={label} onChange={e => setLabel(e.target.value)} placeholder={t('naginiLabelPlaceholder')} />
+          <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Назва (напр. Kyiv backup)" />
           <Btn onClick={() => setStep(2)} className="w-full bg-emerald-600"
             disabled={secretType === 'seed' && !localStorage.getItem('lac_seed')}>
-            {t('naginiNext')}
+            Далі →
           </Btn>
         </>}
 
         {/* Step 2: Locations */}
         {step === 2 && <>
-          <div className="text-gray-400 text-sm">{t('naginiSetGPS')}</div>
+          <div className="text-gray-400 text-sm">Встанови GPS локації. Кожен шард прив'язаний до місця.</div>
           {locations.map((loc, i) => (
             <div key={i} className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${canaryIdx===i?'bg-amber-900/40 text-amber-400':'bg-emerald-900/30 text-emerald-500'}`}>
-                  {canaryIdx===i ? t('naginiCanary') : `#${i+1}`}
+                  {canaryIdx===i ? '🪤 Canary' : `#${i+1}`}
                 </span>
                 <div className="flex gap-2">
                   <button onClick={() => setCanaryIdx(canaryIdx===i ? null : i)}
                     className={`text-[10px] px-2 py-1 rounded-lg border ${canaryIdx===i?'border-amber-700/50 text-amber-400':'border-gray-700/30 text-gray-600'}`}>
-                    🪤 {t('naginiTrap')}
+                    🪤 trap
                   </button>
                   {locations.length > 2 && (
                     <button onClick={() => removeLocation(i)} className="text-gray-600 text-xs">✕</button>
@@ -1019,16 +956,16 @@ const NaginiSetup = ({ onBack }) => {
                 </div>
               </div>
               <Input value={loc.name} onChange={e => setLoc(i,'name',e.target.value)}
-                placeholder={`${t('naginiPlaceName')} (${i+1})`} />
+                placeholder={`Місце #${i+1} (напр. Центральний парк)`} />
               <div className="grid grid-cols-2 gap-2">
                 <input value={loc.lat} onChange={e => setLoc(i,'lat',e.target.value)}
-                  placeholder={t('naginiLatitude')} className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
+                  placeholder="Широта" className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
                 <input value={loc.lon} onChange={e => setLoc(i,'lon',e.target.value)}
-                  placeholder={t('naginiLongitude')} className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
+                  placeholder="Довгота" className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
               </div>
               <button onClick={() => getGPS(i)} disabled={locating===i}
                 className="w-full text-xs py-2 rounded-lg bg-emerald-900/20 border border-emerald-900/30 text-emerald-500 disabled:opacity-50">
-                {locating===i ? t('naginiGettingGPS') : t('naginiUseMyLocation')}
+                {locating===i ? '📡 GPS...' : '📍 Використати моє місце зараз'}
               </button>
               {loc.lat && loc.lon && <div className="text-emerald-600 text-[10px]">✓ {parseFloat(loc.lat).toFixed(5)}, {parseFloat(loc.lon).toFixed(5)}</div>}
             </div>
@@ -1036,11 +973,11 @@ const NaginiSetup = ({ onBack }) => {
           {locations.length < 8 && (
             <button onClick={addLocation}
               className="w-full py-2 rounded-xl border border-dashed border-emerald-900/30 text-emerald-700 text-sm">
-              {t('naginiAddLocation')}
+              + Додати локацію
             </button>
           )}
           <div className="bg-[#0d1a12]/60 rounded-xl p-3">
-            <div className="text-gray-400 text-xs mb-2">{t('naginiMinLocations')}</div>
+            <div className="text-gray-400 text-xs mb-2">Мінімум локацій для відновлення</div>
             <div className="flex gap-2">
               {Array.from({length: locations.length-1}, (_,i) => i+2).map(v => (
                 <button key={v} onClick={() => setThreshold(v)}
@@ -1049,29 +986,29 @@ const NaginiSetup = ({ onBack }) => {
                 </button>
               ))}
             </div>
-            <div className="text-gray-600 text-xs mt-1">{t('naginiAnyOf')} {threshold} {t('naginiOfLocations')} {locations.length}</div>
+            <div className="text-gray-600 text-xs mt-1">Будь-які {threshold} з {locations.length} локацій</div>
           </div>
           <Btn onClick={() => setStep(3)} className="w-full bg-emerald-600"
             disabled={locations.filter(l=>l.lat&&l.lon).length < 2}>
-            {t('naginiNext')}
+            Далі →
           </Btn>
         </>}
 
         {/* Step 3: Confirm */}
         {step === 3 && <>
-          <div className="text-gray-400 text-sm">{t('naginiConfirm')}</div>
+          <div className="text-gray-400 text-sm">Перевір і підтвердь</div>
           <div className="bg-[#0d1a12]/60 rounded-xl p-3 text-xs text-gray-400 space-y-1">
-            <div className="text-emerald-400 font-semibold mb-1">{t('naginiSummary')}</div>
-            <div>• {t('naginiSecret')}: {secretType === 'seed' ? `LAC Seed (${(localStorage.getItem('lac_seed')||'').length} chars)` : t('naginiCustomText')}</div>
-            <div>• {locations.filter(l=>l.lat&&l.lon).length} {t('naginiWithGPS')}</div>
+            <div className="text-emerald-400 font-semibold mb-1">Підсумок</div>
+            <div>• Секрет: {secretType === 'seed' ? `LAC Seed (${(localStorage.getItem('lac_seed')||'').length} chars)` : 'Свій текст'}</div>
+            <div>• {locations.filter(l=>l.lat&&l.lon).length} локацій з GPS</div>
             <div>• Threshold: {threshold} з {locations.length}</div>
-            {canaryIdx !== null && <div>• {t('naginiCanaryAt')}{canaryIdx+1} 🪤</div>}
+            {canaryIdx !== null && <div>• Canary пастка на локації #{canaryIdx+1} 🪤</div>}
           </div>
           {log ? (
             <div className="bg-black/40 rounded-xl p-3 text-[10px] font-mono text-gray-400 whitespace-pre-wrap break-all">{log}</div>
           ) : null}
           <Btn onClick={submit} disabled={loading} className="w-full bg-emerald-600 py-4 text-base">
-            {loading ? t('naginiCreating') : t('naginiCreateBtn')}
+            {loading ? '⏳ Створюю...' : '✅ Створити Bundle'}
           </Btn>
         </>}
       </div>
@@ -1081,26 +1018,25 @@ const NaginiSetup = ({ onBack }) => {
 
 
 const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
-  const { t } = useT();
   const [deleting, setDeleting] = useState(false);
   const del = async () => {
-    if (!window.confirm(t('naginiConfirmDelete'))) return;
+    if (!window.confirm('Delete this bundle? Cannot be undone.')) return;
     setDeleting(true);
     await post('/api/nagini/delete', {bundle_id: bundle.bundle_id});
     onBack();
   };
   return (
     <div className="flex flex-col h-full">
-      <Header title={bundle.label || t('naginiBundleId')} onBack={onBack} />
+      <Header title={bundle.label || 'Bundle'} onBack={onBack} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="rounded-2xl bg-[#0d1f18] border border-emerald-800/30 p-4 space-y-1">
           {[
-            [t('naginiBundleId'), bundle.bundle_id.slice(0,16)+'...'],
-            [t('naginiLocations'), `${bundle.n} ${t('naginiLocations')}`],
-            [t('naginiThreshold'), `${bundle.threshold} required to recover`],
-            [t('naginiCreated')||'Created', new Date(bundle.created_at*1000).toLocaleString()],
-            [t('naginiCanary'), bundle.has_canary ? '🪤 '+t('naginiActive') : t('naginiNever')],
-            [t('naginiDMSTitle'), bundle.has_dms ? '⏰ Active' : t('noDmsConfig')],
+            ['Bundle ID', bundle.bundle_id.slice(0,16)+'...'],
+            ['Locations', `${bundle.n} total`],
+            ['Threshold', `${bundle.threshold} required to recover`],
+            ['Created', new Date(bundle.created_at*1000).toLocaleString()],
+            ['Canary', bundle.has_canary ? '🪤 Active' : 'None'],
+            ["Dead Man's Switch", bundle.has_dms ? '⏰ Active' : 'Not configured'],
           ].map(([k,v]) => (
             <div key={k} className="flex justify-between items-center py-2 border-b border-gray-800/20">
               <span className="text-gray-500 text-sm">{k}</span>
@@ -1109,7 +1045,7 @@ const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
           ))}
         </div>
         <Btn onClick={onDMS} className="w-full bg-[#0d1a12] border border-emerald-800/40 text-emerald-400">
-          ⏰ {bundle.has_dms ? t('naginiManageDMS') : t('naginiSetupDMS')}
+          ⏰ {bundle.has_dms ? 'Manage' : 'Setup'} Dead Man's Switch
         </Btn>
         <Btn onClick={del} disabled={deleting} className="w-full bg-red-900/20 border border-red-800/30 text-red-400">
           {deleting ? 'Deleting...' : '🗑 Delete Bundle'}
@@ -1120,7 +1056,6 @@ const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
 };
 
 const NaginiRecover = ({ onBack, bundles }) => {
-  const { t } = useT();
   const [bundleId, setBundleId] = useState(bundles[0]?.bundle_id || '');
   const [sessionId, setSessionId] = useState(null);
   const [sessionInfo, setSessionInfo] = useState(null); // {n, threshold, label}
@@ -1139,9 +1074,9 @@ const NaginiRecover = ({ onBack, bundles }) => {
         setSessionId(r.session_id);
         setSessionInfo({ n: r.n, threshold: r.threshold, label: r.label });
         setCollected(0);
-        toast.success(t('naginiSessionOpen'));
+        toast.success('✅ Сесія відкрита. Скануй локації.');
       } else {
-        toast.error(r.error || 'Error');
+        toast.error('❌ ' + (r.error || 'Помилка'));
       }
     } catch(e) { toast.error('❌ ' + e.message); }
     setStarting(false);
@@ -1177,12 +1112,12 @@ const NaginiRecover = ({ onBack, bundles }) => {
               if (r.reconstructed) {
                 setResult(r);
                 setSessionId(null);
-                toast.success(t('naginiRecovered'), { duration: 5000 });
+                toast.success('🔓 Секрет відновлено!', { duration: 5000 });
               } else {
-                toast.success(`${t('naginiShardsCollected')} #${r.shard_index}! ${t('naginiNeedMore')} ${r.remaining}`, { duration: 3000 });
+                toast.success(`✅ Шард #${r.shard_index} зібрано! Ще ${r.remaining}`, { duration: 3000 });
               }
             } else {
-              toast.error(r.error || 'Shard not found', { duration: 3000 });
+              toast.error('❌ ' + (r.error || 'Шард не знайдено тут'), { duration: 3000 });
             }
           }
         } catch(e) {
@@ -1203,18 +1138,18 @@ const NaginiRecover = ({ onBack, bundles }) => {
   // ── Результат ──
   if (result) return (
     <div className="flex flex-col h-full">
-      <Header title={t('naginiRecovered')} onBack={onBack} />
+      <Header title="🔓 Секрет відновлено" onBack={onBack} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="rounded-2xl bg-emerald-900/10 border border-emerald-800/30 p-5 text-center">
           <div className="text-5xl mb-3">🔓</div>
-          <div className="text-emerald-400 font-bold text-lg">{t("success")}</div>
-          <div className="text-gray-500 text-xs mt-1">{result.collected} {t('naginiOfLocations')} {result.threshold} {t('naginiShardsCollected')}</div>
+          <div className="text-emerald-400 font-bold text-lg">Успішно!</div>
+          <div className="text-gray-500 text-xs mt-1">{result.collected} з {result.threshold} шардів зібрано</div>
         </div>
         <div className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-500 text-xs">{t("naginiRecovered")} (Base64)</span>
-            <button onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success(t('naginiCopied')); }}
-              className="text-emerald-500 text-xs font-semibold">{t('copy')}</button>
+            <span className="text-gray-500 text-xs">Відновлений секрет (Base64)</span>
+            <button onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success('Скопійовано!'); }}
+              className="text-emerald-500 text-xs font-semibold">📋 Копіювати</button>
           </div>
           {/* Decoded text — показуємо людино-читабельний текст */}
           {(() => {
@@ -1228,9 +1163,9 @@ const NaginiRecover = ({ onBack, bundles }) => {
             })();
             return decoded ? (
               <div>
-                <div className="text-gray-500 text-xs mb-1">{t('naginiSecret')}</div>
+                <div className="text-gray-500 text-xs mb-1">📋 Розшифрований текст</div>
                 <div className="p-3 bg-black/30 rounded-xl text-emerald-300 text-sm font-mono break-all select-all border border-emerald-900/30"
-                  onClick={() => { navigator.clipboard.writeText(decoded); toast.success(t('naginiCopied')); }}>
+                  onClick={() => { navigator.clipboard.writeText(decoded); toast.success('Скопійовано!'); }}>
                   {decoded}
                 </div>
               </div>
@@ -1239,27 +1174,27 @@ const NaginiRecover = ({ onBack, bundles }) => {
           <div className="mt-2">
             <div className="text-gray-600 text-[9px] mb-1">Raw Base64 (tap to copy)</div>
             <div className="text-gray-700 text-[9px] font-mono break-all" 
-              onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success(t('naginiCopied')); }}>
+              onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success('Base64 скопійовано'); }}>
               {result.secret_b64}
             </div>
           </div>
         </div>
         <div className="bg-amber-900/10 border border-amber-800/20 rounded-xl p-3 text-xs text-amber-500">
-          {t('naginiWarning')}
+          ⚠️ Збережи зараз. Цей екран більше не покаже секрет.
         </div>
-        <Btn onClick={onBack} className="w-full bg-emerald-600">{t('naginiDone')}</Btn>
+        <Btn onClick={onBack} className="w-full bg-emerald-600">Готово</Btn>
       </div>
     </div>
   );
 
   return (
     <div className="flex flex-col h-full">
-      <Header title={t('naginiRecover')} onBack={onBack} />
+      <Header title="Відновити секрет" onBack={onBack} />
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {/* Bundle select */}
         {bundles.length > 1 && !sessionId && (
           <div>
-            <div className="text-gray-400 text-xs mb-1">{t('naginiSelectBundle')}</div>
+            <div className="text-gray-400 text-xs mb-1">Оберіть bundle</div>
             <select value={bundleId} onChange={e => setBundleId(e.target.value)}
               className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm">
               {bundles.map(b => <option key={b.bundle_id} value={b.bundle_id}>{b.label || b.bundle_id.slice(0,12)}</option>)}
@@ -1271,13 +1206,13 @@ const NaginiRecover = ({ onBack, bundles }) => {
         {!sessionId ? (
           <div className="space-y-3">
             <div className="bg-blue-900/10 border border-blue-800/20 rounded-xl p-3 text-xs text-blue-400">
-              {t('naginiSessionOpen')}
+              Натисни "Почати відновлення", потім скануй кожну локацію по черзі. Сесія зберігається на сервері — стан не губиться.
             </div>
             {bundles.length === 0 ? (
-              <div className="text-gray-500 text-sm text-center py-4">{t('naginiYourBundles')||'No bundles'}</div>
+              <div className="text-gray-500 text-sm text-center py-4">Немає bundles. Спочатку створи.</div>
             ) : (
               <Btn onClick={startSession} disabled={starting} className="w-full bg-emerald-600 py-4 text-base font-semibold">
-                {starting ? t('naginiStarting') : t('naginiStartSession')}
+                {starting ? '⏳ Відкриваю сесію...' : '🔑 Почати відновлення'}
               </Btn>
             )}
           </div>
@@ -1286,8 +1221,8 @@ const NaginiRecover = ({ onBack, bundles }) => {
             {/* Progress */}
             <div className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-gray-400 text-xs">{collected}/{sessionInfo?.threshold} {t('naginiShardsCollected')}</div>
-                <button onClick={cancelSession} className="text-gray-600 text-xs">{t('naginiCancelSession')}</button>
+                <div className="text-gray-400 text-xs">Прогрес: {collected}/{sessionInfo?.threshold} шардів</div>
+                <button onClick={cancelSession} className="text-gray-600 text-xs">✕ Скасувати</button>
               </div>
               <div className="flex gap-1">
                 {Array.from({length: sessionInfo?.n || 3}, (_, i) => (
@@ -1296,7 +1231,7 @@ const NaginiRecover = ({ onBack, bundles }) => {
               </div>
               {collected > 0 && sessionInfo && (
                 <div className="text-emerald-500 text-xs mt-1">
-                  {collected >= sessionInfo.threshold ? t('naginiRecovered') : `${t('naginiNeedMore')} ${sessionInfo.threshold - collected} ${t('naginiLocations')}`}
+                  {collected >= sessionInfo.threshold ? '✅ Достатньо — реконструкція...' : `Ще ${sessionInfo.threshold - collected} локацій`}
                 </div>
               )}
             </div>
@@ -1309,8 +1244,8 @@ const NaginiRecover = ({ onBack, bundles }) => {
                 ) : (
                   <>
                     <div>📡 {lastResult.lat}, {lastResult.lon} (±{lastResult.acc}м)</div>
-                    {lastResult.matched ? <div className="text-emerald-400 mt-0.5">{t('naginiShardsCollected')} #{lastResult.shard_index}дено</div>
-                      : <div className="text-gray-500 mt-0.5">{t('naginiNeedMore')}</div>}
+                    {lastResult.matched ? <div className="text-emerald-400 mt-0.5">✅ Шард #{lastResult.shard_index} знайдено</div>
+                      : <div className="text-gray-500 mt-0.5">❌ Шард не знайдено тут</div>}
                   </>
                 )}
               </div>
@@ -1318,11 +1253,11 @@ const NaginiRecover = ({ onBack, bundles }) => {
 
             {/* Scan button */}
             <Btn onClick={scan} disabled={locating} className="w-full bg-emerald-600 hover:bg-emerald-500 py-5 text-lg font-bold">
-              {locating ? t('naginiGettingGPS') : t('naginiScanGPS')}
+              {locating ? '📡 Отримую GPS...' : '📍 Сканувати цю локацію'}
             </Btn>
 
             <div className="text-gray-600 text-xs text-center">
-              {t('naginiScanLocation')}
+              GPS повинен бути в межах ~200м від збереженої локації
             </div>
           </div>
         )}
@@ -1333,7 +1268,6 @@ const NaginiRecover = ({ onBack, bundles }) => {
 
 
 const NaginiDMS = ({ onBack, bundle }) => {
-  const { t } = useT();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ interval_hours: 24, owner_name: '', emergency_message: '' });
@@ -1400,7 +1334,7 @@ const NaginiDMS = ({ onBack, bundle }) => {
         ) : (
           <div className="space-y-3">
             <Input value={form.owner_name} onChange={e => setForm(f=>({...f, owner_name: e.target.value}))}
-              placeholder={t('naginiOwnerName')} />
+              placeholder="Your name (shown in alert message)" />
             <div>
               <div className="text-gray-400 text-xs mb-2">Alert interval</div>
               <div className="flex gap-2">
@@ -1413,7 +1347,7 @@ const NaginiDMS = ({ onBack, bundle }) => {
               </div>
             </div>
             <Input value={form.emergency_message} onChange={e => setForm(f=>({...f, emergency_message: e.target.value}))}
-              placeholder={t('naginiEmergencyMsg')} />
+              placeholder="Emergency message (optional)" />
             <div className="bg-emerald-900/10 border border-emerald-800/20 rounded-xl p-3 text-xs text-emerald-500">
               📩 Alert will be sent as a LAC message to your own wallet if you miss a check-in.
             </div>
@@ -2140,7 +2074,7 @@ const MicButton = React.memo(({ recording, disabled, onStart, onStop }) => {
       onPointerCancel={handleEnd}
       onPointerLeave={handleEnd}
       disabled={disabled}
-      title={!navigator.mediaDevices ? 'Upload audio via 📎' : recording ? t('releaseToSend') : t('holdRecord')}
+      title={!navigator.mediaDevices ? 'Upload audio via 📎' : recording ? 'Release to send' : 'Hold to record'}
       style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
       className={`w-9 h-9 flex items-center justify-center disabled:opacity-30
         ${recording ? 'text-red-400 scale-125' : 'text-gray-500 hover:text-amber-400'}
@@ -2782,7 +2716,7 @@ const ReferralView = ({ onBack }) => {
         {/* Your code */}
         <Card gradient="bg-gradient-to-br from-purple-900/20 to-[#0f1f18] border-purple-800/20" className="mb-3">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-purple-400 font-semibold text-sm">{t('yourInviteCode')}</p>
+            <p className="text-purple-400 font-semibold text-sm">Your Invite Code</p>
             <Badge color={ti[2]}>{ti[0]} {ti[1]}</Badge>
           </div>
           <div className="bg-[#060f0c] p-3 rounded-xl border border-purple-900/20 text-center">
@@ -2949,7 +2883,6 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
 };
 
 const MiningMini = () => {
-  const { t } = useT();
   const [d, setD] = useState(null);
   useEffect(() => {
     const load = () => get('/api/wallet/mining?limit=20').then(setD).catch(() => {});
@@ -2995,8 +2928,7 @@ const LevelBonuses = ({ level }) => {
     </div>
   );
 };
-const LevelBar = ({level, balance }) => {
-  const { t } = useT();
+const LevelBar = ({ level, balance }) => {
   const cost = levelCosts[level] || 0;
   const pct = cost > 0 ? Math.min(100, (balance/cost)*100) : 100;
   const name = levelNames[level] || `L${level}`;
@@ -3070,8 +3002,7 @@ const TxRow = ({ tx }) => {
 };
 
 // ━━━ SEND ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const SendView = ({onBack, profile, onDone }) => {
-  const { t } = useT();
+const SendView = ({ onBack, profile, onDone }) => {
   const [type, setType] = useState(null); const [to, setTo] = useState(''); const [amt, setAmt] = useState(''); const [ld, setLd] = useState(false);
   const go = async () => { setLd(true); try { await post(type==='veil'?'/api/transfer/veil':'/api/transfer/normal',{to:to.trim(),amount:parseFloat(amt)}); toast.success('Sent!'); onDone(); } catch(e){ toast.error(e.message); } finally { setLd(false); } };
 
@@ -3089,7 +3020,7 @@ const SendView = ({onBack, profile, onDone }) => {
       </button>
     </div></div>);
 
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={type==='veil'?'VEIL Transfer':t('normalTransfer')} onBack={() => setType(null)} />
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={type==='veil'?'VEIL Transfer':'Normal Transfer'} onBack={() => setType(null)} />
     <div className="p-4 space-y-4">
       <div className={`rounded-xl p-3 border flex items-center gap-2 ${type==='veil'?'bg-purple-900/15 border-purple-700/30':'bg-blue-900/15 border-blue-700/30'}`}>
         {type==='veil'?<Eye className="w-4 h-4 text-purple-400"/>:<Send className="w-4 h-4 text-blue-400"/>}
@@ -3111,34 +3042,6 @@ const STASHView = ({ onBack, onDone }) => {
     try { return JSON.parse(localStorage.getItem('lac_stash_keys')||'[]'); } catch { return []; }
   });
   useEffect(() => { get('/api/stash/info').then(setInfo).catch(()=>{}); }, []);
-
-  // Poll server to auto-detect keys spent by others
-  useEffect(() => {
-    const checkKeys = async () => {
-      const keys = JSON.parse(localStorage.getItem('lac_stash_keys')||'[]');
-      const activeKeys = keys.filter(k => !k.used);
-      if (!activeKeys.length) return;
-      for (const k of activeKeys) {
-        try {
-          const r = await fetch('/api/stash/check', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({stash_key: k.key})
-          }).then(r=>r.json());
-          if (r.ok && r.spent) {
-            setSavedKeys(prev => {
-              const updated = prev.map(s => s.key === k.key ? {...s, used: true} : s);
-              localStorage.setItem('lac_stash_keys', JSON.stringify(updated));
-              return updated;
-            });
-          }
-        } catch {}
-      }
-    };
-    checkKeys();
-    const i = setInterval(checkKeys, 30000);
-    return () => clearInterval(i);
-  }, []);
   const noms = [{c:0,a:100},{c:1,a:1000},{c:2,a:10000},{c:3,a:100000}];
 
   const saveKey = (k, amount) => {
@@ -3154,7 +3057,7 @@ const STASHView = ({ onBack, onDone }) => {
       localStorage.setItem('lac_stash_keys', JSON.stringify(updated));
       return updated;
     });
-    toast.success(t('keyDeleted2')||'Key deleted');
+    toast.success('Key deleted');
   };
   const markUsed = (keyStr) => {
     setSavedKeys(prev => {
@@ -3263,8 +3166,7 @@ const STASHView = ({ onBack, onDone }) => {
 };
 
 // ━━━ TIMELOCK ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const TimelockView = ({onBack, profile, onDone }) => {
-  const { t } = useT();
+const TimelockView = ({ onBack, profile, onDone }) => {
   const [to, setTo] = useState(''); const [amt, setAmt] = useState(''); const [delay, setDelay] = useState(''); const [ld, setLd] = useState(false); const [pending, setPending] = useState([]);
   useEffect(() => { get('/api/timelock/pending').then(d => setPending(d.pending||d.locks||[])).catch(()=>{}); }, []);
 
@@ -3310,8 +3212,7 @@ const TimelockView = ({onBack, profile, onDone }) => {
 };
 
 // ━━━ DEAD MAN'S SWITCH ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const DeadManSwitchView = ({onBack, profile, onDone }) => {
-  const { t } = useT();
+const DeadManSwitchView = ({ onBack, profile, onDone }) => {
   const [status, setStatus] = useState(null);
   const [days, setDays] = useState('30');
   const [actions, setActions] = useState([{ type: 'transfer_all', to: '' }]);
@@ -3376,7 +3277,7 @@ const DeadManSwitchView = ({onBack, profile, onDone }) => {
       ) : status?.triggered_at ? (
         <Card><p className="text-red-400 text-sm">💀 DMS was triggered</p><p className="text-gray-600 text-[10px]">Actions were executed. Set up a new one if needed.</p></Card>
       ) : (
-        <Card><p className="text-gray-500 text-sm">{t('noDmsConfig')}</p></Card>
+        <Card><p className="text-gray-500 text-sm">No DMS configured</p></Card>
       )}
 
       {!showSetup && !status?.enabled && <Btn onClick={() => setShowSetup(true)} color="red" full>Configure Dead Man's Switch</Btn>}
@@ -3416,7 +3317,6 @@ const DeadManSwitchView = ({onBack, profile, onDone }) => {
 
 // ━━━ MINING ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const MiningView = ({ onBack, profile }) => {
-  const { t } = useT();
   const [d, setD] = useState(null);
   useEffect(() => {
     const load = () => get('/api/wallet/mining?limit=50').then(setD).catch(()=>{});
@@ -3433,17 +3333,17 @@ const MiningView = ({ onBack, profile }) => {
     <div className="flex-1 overflow-y-auto p-4">
       <Card gradient="bg-gradient-to-br from-emerald-800/30 to-[#0f1f18] border-emerald-700/30" className="mb-4 text-center">
         <div className="text-4xl mb-2">⛏️</div>
-        <p className="text-emerald-400 font-bold text-lg">{mined > 0 ? t('miningActive') : t('miningWaiting')}</p>
+        <p className="text-emerald-400 font-bold text-lg">{mined > 0 ? 'Mining Active' : 'Mining Waiting'}</p>
         <p className="text-gray-500 text-xs">PoET Consensus · Weighted Lottery</p>
       </Card>
       <div className="grid grid-cols-2 gap-2 mb-4">
-        <StatBox label={t('yourLevel')} value={`L${p.level??0}`} />
-        <StatBox label={t('miningChance')} value={`${[15,20,25,30,35,40,45,50][p.level??0]||15}%`} color="text-emerald-400" />
-        <StatBox label={t('blocksMined')} value={mined} />
-        <StatBox label={t('totalEarned')} value={earned > 0 ? fmt(earned)+' LAC' : '0'} color="text-emerald-400" />
+        <StatBox label="Your Level" value={`L${p.level??0}`} />
+        <StatBox label="Mining Chance" value={`${[15,20,25,30,35,40,45][p.level??0]||15}%`} color="text-emerald-400" />
+        <StatBox label="Blocks Mined" value={mined} />
+        <StatBox label="Total Earned" value={earned > 0 ? fmt(earned)+' LAC' : '0'} color="text-emerald-400" />
       </div>
       <Card><p className="text-white text-sm font-semibold mb-2">Mining Info</p>
-        {[[t('blockReward'),'190 LAC'],['Winners/Block', d?.winners_per_block||'19'],[t('minBalance'),'50 LAC'],[t('yourBalance'),fmt(p.balance)+' LAC']].map(([k,v]) => (
+        {[['Block Reward','190 LAC'],['Winners/Block','19'],['Min Balance','50 LAC'],['Your Balance',fmt(p.balance)+' LAC']].map(([k,v]) => (
           <div key={k} className="flex justify-between py-1.5 border-b border-gray-800/20"><span className="text-gray-500 text-xs">{k}</span><span className="text-white text-xs font-medium">{v}</span></div>
         ))}
       </Card>
@@ -3456,7 +3356,6 @@ const MiningView = ({ onBack, profile }) => {
 
 // ━━━ TRANSACTIONS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const TxsView = ({ onBack }) => {
-  const { t } = useT();
   const [txs, setTxs] = useState([]); const [ld, setLd] = useState(true); const [f, setF] = useState('all');
   useEffect(() => {
     get('/api/wallet/transactions').then(d => { const t=d.transactions||{};
@@ -3485,7 +3384,6 @@ const TxsView = ({ onBack }) => {
 
 // ━━━ DICE GAME ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const DiceView = ({ onBack, profile, onRefresh }) => {
-  const { t } = useT();
   const [mode, setMode] = useState('color'); // 'color' or 'number'
   const [bet, setBet] = useState('10');
   const [playing, setPlaying] = useState(false);
@@ -3502,7 +3400,7 @@ const DiceView = ({ onBack, profile, onRefresh }) => {
     if (playing) return;
     const amount = parseFloat(bet) || 0;
     if (amount < 1) { toast.error('Min bet: 1 LAC'); return; }
-    if (amount > (profile?.balance||0)) { toast.error(t('notEnoughLac')); return; }
+    if (amount > (profile?.balance||0)) { toast.error('Not enough LAC'); return; }
     setPlaying(true); setResult(null);
     try {
       const r = await post('/api/dice/play', { type: mode, choice, amount });
@@ -3626,7 +3524,6 @@ const DiceView = ({ onBack, profile, onRefresh }) => {
 
 // ━━━ VALIDATOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const ValidatorView = ({ onBack, profile, onRefresh }) => {
-  const { t } = useT();
   const [status, setStatus] = useState(null);
   const [validators, setValidators] = useState([]);
   const [ld, setLd] = useState(false);
@@ -3641,7 +3538,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
     setLd(true);
     try {
       const r = await post('/api/validator/register', { enable: !status?.validator_mode });
-      toast.success(r.validator_mode ? '🛡️ Validator ON' : t('validatorOff'));
+      toast.success(r.validator_mode ? '🛡️ Validator ON' : 'Validator OFF');
       await load();
       onRefresh();
     } catch(e) { toast.error(e.message); }
@@ -3659,7 +3556,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       <Card gradient={active ? 'bg-gradient-to-br from-purple-900/40 to-[#0f1f18] border-purple-700/30' : 'bg-gradient-to-br from-[#0a2a1f] to-[#0f1f18] border-emerald-800/30'} className="mb-4 text-center">
         <div className="text-4xl mb-2">{active ? '🛡️' : '🔒'}</div>
         <p className={`font-bold text-lg ${active?'text-purple-400':'text-gray-400'}`}>
-          {active ? t('validatorActive') : eligible ? t('validatorReady') : 'Not Eligible'}
+          {active ? 'Validator Active' : eligible ? 'Validator Ready' : 'Not Eligible'}
         </p>
         <p className="text-gray-600 text-xs mt-1">
           {eligible ? 'Zero-History block validation' : `Need Level 5+ (current: L${p.level??0})`}
@@ -3667,7 +3564,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
         {eligible && (
           <div className="mt-4">
             <Btn onClick={toggle} color={active?'red':'purple'} loading={ld}>
-              {active ? t('disableValidator') : t('enableValidator')}
+              {active ? 'Disable Validator' : 'Enable Validator'}
             </Btn>
           </div>
         )}
@@ -3676,7 +3573,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       {/* Stats */}
       {eligible && (
         <div className="grid grid-cols-2 gap-2 mb-4">
-          <StatBox label={t('yourLevel')} value={`L${s.level??p.level??0}`} />
+          <StatBox label="Your Level" value={`L${s.level??p.level??0}`} />
           <StatBox label="Weight" value={s.weight||'—'} color="text-purple-400" />
           <StatBox label="Daily Earning" value={s.estimated_daily_earning?fmt(s.estimated_daily_earning)+' LAC':'—'} color="text-emerald-400" />
           <StatBox label="Yearly Earning" value={s.estimated_yearly_earning?fmt(s.estimated_yearly_earning)+' LAC':'—'} color="text-emerald-400" />
@@ -3684,15 +3581,15 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       )}
 
       {/* Info */}
-      <Card><p className="text-white text-sm font-semibold mb-2">{t('validatorInfo')}</p>
+      <Card><p className="text-white text-sm font-semibold mb-2">Validator Info</p>
         {[
-          [t('requiredLevel'), 'L5+'],
+          ['Required Level', 'L5+'],
           ['L5 Reward', '0.5 LAC/commitment'],
           ['L6 Reward', '1.0 LAC/commitment'],
           ['L7 GOD Reward', '1.0 LAC · 3x weight'],
-          [t('minValidators'), s.min_validators||3],
-          [t('commitInterval'), `${s.commitment_interval||30}s`],
-          [t('yourBalance'), fmt(p.balance)+' LAC'],
+          ['Min Validators', s.min_validators||3],
+          ['Commitment Interval', `${s.commitment_interval||30}s`],
+          ['Your Balance', fmt(p.balance)+' LAC'],
         ].map(([k,v]) => (
           <div key={k} className="flex justify-between py-1.5 border-b border-gray-800/20">
             <span className="text-gray-500 text-xs">{k}</span>
@@ -3722,7 +3619,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       {/* Requirements if not eligible */}
       {!eligible && (
         <Card className="mt-4" gradient="bg-amber-900/10 border-amber-700/20">
-          <p className="text-amber-400 text-sm font-semibold mb-2">{t('howValidator')}</p>
+          <p className="text-amber-400 text-sm font-semibold mb-2">How to become a Validator</p>
           <div className="space-y-2 text-xs text-gray-400">
             <p>1. Reach Level 5 (burn 100,000 LAC total)</p>
             <p>2. Maintain minimum balance</p>
@@ -3784,8 +3681,7 @@ const ContactsView = ({ onBack, onChat }) => {
 };
 
 // ━━━ PROOF-OF-LOCATION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const PolView = ({onBack, profile }) => {
-  const { t } = useT();
+const PolView = ({ onBack, profile }) => {
   const [status, setStatus] = useState('idle'); // idle | detecting | proving | done | error
   const [coords, setCoords] = useState(null);
   const [zones, setZones] = useState([]);
@@ -4056,8 +3952,7 @@ const txMeta = (t) => {
 
 const isAnon = (t) => ['veil_transfer','ring_transfer','stealth_transfer','stash_deposit','stash_withdraw','dice_burn','dice_mint','dms_transfer','dms_transfer_all','dms_message','dms_wipe','dms_burn_stash'].includes(t);
 
-const ExplorerView = ({onBack }) => {
-  const { t } = useT();
+const ExplorerView = ({ onBack }) => {
   const [blocks, setBlocks] = useState([]); const [h, setH] = useState(0); const [sel, setSel] = useState(null); const [loading, setLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
@@ -4127,7 +4022,7 @@ const ExplorerView = ({onBack }) => {
   return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="⛓ Explorer" onBack={onBack} right={<Badge>#{h} · last 200</Badge>} />
     <div className="flex-1 overflow-y-auto p-4">
       {loading?<p className="text-gray-600 text-center py-8">Loading blocks…</p>:
-        blocks.length===0?<p className="text-gray-600 text-center py-8">{t('noBlocks')}</p>:
+        blocks.length===0?<p className="text-gray-600 text-center py-8">No blocks</p>:
         blocks.map(b => {
           const txs = (b.transactions||[]).filter(t => t.type!=='mining_reward' && t.type!=='poet_reward');
           const msgs = (b.ephemeral_msgs||[]).length;
