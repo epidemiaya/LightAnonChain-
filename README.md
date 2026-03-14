@@ -19,9 +19,19 @@ No installation. Works in browser. Add to Home Screen on iOS/Android for app-lik
 
 ---
 
+## ☕ Support the Project
+
+If you find LAC useful, consider supporting development:
+
+**Bitcoin:** `bc1qwrgfqgj3mvzupgy0rj37ky5kjwslmq53a2h9qw`
+
+Every contribution helps keep the testnet running and development going. Built in Ukraine 🇺🇦
+
+---
+
 ## What is LAC?
 
-LAC is a lightweight privacy blockchain with a unique feature: **Zero-History** — it physically deletes blockchain data after cryptographic verification. Unlike Monero or Zcash where encrypted data stays forever, LAC erases it completely.
+LAC is a lightweight privacy blockchain started in **November 2025** with a unique feature: **Zero-History** — it physically deletes blockchain data after cryptographic verification. Unlike Monero or Zcash where encrypted data stays forever, LAC erases it completely.
 
 LAC combines **anonymous transactions** (ring signatures, stealth addresses) with **encrypted messaging** — like having Monero + Signal in one protocol, but with data that cleans itself.
 
@@ -75,9 +85,15 @@ If you don't log in for X days, automatic actions trigger:
 
 All actions recorded on-chain anonymously. No other blockchain has this.
 
-### ⛏️ PoET Consensus
-Proof of Elapsed Time — fair mining without GPU advantage. 19 winners per block, rewards distributed proportionally. CPU-friendly, energy-efficient.
+### 🐍 Nagini Protocol
+Geographic secret distribution system:
+- Split your seed into N shards (Shamir Secret Sharing)
+- Each shard encrypted with the GPS key of a specific physical location
+- Recover by visiting K locations — without visiting them, the secret is inaccessible
+- Canary traps detect unauthorized recovery attempts
 
+### ⛏️ PoET Consensus
+Proof of Elapsed Time — fair mining without GPU advantage. 19 winners per block, rewards distributed proportionally. CPU-friendly, energy-efficient. Level system (L0–L7 GOD) multiplies mining rewards and chances.
 
 ### ₿ Bitcoin SPV Wallet (built-in)
 Non-custodial Bitcoin wallet built directly into the LAC mobile app — no separate app needed.
@@ -147,26 +163,21 @@ npm run dev
 # App starts on http://localhost:5173
 ```
 
-### View the explorer
-
-Open `explorer/explorer.html` in a browser (connects to local node automatically).
-
 ## Project Structure
 
 ```
 LightAnonChain/
 ├── lac-node/
-│   ├── lac_node.py          # Main node (6500+ lines)
+│   ├── lac_node.py          # Main node (7000+ lines)
 │   ├── lac_timelock.py      # Time-lock transaction module
 │   ├── lac_zero_history.py  # Zero-History deletion engine
+│   ├── lac_crypto.py        # Ed25519, X25519, Kyber-768
 │   └── requirements.txt
 ├── lac-mobile/
-│   ├── src/App.jsx          # Full mobile app (3500+ lines)
+│   ├── src/App.jsx          # Full mobile app (4000+ lines)
 │   ├── vite.config.js       # PWA + code splitting config
 │   ├── package.json
 │   └── ...
-├── explorer/
-│   └── explorer.html        # Block explorer (standalone)
 ├── docs/
 │   ├── LAC_PROJECT_OVERVIEW.md
 │   ├── LAC_COMPARISON.md
@@ -186,7 +197,8 @@ LightAnonChain/
 | Halving | Gradual reduction over 100 years |
 | Transaction Fee | 0.1 LAC (transfers), 1.0 LAC (messages) |
 | Username Cost | 50 LAC |
-| Level Upgrade | 100-50,000 LAC (burn) |
+| Level Upgrade | 100–2,000,000 LAC (burn) |
+| Level 7 GOD | 2x mining chance · 2x validator reward |
 
 ## Roadmap
 
@@ -207,22 +219,23 @@ LightAnonChain/
 - [x] Voice messages & image sharing
 - [x] Group chats (public / private / L1 / L2 ephemeral)
 - [x] E2E encryption (Ed25519 + X25519 + XSalsa20-Poly1305)
-- [x] Read receipts + unread indicators
 - [x] WebSocket real-time messaging
-- [x] Bitcoin SPV wallet (non-custodial, local keys, Esplora API)
-- [x] Level 7 ⚡ GOD — top-tier validator status
+- [x] Bitcoin SPV wallet (non-custodial, local keys)
+- [x] Level 7 ⚡ GOD status
+- [x] Nagini Protocol (geographic secret distribution)
+- [x] Post-quantum encryption (Kyber-768)
 - [ ] BTC ↔ LAC Atomic Swaps (HTLC, trustless, P2P)
 - [ ] Multi-node peer discovery & sync
 - [ ] Mobile app (App Store / Google Play)
 - [ ] Username marketplace (on-chain)
 - [ ] Security audit
-- [ ] Mainnet launch Q2 2025
+- [ ] Mainnet launch
 
 ## Use Cases
 
-**Journalists & Activists** — send documents that self-destruct. Dead Man's Switch releases information if you go silent.
+**Journalists & Activists** — send documents that self-destruct. Dead Man's Switch releases information if you go silent. Nagini Protocol hides your seed across physical locations worldwide.
 
-**Crypto Privacy** — VEIL transfers with ring signatures. STASH pool breaks any on-chain link. Zero-History means evidence doesn't exist after 90 days. Bitcoin wallet shares one seed with LAC — one backup covers everything.
+**Crypto Privacy** — VEIL transfers with ring signatures. STASH pool breaks any on-chain link. Zero-History means evidence doesn't exist after 90 days.
 
 **Inheritance** — Dead Man's Switch transfers funds to heirs without lawyers, notaries, or trusted third parties.
 
@@ -242,9 +255,13 @@ LAC is in active development. Contributions welcome:
 
 ## Security
 
-This is testnet software. **Do not use for real funds.** The protocol has not been formally audited. The Bitcoin wallet derives private keys locally and never transmits them. Blockchain data is fetched from Blockstream Esplora over HTTPS. Your LAC seed phrase controls both your LAC and Bitcoin wallets — keep it safe.
+This is testnet software. **Do not use for real funds.** The protocol has not been formally audited. The Bitcoin wallet derives private keys locally and never transmits them. Your LAC seed phrase controls both your LAC and Bitcoin wallets — keep it safe.
 
-If you discover a vulnerability, please open an issue or contact us directly.
+If you discover a vulnerability, please open an issue or contact directly.
+
+## Support
+
+**Bitcoin donations:** `bc1qwrgfqgj3mvzupgy0rj37ky5kjwslmq53a2h9qw`
 
 ## License
 
@@ -252,4 +269,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-**Built in Ukraine 🇺🇦**
+**Built in Ukraine 🇺🇦 · Started November 2025**
