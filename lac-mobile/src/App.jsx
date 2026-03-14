@@ -3042,6 +3042,34 @@ const STASHView = ({ onBack, onDone }) => {
     try { return JSON.parse(localStorage.getItem('lac_stash_keys')||'[]'); } catch { return []; }
   });
   useEffect(() => { get('/api/stash/info').then(setInfo).catch(()=>{}); }, []);
+
+  // Poll server to auto-detect keys spent by others
+  useEffect(() => {
+    const checkKeys = async () => {
+      const keys = JSON.parse(localStorage.getItem('lac_stash_keys')||'[]');
+      const activeKeys = keys.filter(k => !k.used);
+      if (!activeKeys.length) return;
+      for (const k of activeKeys) {
+        try {
+          const r = await fetch('/api/stash/check', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({stash_key: k.key})
+          }).then(r=>r.json());
+          if (r.ok && r.spent) {
+            setSavedKeys(prev => {
+              const updated = prev.map(s => s.key === k.key ? {...s, used: true} : s);
+              localStorage.setItem('lac_stash_keys', JSON.stringify(updated));
+              return updated;
+            });
+          }
+        } catch {}
+      }
+    };
+    checkKeys();
+    const i = setInterval(checkKeys, 30000);
+    return () => clearInterval(i);
+  }, []);
   const noms = [{c:0,a:100},{c:1,a:1000},{c:2,a:10000},{c:3,a:100000}];
 
   const saveKey = (k, amount) => {
@@ -3338,12 +3366,12 @@ const MiningView = ({ onBack, profile }) => {
       </Card>
       <div className="grid grid-cols-2 gap-2 mb-4">
         <StatBox label="Your Level" value={`L${p.level??0}`} />
-        <StatBox label="Mining Chance" value={`${[15,20,25,30,35,40,45][p.level??0]||15}%`} color="text-emerald-400" />
+        <StatBox label="Mining Chance" value={`${[15,20,25,30,35,40,45,50][p.level??0]||15}%`} color="text-emerald-400" />
         <StatBox label="Blocks Mined" value={mined} />
         <StatBox label="Total Earned" value={earned > 0 ? fmt(earned)+' LAC' : '0'} color="text-emerald-400" />
       </div>
       <Card><p className="text-white text-sm font-semibold mb-2">Mining Info</p>
-        {[['Block Reward','190 LAC'],['Winners/Block','19'],['Min Balance','50 LAC'],['Your Balance',fmt(p.balance)+' LAC']].map(([k,v]) => (
+        {[['Block Reward','190 LAC'],['Winners/Block', d?.winners_per_block||'19'],['Min Balance','50 LAC'],['Your Balance',fmt(p.balance)+' LAC']].map(([k,v]) => (
           <div key={k} className="flex justify-between py-1.5 border-b border-gray-800/20"><span className="text-gray-500 text-xs">{k}</span><span className="text-white text-xs font-medium">{v}</span></div>
         ))}
       </Card>

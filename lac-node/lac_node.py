@@ -916,6 +916,9 @@ def auto_mining_loop():
                         hist.append({'block': next_index, 'reward': actual, 'timestamp': block_data['timestamp']})
                         if len(hist) > 10000:
                             S.wallets[w_addr]['mining_history'] = hist[-10000:]
+                        # Track lifetime total separately (not affected by history cap)
+                        S.wallets[w_addr]['total_mined_ever'] = round(
+                            S.wallets[w_addr].get('total_mined_ever', 0) + actual, 8)
 
                 S.counters['emitted_mining'] = S.counters.get('emitted_mining', 0) + block_emission
                 S.chain.append(new_block)
@@ -1763,7 +1766,8 @@ def get_wallet_mining():
         wallet = S.wallets[addr]
         # Fast: wallet.mining_history only — no chain scan
         history = wallet.get('mining_history', [])
-        total_mined = sum(e.get('reward', 0) for e in history)
+        # Use lifetime counter if available (accurate even when history > 10000 entries)
+        total_mined = wallet.get('total_mined_ever') or sum(e.get('reward', 0) for e in history)
         mining_rewards = sorted(
             [{'block': e.get('block', 0), 'timestamp': e.get('timestamp', 0),
               'reward': e.get('reward', 0), 'confirmed': True} for e in history],
@@ -1773,7 +1777,8 @@ def get_wallet_mining():
             'ok': True,
             'mining_rewards': mining_rewards,
             'count': len(mining_rewards),
-            'total_mined': total_mined
+            'total_mined': total_mined,
+            'winners_per_block': 19
         }
     _cache_set(ck_wm, _wm_res, ttl=30)
     return jsonify(_wm_res)
@@ -6026,6 +6031,46 @@ def stash_info():
         return jsonify({'error': str(e), 'ok': False}), 500
 
 
+
+
+@app.route('/api/stash/check', methods=['POST'])
+def stash_check():
+    """Check if a STASH key has been spent (used by anyone)"""
+    try:
+        data = request.get_json() or {}
+        stash_key = data.get('stash_key', '').strip()
+        if not stash_key:
+            return jsonify({'error': 'stash_key required', 'ok': False}), 400
+
+        secret_hex = None
+        if stash_key.startswith('STASH-'):
+            parts = stash_key.split('-', 2)
+            if len(parts) == 3:
+                secret_hex = parts[2]
+        elif stash_key.startswith('stash_{'):
+            try:
+                key_data = json.loads(stash_key[6:])
+                secret_hex = key_data.get('s')
+            except Exception:
+                pass
+
+        if not secret_hex:
+            return jsonify({'error': 'Invalid key format', 'ok': False}), 400
+
+        try:
+            secret = bytes.fromhex(secret_hex)
+        except Exception:
+            return jsonify({'error': 'Invalid secret', 'ok': False}), 400
+
+        nullifier = hashlib.sha256(b"STASH_NULL" + secret).hexdigest()
+
+        with S.lock:
+            spent = S.stash_pool.get('spent_nullifiers', [])
+            is_spent = nullifier in spent
+
+        return jsonify({'ok': True, 'spent': is_spent})
+    except Exception as e:
+        return jsonify({'error': str(e), 'ok': False}), 500
 
 
 # ==================== REFERRAL SYSTEM ====================
