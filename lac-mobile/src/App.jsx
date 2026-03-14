@@ -279,6 +279,20 @@ const i18n = {
     naginiInterval:"Interval", naginiOwner:"Owner", naginiAlertChannel:"Alert channel",
     naginiUntilAlert:"until alert fires", naginiNever:"Never",
     menuTitle:"Menu", deadManSwitch:"Dead Man's Switch", usernameMenu:"Username", validatorMenu:"Validator",
+    validatorActive:"Validator Active", validatorReady:"Validator Ready",
+    validatorOff:"Validator OFF", enableValidator:"Enable Validator",
+    disableValidator:"Disable Validator", requiredLevel:"Required Level",
+    commitInterval:"Commitment Interval", validatorInfo:"Validator Info",
+    howValidator:"How to become a Validator", createTimelock:"Create TimeLock",
+    pendingLocks:"Pending Locks", normalTransfer:"Normal Transfer",
+    holdRecord:"Hold to record", releaseToSend:"Release to send", sendImage:"Send Image",
+    noDmsConfig:"No DMS configured", blocksMined:"Blocks Mined",
+    dmsInterval:"Interval", dmsOwner:"Owner", dmsAlertChannel:"Alert channel",
+    txTransfer:"Transfer", txStealth:"Stealth", txStashIn:"STASH In",
+    txStashOut:"STASH Out", txDiceBurn:"Dice Burn", txDiceWin:"Dice Win",
+    txTimelock:"TimeLock", txUnlock:"Unlock", txLevelUp:"Level Up", txReferral:"Referral",
+    alreadyTaken:"Already taken", yourInviteCode:"Your Invite Code", noBlocks:"No blocks",
+    miningActive:"Mining Active", miningWaiting:"Mining Waiting",
   },
   uk: {
     chats:"Чати", wallet:"Гаманець", explore:"Огляд", profile:"Профіль", panic:"ПАНІК",
@@ -390,6 +404,20 @@ const i18n = {
     naginiInterval:"Інтервал", naginiOwner:"Власник", naginiAlertChannel:"Канал сповіщення",
     naginiUntilAlert:"до спрацювання", naginiNever:"Ніколи",
     menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Нікнейм", validatorMenu:"Валідатор",
+    miningActive:"Майнінг активний", miningWaiting:"Очікування майнінгу",
+    validatorActive:"Валідатор активний", validatorReady:"Валідатор готовий",
+    validatorOff:"Валідатор вимкнено", enableValidator:"Увімкнути валідатор",
+    disableValidator:"Вимкнути валідатор", requiredLevel:"Необхідний рівень",
+    commitInterval:"Інтервал підтверджень", validatorInfo:"Інфо про валідатор",
+    howValidator:"Як стати валідатором", createTimelock:"Створити TimeLock",
+    pendingLocks:"Активні блокування", normalTransfer:"Звичайний переказ",
+    holdRecord:"Тримайте для запису", releaseToSend:"Відпустіть для надсилання", sendImage:"Надіслати зображення",
+    noDmsConfig:"DMS не налаштовано", blocksMined:"Блоків намайнено",
+    dmsInterval:"Інтервал", dmsOwner:"Власник", dmsAlertChannel:"Канал сповіщення",
+    txTransfer:"Переказ", txStealth:"Прихований", txStashIn:"STASH Вхід",
+    txStashOut:"STASH Вихід", txDiceBurn:"Кубики-Програш", txDiceWin:"Кубики-Виграш",
+    txTimelock:"TimeLock", txUnlock:"Розблокування", txLevelUp:"Підвищення рівня", txReferral:"Реферал",
+    alreadyTaken:"Вже зайнято", yourInviteCode:"Ваш код запрошення", noBlocks:"Немає блоків",
   },
   ru: {
     chats:"Чаты", wallet:"Кошелёк", explore:"Обзор", profile:"Профиль", panic:"ПАНИКА",
@@ -501,6 +529,20 @@ const i18n = {
     naginiInterval:"Интервал", naginiOwner:"Владелец", naginiAlertChannel:"Канал оповещения",
     naginiUntilAlert:"до срабатывания", naginiNever:"Никогда",
     menuTitle:"Меню", deadManSwitch:"Dead Man Switch", usernameMenu:"Никнейм", validatorMenu:"Валидатор",
+    miningActive:"Майнинг активен", miningWaiting:"Ожидание майнинга",
+    validatorActive:"Валидатор активен", validatorReady:"Валидатор готов",
+    validatorOff:"Валидатор выключен", enableValidator:"Включить валидатор",
+    disableValidator:"Выключить валидатор", requiredLevel:"Необходимый уровень",
+    commitInterval:"Интервал подтверждений", validatorInfo:"Инфо о валидаторе",
+    howValidator:"Как стать валидатором", createTimelock:"Создать TimeLock",
+    pendingLocks:"Активные блокировки", normalTransfer:"Обычный перевод",
+    holdRecord:"Держите для записи", releaseToSend:"Отпустите для отправки", sendImage:"Отправить изображение",
+    noDmsConfig:"DMS не настроен", blocksMined:"Блоков намайнено",
+    dmsInterval:"Интервал", dmsOwner:"Владелец", dmsAlertChannel:"Канал оповещения",
+    txTransfer:"Перевод", txStealth:"Скрытый", txStashIn:"STASH Вход",
+    txStashOut:"STASH Выход", txDiceBurn:"Кубики-Проигрыш", txDiceWin:"Кубики-Выигрыш",
+    txTimelock:"TimeLock", txUnlock:"Разблокировка", txLevelUp:"Повышение уровня", txReferral:"Реферал",
+    alreadyTaken:"Уже занято", yourInviteCode:"Ваш код приглашения", noBlocks:"Нет блоков",
   }
 }
 const getLang = () => { const l = localStorage.getItem('lac_lang'); return ['en','uk','ru'].includes(l) ? l : 'en'; };
@@ -1334,7 +1376,7 @@ const NaginiDMS = ({ onBack, bundle }) => {
         ) : (
           <div className="space-y-3">
             <Input value={form.owner_name} onChange={e => setForm(f=>({...f, owner_name: e.target.value}))}
-              placeholder="Your name (shown in alert message)" />
+              placeholder={t('naginiOwnerName')} />
             <div>
               <div className="text-gray-400 text-xs mb-2">Alert interval</div>
               <div className="flex gap-2">
@@ -1347,7 +1389,7 @@ const NaginiDMS = ({ onBack, bundle }) => {
               </div>
             </div>
             <Input value={form.emergency_message} onChange={e => setForm(f=>({...f, emergency_message: e.target.value}))}
-              placeholder="Emergency message (optional)" />
+              placeholder={t('naginiEmergencyMsg')} />
             <div className="bg-emerald-900/10 border border-emerald-800/20 rounded-xl p-3 text-xs text-emerald-500">
               📩 Alert will be sent as a LAC message to your own wallet if you miss a check-in.
             </div>
@@ -2074,7 +2116,7 @@ const MicButton = React.memo(({ recording, disabled, onStart, onStop }) => {
       onPointerCancel={handleEnd}
       onPointerLeave={handleEnd}
       disabled={disabled}
-      title={!navigator.mediaDevices ? 'Upload audio via 📎' : recording ? 'Release to send' : 'Hold to record'}
+      title={!navigator.mediaDevices ? 'Upload audio via 📎' : recording ? t('releaseToSend') : t('holdRecord')}
       style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
       className={`w-9 h-9 flex items-center justify-center disabled:opacity-30
         ${recording ? 'text-red-400 scale-125' : 'text-gray-500 hover:text-amber-400'}
@@ -2716,7 +2758,7 @@ const ReferralView = ({ onBack }) => {
         {/* Your code */}
         <Card gradient="bg-gradient-to-br from-purple-900/20 to-[#0f1f18] border-purple-800/20" className="mb-3">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-purple-400 font-semibold text-sm">Your Invite Code</p>
+            <p className="text-purple-400 font-semibold text-sm">{t('yourInviteCode')}</p>
             <Badge color={ti[2]}>{ti[0]} {ti[1]}</Badge>
           </div>
           <div className="bg-[#060f0c] p-3 rounded-xl border border-purple-900/20 text-center">
@@ -3020,7 +3062,7 @@ const SendView = ({ onBack, profile, onDone }) => {
       </button>
     </div></div>);
 
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={type==='veil'?'VEIL Transfer':'Normal Transfer'} onBack={() => setType(null)} />
+  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title={type==='veil'?'VEIL Transfer':t('normalTransfer')} onBack={() => setType(null)} />
     <div className="p-4 space-y-4">
       <div className={`rounded-xl p-3 border flex items-center gap-2 ${type==='veil'?'bg-purple-900/15 border-purple-700/30':'bg-blue-900/15 border-blue-700/30'}`}>
         {type==='veil'?<Eye className="w-4 h-4 text-purple-400"/>:<Send className="w-4 h-4 text-blue-400"/>}
@@ -3085,7 +3127,7 @@ const STASHView = ({ onBack, onDone }) => {
       localStorage.setItem('lac_stash_keys', JSON.stringify(updated));
       return updated;
     });
-    toast.success('Key deleted');
+    toast.success(t('keyDeleted2')||'Key deleted');
   };
   const markUsed = (keyStr) => {
     setSavedKeys(prev => {
@@ -3305,7 +3347,7 @@ const DeadManSwitchView = ({ onBack, profile, onDone }) => {
       ) : status?.triggered_at ? (
         <Card><p className="text-red-400 text-sm">💀 DMS was triggered</p><p className="text-gray-600 text-[10px]">Actions were executed. Set up a new one if needed.</p></Card>
       ) : (
-        <Card><p className="text-gray-500 text-sm">No DMS configured</p></Card>
+        <Card><p className="text-gray-500 text-sm">{t('noDmsConfig')}</p></Card>
       )}
 
       {!showSetup && !status?.enabled && <Btn onClick={() => setShowSetup(true)} color="red" full>Configure Dead Man's Switch</Btn>}
@@ -3345,6 +3387,7 @@ const DeadManSwitchView = ({ onBack, profile, onDone }) => {
 
 // ━━━ MINING ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const MiningView = ({ onBack, profile }) => {
+  const { t } = useT();
   const [d, setD] = useState(null);
   useEffect(() => {
     const load = () => get('/api/wallet/mining?limit=50').then(setD).catch(()=>{});
@@ -3361,17 +3404,17 @@ const MiningView = ({ onBack, profile }) => {
     <div className="flex-1 overflow-y-auto p-4">
       <Card gradient="bg-gradient-to-br from-emerald-800/30 to-[#0f1f18] border-emerald-700/30" className="mb-4 text-center">
         <div className="text-4xl mb-2">⛏️</div>
-        <p className="text-emerald-400 font-bold text-lg">{mined > 0 ? 'Mining Active' : 'Mining Waiting'}</p>
+        <p className="text-emerald-400 font-bold text-lg">{mined > 0 ? t('miningActive') : t('miningWaiting')}</p>
         <p className="text-gray-500 text-xs">PoET Consensus · Weighted Lottery</p>
       </Card>
       <div className="grid grid-cols-2 gap-2 mb-4">
-        <StatBox label="Your Level" value={`L${p.level??0}`} />
-        <StatBox label="Mining Chance" value={`${[15,20,25,30,35,40,45,50][p.level??0]||15}%`} color="text-emerald-400" />
-        <StatBox label="Blocks Mined" value={mined} />
-        <StatBox label="Total Earned" value={earned > 0 ? fmt(earned)+' LAC' : '0'} color="text-emerald-400" />
+        <StatBox label={t('yourLevel')} value={`L${p.level??0}`} />
+        <StatBox label={t('miningChance')} value={`${[15,20,25,30,35,40,45,50][p.level??0]||15}%`} color="text-emerald-400" />
+        <StatBox label={t('blocksMined')} value={mined} />
+        <StatBox label={t('totalEarned')} value={earned > 0 ? fmt(earned)+' LAC' : '0'} color="text-emerald-400" />
       </div>
       <Card><p className="text-white text-sm font-semibold mb-2">Mining Info</p>
-        {[['Block Reward','190 LAC'],['Winners/Block', d?.winners_per_block||'19'],['Min Balance','50 LAC'],['Your Balance',fmt(p.balance)+' LAC']].map(([k,v]) => (
+        {[[t('blockReward'),'190 LAC'],['Winners/Block', d?.winners_per_block||'19'],[t('minBalance'),'50 LAC'],[t('yourBalance'),fmt(p.balance)+' LAC']].map(([k,v]) => (
           <div key={k} className="flex justify-between py-1.5 border-b border-gray-800/20"><span className="text-gray-500 text-xs">{k}</span><span className="text-white text-xs font-medium">{v}</span></div>
         ))}
       </Card>
@@ -3384,6 +3427,7 @@ const MiningView = ({ onBack, profile }) => {
 
 // ━━━ TRANSACTIONS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const TxsView = ({ onBack }) => {
+  const { t } = useT();
   const [txs, setTxs] = useState([]); const [ld, setLd] = useState(true); const [f, setF] = useState('all');
   useEffect(() => {
     get('/api/wallet/transactions').then(d => { const t=d.transactions||{};
@@ -3412,6 +3456,7 @@ const TxsView = ({ onBack }) => {
 
 // ━━━ DICE GAME ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const DiceView = ({ onBack, profile, onRefresh }) => {
+  const { t } = useT();
   const [mode, setMode] = useState('color'); // 'color' or 'number'
   const [bet, setBet] = useState('10');
   const [playing, setPlaying] = useState(false);
@@ -3428,7 +3473,7 @@ const DiceView = ({ onBack, profile, onRefresh }) => {
     if (playing) return;
     const amount = parseFloat(bet) || 0;
     if (amount < 1) { toast.error('Min bet: 1 LAC'); return; }
-    if (amount > (profile?.balance||0)) { toast.error('Not enough LAC'); return; }
+    if (amount > (profile?.balance||0)) { toast.error(t('notEnoughLac')); return; }
     setPlaying(true); setResult(null);
     try {
       const r = await post('/api/dice/play', { type: mode, choice, amount });
@@ -3552,6 +3597,7 @@ const DiceView = ({ onBack, profile, onRefresh }) => {
 
 // ━━━ VALIDATOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const ValidatorView = ({ onBack, profile, onRefresh }) => {
+  const { t } = useT();
   const [status, setStatus] = useState(null);
   const [validators, setValidators] = useState([]);
   const [ld, setLd] = useState(false);
@@ -3566,7 +3612,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
     setLd(true);
     try {
       const r = await post('/api/validator/register', { enable: !status?.validator_mode });
-      toast.success(r.validator_mode ? '🛡️ Validator ON' : 'Validator OFF');
+      toast.success(r.validator_mode ? '🛡️ Validator ON' : t('validatorOff'));
       await load();
       onRefresh();
     } catch(e) { toast.error(e.message); }
@@ -3584,7 +3630,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       <Card gradient={active ? 'bg-gradient-to-br from-purple-900/40 to-[#0f1f18] border-purple-700/30' : 'bg-gradient-to-br from-[#0a2a1f] to-[#0f1f18] border-emerald-800/30'} className="mb-4 text-center">
         <div className="text-4xl mb-2">{active ? '🛡️' : '🔒'}</div>
         <p className={`font-bold text-lg ${active?'text-purple-400':'text-gray-400'}`}>
-          {active ? 'Validator Active' : eligible ? 'Validator Ready' : 'Not Eligible'}
+          {active ? t('validatorActive') : eligible ? t('validatorReady') : 'Not Eligible'}
         </p>
         <p className="text-gray-600 text-xs mt-1">
           {eligible ? 'Zero-History block validation' : `Need Level 5+ (current: L${p.level??0})`}
@@ -3592,7 +3638,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
         {eligible && (
           <div className="mt-4">
             <Btn onClick={toggle} color={active?'red':'purple'} loading={ld}>
-              {active ? 'Disable Validator' : 'Enable Validator'}
+              {active ? t('disableValidator') : t('enableValidator')}
             </Btn>
           </div>
         )}
@@ -3601,7 +3647,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       {/* Stats */}
       {eligible && (
         <div className="grid grid-cols-2 gap-2 mb-4">
-          <StatBox label="Your Level" value={`L${s.level??p.level??0}`} />
+          <StatBox label={t('yourLevel')} value={`L${s.level??p.level??0}`} />
           <StatBox label="Weight" value={s.weight||'—'} color="text-purple-400" />
           <StatBox label="Daily Earning" value={s.estimated_daily_earning?fmt(s.estimated_daily_earning)+' LAC':'—'} color="text-emerald-400" />
           <StatBox label="Yearly Earning" value={s.estimated_yearly_earning?fmt(s.estimated_yearly_earning)+' LAC':'—'} color="text-emerald-400" />
@@ -3609,15 +3655,15 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       )}
 
       {/* Info */}
-      <Card><p className="text-white text-sm font-semibold mb-2">Validator Info</p>
+      <Card><p className="text-white text-sm font-semibold mb-2">{t('validatorInfo')}</p>
         {[
-          ['Required Level', 'L5+'],
+          [t('requiredLevel'), 'L5+'],
           ['L5 Reward', '0.5 LAC/commitment'],
           ['L6 Reward', '1.0 LAC/commitment'],
           ['L7 GOD Reward', '1.0 LAC · 3x weight'],
-          ['Min Validators', s.min_validators||3],
-          ['Commitment Interval', `${s.commitment_interval||30}s`],
-          ['Your Balance', fmt(p.balance)+' LAC'],
+          [t('minValidators'), s.min_validators||3],
+          [t('commitInterval'), `${s.commitment_interval||30}s`],
+          [t('yourBalance'), fmt(p.balance)+' LAC'],
         ].map(([k,v]) => (
           <div key={k} className="flex justify-between py-1.5 border-b border-gray-800/20">
             <span className="text-gray-500 text-xs">{k}</span>
@@ -3647,7 +3693,7 @@ const ValidatorView = ({ onBack, profile, onRefresh }) => {
       {/* Requirements if not eligible */}
       {!eligible && (
         <Card className="mt-4" gradient="bg-amber-900/10 border-amber-700/20">
-          <p className="text-amber-400 text-sm font-semibold mb-2">How to become a Validator</p>
+          <p className="text-amber-400 text-sm font-semibold mb-2">{t('howValidator')}</p>
           <div className="space-y-2 text-xs text-gray-400">
             <p>1. Reach Level 5 (burn 100,000 LAC total)</p>
             <p>2. Maintain minimum balance</p>
@@ -3965,12 +4011,12 @@ const txMeta = (t) => {
   const m = {
     'normal':['💸','Transfer','emerald'], 'transfer':['💸','Transfer','emerald'],
     'veil_transfer':['👻','VEIL','purple'], 'ring_transfer':['🔐','Ring','purple'], 'stealth_transfer':['🔒','Stealth','purple'],
-    'stash_deposit':['🎒','STASH In','amber'], 'stash_withdraw':['💰','STASH Out','amber'],
-    'dice_burn':['🎲','Dice Burn','yellow'], 'dice_mint':['🎲','Dice Win','yellow'],
+    'stash_deposit':['🎒',t('txStashIn'),'amber'], 'stash_withdraw':['💰',t('txStashOut'),'amber'],
+    'dice_burn':['🎲',t('txDiceBurn'),'yellow'], 'dice_mint':['🎲',t('txDiceWin'),'yellow'],
     'dms_transfer':['💀','DMS Transfer','red'], 'dms_transfer_all':['💀','DMS Transfer','red'],
     'dms_message':['💀','DMS Msg','red'], 'dms_wipe':['💀','DMS Wipe','red'], 'dms_burn_stash':['💀','DMS Burn','red'],
     'timelock_create':['⏰','TimeLock','blue'], 'timelock_release':['⏰','Unlock','blue'],
-    'burn_level_upgrade':['⬆️','Level Up','red'], 'burn_nickname_change':['✏️','Nickname','red'],
+    'burn_level_upgrade':['⬆️',t('txLevelUp'),'red'], 'burn_nickname_change':['✏️','Nickname','red'],
     'username_register':['👤','Username','emerald'], 'faucet':['🚰','Faucet','gray'],
     'mining_reward':['⛏️','Reward','emerald'], 'poet_reward':['⛏️','Reward','emerald'],
     'referral_bonus':['🤝','Referral','purple'], 'referral_boost':['🔥','Ref Boost','red'],
@@ -4050,7 +4096,7 @@ const ExplorerView = ({ onBack }) => {
   return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="⛓ Explorer" onBack={onBack} right={<Badge>#{h} · last 200</Badge>} />
     <div className="flex-1 overflow-y-auto p-4">
       {loading?<p className="text-gray-600 text-center py-8">Loading blocks…</p>:
-        blocks.length===0?<p className="text-gray-600 text-center py-8">No blocks</p>:
+        blocks.length===0?<p className="text-gray-600 text-center py-8">{t('noBlocks')}</p>:
         blocks.map(b => {
           const txs = (b.transactions||[]).filter(t => t.type!=='mining_reward' && t.type!=='poet_reward');
           const msgs = (b.ephemeral_msgs||[]).length;

@@ -5331,6 +5331,26 @@ def main():
     
     S = State(args.datadir)
 
+    # One-time migration: init total_mined_ever for existing wallets
+    def _migrate_total_mined():
+        try:
+            migrated = 0
+            with S.lock:
+                for addr, wallet in S.wallets.items():
+                    if 'total_mined_ever' not in wallet:
+                        hist = wallet.get('mining_history', [])
+                        if hist:
+                            wallet['total_mined_ever'] = round(
+                                sum(e.get('reward', 0) for e in hist), 8)
+                            migrated += 1
+            if migrated:
+                S.save()
+                print(f'[Migration] total_mined_ever initialized for {migrated} wallets')
+        except Exception as e:
+            print(f'[Migration] error (non-fatal): {e}')
+    import threading as _mig_threading
+    _mig_threading.Thread(target=_migrate_total_mined, daemon=True).start()
+
     # Media directory
     global MEDIA_DIR
     MEDIA_DIR = Path(args.datadir) / 'media'
