@@ -753,8 +753,8 @@ const BitcoinWalletTab = ({ onMenu }) => {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 🐍 NAGINI — Geographic Secret Distribution
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const NaginiView = ({
-  const { t } = useT(); onBack, profile }) => {
+const NaginiView = ({ onBack, profile }) => {
+  const { t } = useT();
   const [screen, setScreen] = useState('home'); // home | setup | recover | bundle | dms
   const [bundles, setBundles] = useState([]);
   const [selBundle, setSelBundle] = useState(null);
@@ -858,8 +858,8 @@ const NaginiView = ({
 };
 
 
-const NaginiSetup = ({
-  const { t } = useT(); onBack }) => {
+const NaginiSetup = ({ onBack }) => {
+  const { t } = useT();
   const [step, setStep] = useState(1);
   const [secretType, setSecretType] = useState('seed');
   const [customSecret, setCustomSecret] = useState('');
@@ -1079,8 +1079,8 @@ const NaginiSetup = ({
 };
 
 
-const NaginiBundleDetail = ({
-  const { t } = useT(); bundle, onBack, onDMS }) => {
+const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
+  const { t } = useT();
   const [deleting, setDeleting] = useState(false);
   const del = async () => {
     if (!window.confirm(t('naginiConfirmDelete'))) return;
@@ -1118,8 +1118,8 @@ const NaginiBundleDetail = ({
   );
 };
 
-const NaginiRecover = ({
-  const { t } = useT(); onBack, bundles }) => {
+const NaginiRecover = ({ onBack, bundles }) => {
+  const { t } = useT();
   const [bundleId, setBundleId] = useState(bundles[0]?.bundle_id || '');
   const [sessionId, setSessionId] = useState(null);
   const [sessionInfo, setSessionInfo] = useState(null); // {n, threshold, label}
@@ -1331,8 +1331,8 @@ const NaginiRecover = ({
 };
 
 
-const NaginiDMS = ({
-  const { t } = useT(); onBack, bundle }) => {
+const NaginiDMS = ({ onBack, bundle }) => {
+  const { t } = useT();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ interval_hours: 24, owner_name: '', emergency_message: '' });
