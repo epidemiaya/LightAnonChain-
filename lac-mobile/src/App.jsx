@@ -761,7 +761,6 @@ const NaginiView = ({ onBack, profile }) => {
   const [available, setAvailable] = useState(null);
   const [debug, setDebug] = useState('');
   const [loading, setLoading] = useState(true);
-  const { t } = useT();
 
   const hasSeed = !!localStorage.getItem('lac_seed');
 
