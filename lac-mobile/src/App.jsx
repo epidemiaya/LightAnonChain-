@@ -623,7 +623,8 @@ const Badge = ({ children, color = 'emerald' }) => {
   return <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${COLORS[color] || COLORS.gray}`}>{children}</span>;
 };
 
-const TabBar = ({ tabs, active, onChange }) => (
+const TabBar = ({
+  const { t } = useT(); tabs, active, onChange }) => (
   <div className="flex bg-[#0a1a15] rounded-xl p-0.5 gap-0.5">
     {tabs.map(([id, label]) => (
       <button key={id} onClick={() => onChange(id)}
@@ -2947,6 +2948,7 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
 };
 
 const MiningMini = () => {
+  const { t } = useT();
   const [d, setD] = useState(null);
   useEffect(() => {
     const load = () => get('/api/wallet/mining?limit=20').then(setD).catch(() => {});
@@ -2992,7 +2994,8 @@ const LevelBonuses = ({ level }) => {
     </div>
   );
 };
-const LevelBar = ({ level, balance }) => {
+const LevelBar = ({
+  const { t } = useT(); level, balance }) => {
   const cost = levelCosts[level] || 0;
   const pct = cost > 0 ? Math.min(100, (balance/cost)*100) : 100;
   const name = levelNames[level] || `L${level}`;
@@ -3066,7 +3069,8 @@ const TxRow = ({ tx }) => {
 };
 
 // ━━━ SEND ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const SendView = ({ onBack, profile, onDone }) => {
+const SendView = ({
+  const { t } = useT(); onBack, profile, onDone }) => {
   const [type, setType] = useState(null); const [to, setTo] = useState(''); const [amt, setAmt] = useState(''); const [ld, setLd] = useState(false);
   const go = async () => { setLd(true); try { await post(type==='veil'?'/api/transfer/veil':'/api/transfer/normal',{to:to.trim(),amount:parseFloat(amt)}); toast.success('Sent!'); onDone(); } catch(e){ toast.error(e.message); } finally { setLd(false); } };
 
@@ -3258,7 +3262,8 @@ const STASHView = ({ onBack, onDone }) => {
 };
 
 // ━━━ TIMELOCK ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const TimelockView = ({ onBack, profile, onDone }) => {
+const TimelockView = ({
+  const { t } = useT(); onBack, profile, onDone }) => {
   const [to, setTo] = useState(''); const [amt, setAmt] = useState(''); const [delay, setDelay] = useState(''); const [ld, setLd] = useState(false); const [pending, setPending] = useState([]);
   useEffect(() => { get('/api/timelock/pending').then(d => setPending(d.pending||d.locks||[])).catch(()=>{}); }, []);
 
@@ -3304,7 +3309,8 @@ const TimelockView = ({ onBack, profile, onDone }) => {
 };
 
 // ━━━ DEAD MAN'S SWITCH ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const DeadManSwitchView = ({ onBack, profile, onDone }) => {
+const DeadManSwitchView = ({
+  const { t } = useT(); onBack, profile, onDone }) => {
   const [status, setStatus] = useState(null);
   const [days, setDays] = useState('30');
   const [actions, setActions] = useState([{ type: 'transfer_all', to: '' }]);
@@ -3777,7 +3783,8 @@ const ContactsView = ({ onBack, onChat }) => {
 };
 
 // ━━━ PROOF-OF-LOCATION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const PolView = ({ onBack, profile }) => {
+const PolView = ({
+  const { t } = useT(); onBack, profile }) => {
   const [status, setStatus] = useState('idle'); // idle | detecting | proving | done | error
   const [coords, setCoords] = useState(null);
   const [zones, setZones] = useState([]);
@@ -4048,7 +4055,8 @@ const txMeta = (t) => {
 
 const isAnon = (t) => ['veil_transfer','ring_transfer','stealth_transfer','stash_deposit','stash_withdraw','dice_burn','dice_mint','dms_transfer','dms_transfer_all','dms_message','dms_wipe','dms_burn_stash'].includes(t);
 
-const ExplorerView = ({ onBack }) => {
+const ExplorerView = ({
+  const { t } = useT(); onBack }) => {
   const [blocks, setBlocks] = useState([]); const [h, setH] = useState(0); const [sel, setSel] = useState(null); const [loading, setLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
