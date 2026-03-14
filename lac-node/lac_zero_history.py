@@ -23,7 +23,6 @@ import json
 import time
 import secrets
 import os
-import threading
 from typing import Dict, List, Optional, Tuple, Set
 from dataclasses import dataclass, asdict, field
 from datetime import datetime, timedelta
@@ -1224,8 +1223,9 @@ class ZeroHistoryManager:
         
         if blocks_since_last >= self.config.COMMITMENT_INTERVAL:
             print(f"🔐 COMMITMENT TRIGGER: Block #{self.current_height}")
-            self._create_commitment_trigger()
-            self.last_commitment_height = self.current_height
+            self.last_commitment_height = self.current_height  # update immediately
+            import threading as _ct
+            _ct.Thread(target=self._create_commitment_trigger, daemon=True).start()
         else:
             print(f"   ⏳ {self.config.COMMITMENT_INTERVAL - blocks_since_last} blocks remaining until next commitment")
     
@@ -1444,8 +1444,8 @@ class ZeroHistoryManager:
             'commitment_hash': commitment.hash()
         })
         
-        # PERSISTENCE: Save to disk in background thread (non-blocking!)
-        threading.Thread(target=self.save_to_disk, daemon=True).start()
+        # PERSISTENCE: Save to disk after each commitment (DECENTRALIZED!)
+        self.save_to_disk()
         
         print(f"\n✅ COMMITMENT FINALIZED!")
         print(f"   Block: #{self.current_height}")
