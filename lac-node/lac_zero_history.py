@@ -1224,12 +1224,8 @@ class ZeroHistoryManager:
         if blocks_since_last >= self.config.COMMITMENT_INTERVAL:
             print(f"🔐 COMMITMENT TRIGGER: Block #{self.current_height}")
             self.last_commitment_height = self.current_height  # update immediately
-            try:
-                from gevent import spawn as _gs
-                _gs(self._create_commitment_trigger)
-            except ImportError:
-                import threading as _ct
-                _ct.Thread(target=self._create_commitment_trigger, daemon=True).start()
+            import threading as _ct
+            _ct.Thread(target=self._create_commitment_trigger, daemon=True).start()
         else:
             print(f"   ⏳ {self.config.COMMITMENT_INTERVAL - blocks_since_last} blocks remaining until next commitment")
     
@@ -1348,11 +1344,16 @@ class ZeroHistoryManager:
         ready, request = self.witness_system.check_request_ready(witness_request.request_id)
         
         if ready:
-            # Finalize commitment
+            # Finalize commitment in background - does not block API
             result = self.witness_system.finalize_request(witness_request.request_id)
             if result:
                 signatures, addresses = result
-                self._finalize_commitment(validator, signatures, addresses)
+                try:
+                    from gevent import spawn as _gsf
+                    _gsf(self._finalize_commitment, validator, signatures, addresses)
+                except ImportError:
+                    import threading as _tf
+                    _tf.Thread(target=self._finalize_commitment, args=(validator, signatures, addresses), daemon=True).start()
         else:
             print(f"❌ Failed to collect enough witnesses")
     
@@ -1448,13 +1449,8 @@ class ZeroHistoryManager:
             'commitment_hash': commitment.hash()
         })
         
-        # PERSISTENCE: Save to disk in background
-        try:
-            from gevent import spawn as _gs2
-            _gs2(self.save_to_disk)
-        except ImportError:
-            import threading as _t2
-            _t2.Thread(target=self.save_to_disk, daemon=True).start()
+        # PERSISTENCE: Save to disk after each commitment (DECENTRALIZED!)
+        self.save_to_disk()
         
         print(f"\n✅ COMMITMENT FINALIZED!")
         print(f"   Block: #{self.current_height}")
