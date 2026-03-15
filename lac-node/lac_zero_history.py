@@ -1224,8 +1224,12 @@ class ZeroHistoryManager:
         if blocks_since_last >= self.config.COMMITMENT_INTERVAL:
             print(f"🔐 COMMITMENT TRIGGER: Block #{self.current_height}")
             self.last_commitment_height = self.current_height  # update immediately
-            import threading as _ct
-            _ct.Thread(target=self._create_commitment_trigger, daemon=True).start()
+            try:
+                from gevent import spawn as _gs
+                _gs(self._create_commitment_trigger)
+            except ImportError:
+                import threading as _ct
+                _ct.Thread(target=self._create_commitment_trigger, daemon=True).start()
         else:
             print(f"   ⏳ {self.config.COMMITMENT_INTERVAL - blocks_since_last} blocks remaining until next commitment")
     
@@ -1387,10 +1391,7 @@ class ZeroHistoryManager:
             self.current_height
         )
         
-        # Only hash blocks since last commitment — not all 6000+ L3 blocks
-        recent_blocks = [b for h, b in self.l3_blocks.items()
-                         if h > self.last_commitment_height]
-        merkle_root = self._calculate_merkle_root(recent_blocks) if recent_blocks else self._calculate_merkle_root(list(self.l3_blocks.values())[-10:])
+        merkle_root = self._calculate_merkle_root(list(self.l3_blocks.values()))
         
         # Calculate UTXO root (mock for now)
         utxo_root = "mock_utxo_root"
@@ -1447,8 +1448,13 @@ class ZeroHistoryManager:
             'commitment_hash': commitment.hash()
         })
         
-        # PERSISTENCE: Save to disk after each commitment (DECENTRALIZED!)
-        self.save_to_disk()
+        # PERSISTENCE: Save to disk in background
+        try:
+            from gevent import spawn as _gs2
+            _gs2(self.save_to_disk)
+        except ImportError:
+            import threading as _t2
+            _t2.Thread(target=self.save_to_disk, daemon=True).start()
         
         print(f"\n✅ COMMITMENT FINALIZED!")
         print(f"   Block: #{self.current_height}")
