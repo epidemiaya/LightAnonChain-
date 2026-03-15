@@ -1344,16 +1344,12 @@ class ZeroHistoryManager:
         ready, request = self.witness_system.check_request_ready(witness_request.request_id)
         
         if ready:
-            # Finalize commitment in background - does not block API
+            # Finalize commitment
             result = self.witness_system.finalize_request(witness_request.request_id)
             if result:
                 signatures, addresses = result
-                try:
-                    from gevent import spawn as _gsf
-                    _gsf(self._finalize_commitment, validator, signatures, addresses)
-                except ImportError:
-                    import threading as _tf
-                    _tf.Thread(target=self._finalize_commitment, args=(validator, signatures, addresses), daemon=True).start()
+                import threading as _tf
+                _tf.Thread(target=self._finalize_commitment, args=(validator, signatures, addresses), daemon=True).start()
         else:
             print(f"❌ Failed to collect enough witnesses")
     
