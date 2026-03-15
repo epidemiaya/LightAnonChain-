@@ -1225,7 +1225,12 @@ class ZeroHistoryManager:
             print(f"🔐 COMMITMENT TRIGGER: Block #{self.current_height}")
             self.last_commitment_height = self.current_height  # update immediately
             import threading as _ct
-            _ct.Thread(target=self._create_commitment_trigger, daemon=True).start()
+            try:
+                from gevent import spawn as _gspawn
+                _gspawn(self._create_commitment_trigger)
+            except ImportError:
+                import threading as _ct2
+                _ct2.Thread(target=self._create_commitment_trigger, daemon=True).start()
         else:
             print(f"   ⏳ {self.config.COMMITMENT_INTERVAL - blocks_since_last} blocks remaining until next commitment")
     
