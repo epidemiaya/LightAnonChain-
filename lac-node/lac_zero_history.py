@@ -35,7 +35,7 @@ class ZeroHistoryConfig:
     """Zero-History configuration constants"""
     
     # Tier lifetimes (in seconds)
-    L3_LIFETIME = 30 * 24 * 3600  # 30 days - Full data
+    L3_LIFETIME = 3 * 24 * 3600   # 3 days for testnet (mainnet: 30)
     L2_LIFETIME = 90 * 24 * 3600  # 90 days - Pruned + fraud proofs
     L1_LIFETIME = float('inf')     # Forever - Commitments only
     
@@ -1388,7 +1388,8 @@ class ZeroHistoryManager:
             self.current_height
         )
         
-        merkle_root = self._calculate_merkle_root(list(self.l3_blocks.values()))
+        recent = [b for h,b in self.l3_blocks.items() if h > self.last_commitment_height]
+        merkle_root = self._calculate_merkle_root(recent or list(self.l3_blocks.values())[-10:])
         
         # Calculate UTXO root (mock for now)
         utxo_root = "mock_utxo_root"
@@ -1445,8 +1446,9 @@ class ZeroHistoryManager:
             'commitment_hash': commitment.hash()
         })
         
-        # PERSISTENCE: Save to disk after each commitment (DECENTRALIZED!)
-        self.save_to_disk()
+        # PERSISTENCE: Save to disk in background thread
+        import threading as _ts
+        _ts.Thread(target=self.save_to_disk, daemon=True).start()
         
         print(f"\n✅ COMMITMENT FINALIZED!")
         print(f"   Block: #{self.current_height}")
