@@ -798,6 +798,7 @@ const NaginiView = ({ onBack, profile }) => {
 
 
 const NaginiSetup = ({ onBack }) => {
+  const { t } = useT();
   const [step, setStep] = useState(1);
   const [secretType, setSecretType] = useState('seed');
   const [customSecret, setCustomSecret] = useState('');
@@ -1018,6 +1019,7 @@ const NaginiSetup = ({ onBack }) => {
 
 
 const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
+  const { t } = useT();
   const [deleting, setDeleting] = useState(false);
   const del = async () => {
     if (!window.confirm('Delete this bundle? Cannot be undone.')) return;
@@ -1056,6 +1058,7 @@ const NaginiBundleDetail = ({ bundle, onBack, onDMS }) => {
 };
 
 const NaginiRecover = ({ onBack, bundles }) => {
+  const { t } = useT();
   const [bundleId, setBundleId] = useState(bundles[0]?.bundle_id || '');
   const [sessionId, setSessionId] = useState(null);
   const [sessionInfo, setSessionInfo] = useState(null); // {n, threshold, label}
@@ -1268,6 +1271,7 @@ const NaginiRecover = ({ onBack, bundles }) => {
 
 
 const NaginiDMS = ({ onBack, bundle }) => {
+  const { t } = useT();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ interval_hours: 24, owner_name: '', emergency_message: '' });
