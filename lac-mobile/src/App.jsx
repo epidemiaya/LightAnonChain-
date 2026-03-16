@@ -709,10 +709,10 @@ const NaginiView = ({ onBack, profile }) => {
       try {
         const r = await get('/api/nagini/status');
         setAvailable(r.available);
-        if (!r.available) setDebug('❌ pip install cryptography — пакет не встановлено на сервері!');
+        if (!r.available) setDebug(t('naginiInstall'));
       } catch(e) {
         setAvailable(false);
-        setDebug('❌ Помилка підключення до сервера: ' + e.message);
+        setDebug(t('naginiConnErr') + e.message);
       }
       try {
         const r2 = await get('/api/nagini/bundles');
@@ -837,22 +837,22 @@ const NaginiSetup = ({ onBack }) => {
     let secretB64 = '';
     if (secretType === 'seed') {
       const seed = localStorage.getItem('lac_seed') || '';
-      if (!seed) { toast.error('❌ Seed не знайдено! Перезайдіть в акаунт.'); return; }
+      if (!seed) { toast.error(t('naginiNoSeed')); return; }
       // Safe base64: use Uint8Array→btoa method
       const enc2 = new TextEncoder().encode(seed);
       secretB64 = btoa(String.fromCharCode(...enc2));
       setLog(`Seed: ${seed.slice(0,8)}... (${seed.length} chars) → b64 len=${secretB64.length}`);
     } else {
-      if (!customSecret.trim()) { toast.error('Введіть секретний текст'); return; }
+      if (!customSecret.trim()) { toast.error(t('naginiSeedMissing')); return; }
       const encC = new TextEncoder().encode(customSecret.trim());
       secretB64 = btoa(String.fromCharCode(...encC));
     }
 
     const validLocs = locations.filter(l => l.lat && l.lon);
-    if (validLocs.length < 2) { toast.error('Потрібно мінімум 2 локації з GPS'); return; }
+    if (validLocs.length < 2) { toast.error(t('naginiMinLocations')); return; }
 
     setLoading(true);
-    setLog(prev => prev + '\nВідправляю на сервер...');
+    setLog(prev => prev + '\nSending...');
 
     try {
       const body = {
@@ -864,12 +864,12 @@ const NaginiSetup = ({ onBack }) => {
       };
       setLog(prev => prev + `\nLocations: ${JSON.stringify(body.locations)}`);
       const r = await post('/api/nagini/setup', body);
-      setLog(prev => prev + '\nВідповідь: ' + JSON.stringify(r));
+      setLog(prev => prev + '\nResponse: ' + JSON.stringify(r));
       if (r.ok) {
         setResult(r);
         setStep(99); // done
       } else {
-        toast.error('❌ ' + (r.error || 'Помилка сервера'), {duration: 8000});
+        toast.error(r.error || 'Server error', {duration: 8000});
       }
     } catch(e) {
       setLog(prev => prev + '\n❌ Error: ' + e.message);
@@ -885,16 +885,16 @@ const NaginiSetup = ({ onBack }) => {
         <div className="text-center py-6">
           <div className="text-5xl mb-3">✅</div>
           <div className="text-emerald-400 font-bold text-lg">{result.label}</div>
-          <div className="text-gray-500 text-sm mt-1">{result.n} локацій · threshold {result.threshold}</div>
+          <div className="text-gray-500 text-sm mt-1">{result.n} {t('naginiLocations')} · {t('naginiThreshold')} {result.threshold}</div>
           <div className="mt-3 bg-black/30 rounded-xl p-3">
             <div className="text-gray-500 text-xs mb-1">Bundle ID</div>
             <div className="text-emerald-300 text-xs font-mono break-all">{result.bundle_id}</div>
           </div>
         </div>
         <div className="bg-amber-900/10 border border-amber-800/30 rounded-xl p-3 text-xs text-amber-400">
-          ⚠️ Запиши назви місць окремо від пристрою. GPS координати не зберігаються на сервері.
+          {t('naginiWarning')}
         </div>
-        <Btn onClick={onBack} className="w-full bg-emerald-600">Готово</Btn>
+        <Btn onClick={onBack} className="w-full bg-emerald-600">{t('naginiDone')}</Btn>
       </div>
     </div>
   );
@@ -906,9 +906,9 @@ const NaginiSetup = ({ onBack }) => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Step 1: Secret */}
         {step === 1 && <>
-          <div className="text-gray-400 text-sm">Що хочеш захистити?</div>
+          <div className="text-gray-400 text-sm">{t('naginiWhatProtect')}</div>
           <div className="grid grid-cols-2 gap-2">
-            {[['seed','🔑 LAC Seed'],['custom','✏️ Свій текст']].map(([v,l]) => (
+            {[['seed','🔑 '+t('naginiLacSeed')],['custom','✏️ '+t('naginiCustomText')]].map(([v,l]) => (
               <button key={v} onClick={() => setSecretType(v)}
                 className={`p-3 rounded-xl border text-sm transition-all ${secretType===v?'border-emerald-500 bg-emerald-900/20 text-emerald-400':'border-gray-800 text-gray-500'}`}>
                 {l}
@@ -920,25 +920,25 @@ const NaginiSetup = ({ onBack }) => {
               ? 'bg-emerald-900/10 border-emerald-800/20 text-emerald-400'
               : 'bg-red-900/20 border-red-700/30 text-red-400'}`}>
               {localStorage.getItem('lac_seed')
-                ? `✅ Seed знайдено (${localStorage.getItem('lac_seed').length} символів). Буде розбито на шарди.`
-                : '❌ Seed відсутній! Виконайте вихід і вхід знову.'}
+                ? `✅ ${t('naginiSeedFound')} (${localStorage.getItem('lac_seed').length} chars)`
+                : t('naginiSeedMissing')}
             </div>
           )}
           {secretType === 'custom' && (
             <textarea value={customSecret} onChange={e => setCustomSecret(e.target.value)}
-              placeholder="Секретний текст, ключ, або будь-що важливе..."
+              placeholder={t('naginiSecretPlaceholder')}
               className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl p-3 text-white text-sm resize-none h-24" />
           )}
-          <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Назва (напр. Kyiv backup)" />
+          <Input value={label} onChange={e => setLabel(e.target.value)} placeholder={t('naginiLabelPlaceholder')} />
           <Btn onClick={() => setStep(2)} className="w-full bg-emerald-600"
             disabled={secretType === 'seed' && !localStorage.getItem('lac_seed')}>
-            Далі →
+            {t('naginiNext')}
           </Btn>
         </>}
 
         {/* Step 2: Locations */}
         {step === 2 && <>
-          <div className="text-gray-400 text-sm">Встанови GPS локації. Кожен шард прив'язаний до місця.</div>
+          <div className="text-gray-400 text-sm">{t('naginiSetGPS')}</div>
           {locations.map((loc, i) => (
             <div key={i} className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between">
@@ -956,16 +956,16 @@ const NaginiSetup = ({ onBack }) => {
                 </div>
               </div>
               <Input value={loc.name} onChange={e => setLoc(i,'name',e.target.value)}
-                placeholder={`Місце #${i+1} (напр. Центральний парк)`} />
+                placeholder={`${t('naginiPlaceName')} (${i+1})`} />
               <div className="grid grid-cols-2 gap-2">
                 <input value={loc.lat} onChange={e => setLoc(i,'lat',e.target.value)}
-                  placeholder="Широта" className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
+                  placeholder={t('naginiLatitude')} className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
                 <input value={loc.lon} onChange={e => setLoc(i,'lon',e.target.value)}
-                  placeholder="Довгота" className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
+                  placeholder={t('naginiLongitude')} className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm" />
               </div>
               <button onClick={() => getGPS(i)} disabled={locating===i}
                 className="w-full text-xs py-2 rounded-lg bg-emerald-900/20 border border-emerald-900/30 text-emerald-500 disabled:opacity-50">
-                {locating===i ? '📡 GPS...' : '📍 Використати моє місце зараз'}
+                {locating===i ? t('naginiGettingGPS') : t('naginiUseMyLocation')}
               </button>
               {loc.lat && loc.lon && <div className="text-emerald-600 text-[10px]">✓ {parseFloat(loc.lat).toFixed(5)}, {parseFloat(loc.lon).toFixed(5)}</div>}
             </div>
@@ -973,11 +973,11 @@ const NaginiSetup = ({ onBack }) => {
           {locations.length < 8 && (
             <button onClick={addLocation}
               className="w-full py-2 rounded-xl border border-dashed border-emerald-900/30 text-emerald-700 text-sm">
-              + Додати локацію
+              {t('naginiAddLocation')}
             </button>
           )}
           <div className="bg-[#0d1a12]/60 rounded-xl p-3">
-            <div className="text-gray-400 text-xs mb-2">Мінімум локацій для відновлення</div>
+            <div className="text-gray-400 text-xs mb-2">{t('naginiMinLocations')}</div>
             <div className="flex gap-2">
               {Array.from({length: locations.length-1}, (_,i) => i+2).map(v => (
                 <button key={v} onClick={() => setThreshold(v)}
@@ -986,29 +986,29 @@ const NaginiSetup = ({ onBack }) => {
                 </button>
               ))}
             </div>
-            <div className="text-gray-600 text-xs mt-1">Будь-які {threshold} з {locations.length} локацій</div>
+            <div className="text-gray-600 text-xs mt-1">{t('naginiAnyOf')} {threshold} {t('naginiOfLocations')} {locations.length}</div>
           </div>
           <Btn onClick={() => setStep(3)} className="w-full bg-emerald-600"
             disabled={locations.filter(l=>l.lat&&l.lon).length < 2}>
-            Далі →
+            {t('naginiNext')}
           </Btn>
         </>}
 
         {/* Step 3: Confirm */}
         {step === 3 && <>
-          <div className="text-gray-400 text-sm">Перевір і підтвердь</div>
+          <div className="text-gray-400 text-sm">{t('naginiConfirm')}</div>
           <div className="bg-[#0d1a12]/60 rounded-xl p-3 text-xs text-gray-400 space-y-1">
-            <div className="text-emerald-400 font-semibold mb-1">Підсумок</div>
-            <div>• Секрет: {secretType === 'seed' ? `LAC Seed (${(localStorage.getItem('lac_seed')||'').length} chars)` : 'Свій текст'}</div>
-            <div>• {locations.filter(l=>l.lat&&l.lon).length} локацій з GPS</div>
-            <div>• Threshold: {threshold} з {locations.length}</div>
-            {canaryIdx !== null && <div>• Canary пастка на локації #{canaryIdx+1} 🪤</div>}
+            <div className="text-emerald-400 font-semibold mb-1">{t('naginiSummary')}</div>
+            <div>• {t('naginiSecret')}: {secretType === 'seed' ? `LAC Seed (${(localStorage.getItem('lac_seed')||'').length} chars)` : t('naginiCustomText')}</div>
+            <div>• {locations.filter(l=>l.lat&&l.lon).length} {t('naginiWithGPS')}</div>
+            <div>• {t('naginiThreshold')}: {threshold} / {locations.length}</div>
+            {canaryIdx !== null && <div>• {t('naginiCanaryAt')}{canaryIdx+1} 🪤</div>}
           </div>
           {log ? (
             <div className="bg-black/40 rounded-xl p-3 text-[10px] font-mono text-gray-400 whitespace-pre-wrap break-all">{log}</div>
           ) : null}
           <Btn onClick={submit} disabled={loading} className="w-full bg-emerald-600 py-4 text-base">
-            {loading ? '⏳ Створюю...' : '✅ Створити Bundle'}
+            {loading ? t('naginiCreating') : t('naginiCreateBtn')}
           </Btn>
         </>}
       </div>
@@ -1074,9 +1074,9 @@ const NaginiRecover = ({ onBack, bundles }) => {
         setSessionId(r.session_id);
         setSessionInfo({ n: r.n, threshold: r.threshold, label: r.label });
         setCollected(0);
-        toast.success('✅ Сесія відкрита. Скануй локації.');
+        toast.success(t('naginiSessionOpen'));
       } else {
-        toast.error('❌ ' + (r.error || 'Помилка'));
+        toast.error(r.error || 'Error');
       }
     } catch(e) { toast.error('❌ ' + e.message); }
     setStarting(false);
@@ -1112,12 +1112,12 @@ const NaginiRecover = ({ onBack, bundles }) => {
               if (r.reconstructed) {
                 setResult(r);
                 setSessionId(null);
-                toast.success('🔓 Секрет відновлено!', { duration: 5000 });
+                toast.success(t('naginiRecovered'), { duration: 5000 });
               } else {
-                toast.success(`✅ Шард #${r.shard_index} зібрано! Ще ${r.remaining}`, { duration: 3000 });
+                toast.success(`${t('naginiShardsCollected')} #${r.shard_index}! ${t('naginiNeedMore')} ${r.remaining}`, { duration: 3000 });
               }
             } else {
-              toast.error('❌ ' + (r.error || 'Шард не знайдено тут'), { duration: 3000 });
+              toast.error(r.error || 'Shard not found here', { duration: 3000 });
             }
           }
         } catch(e) {
@@ -1138,18 +1138,18 @@ const NaginiRecover = ({ onBack, bundles }) => {
   // ── Результат ──
   if (result) return (
     <div className="flex flex-col h-full">
-      <Header title="🔓 Секрет відновлено" onBack={onBack} />
+      <Header title={t('naginiRecovered')} onBack={onBack} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="rounded-2xl bg-emerald-900/10 border border-emerald-800/30 p-5 text-center">
           <div className="text-5xl mb-3">🔓</div>
-          <div className="text-emerald-400 font-bold text-lg">Успішно!</div>
-          <div className="text-gray-500 text-xs mt-1">{result.collected} з {result.threshold} шардів зібрано</div>
+          <div className="text-emerald-400 font-bold text-lg">{t('success')}</div>
+          <div className="text-gray-500 text-xs mt-1">{result.collected} / {result.threshold} {t('naginiShardsCollected')}</div>
         </div>
         <div className="bg-[#0d1a12] border border-emerald-900/30 rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-500 text-xs">Відновлений секрет (Base64)</span>
-            <button onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success('Скопійовано!'); }}
-              className="text-emerald-500 text-xs font-semibold">📋 Копіювати</button>
+            <span className="text-gray-500 text-xs">{t('naginiSecret')} (Base64)</span>
+            <button onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success(t('naginiCopied')); }}
+              className="text-emerald-500 text-xs font-semibold">{t('copy')}</button>
           </div>
           {/* Decoded text — показуємо людино-читабельний текст */}
           {(() => {
@@ -1163,9 +1163,9 @@ const NaginiRecover = ({ onBack, bundles }) => {
             })();
             return decoded ? (
               <div>
-                <div className="text-gray-500 text-xs mb-1">📋 Розшифрований текст</div>
+                <div className="text-gray-500 text-xs mb-1">{t('naginiSecret')}</div>
                 <div className="p-3 bg-black/30 rounded-xl text-emerald-300 text-sm font-mono break-all select-all border border-emerald-900/30"
-                  onClick={() => { navigator.clipboard.writeText(decoded); toast.success('Скопійовано!'); }}>
+                  onClick={() => { navigator.clipboard.writeText(decoded); toast.success(t('naginiCopied')); }}>
                   {decoded}
                 </div>
               </div>
@@ -1174,27 +1174,27 @@ const NaginiRecover = ({ onBack, bundles }) => {
           <div className="mt-2">
             <div className="text-gray-600 text-[9px] mb-1">Raw Base64 (tap to copy)</div>
             <div className="text-gray-700 text-[9px] font-mono break-all" 
-              onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success('Base64 скопійовано'); }}>
+              onClick={() => { navigator.clipboard.writeText(result.secret_b64); toast.success(t('naginiCopied')); }}>
               {result.secret_b64}
             </div>
           </div>
         </div>
         <div className="bg-amber-900/10 border border-amber-800/20 rounded-xl p-3 text-xs text-amber-500">
-          ⚠️ Збережи зараз. Цей екран більше не покаже секрет.
+          {t('naginiWarning')}
         </div>
-        <Btn onClick={onBack} className="w-full bg-emerald-600">Готово</Btn>
+        <Btn onClick={onBack} className="w-full bg-emerald-600">{t('naginiDone')}</Btn>
       </div>
     </div>
   );
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Відновити секрет" onBack={onBack} />
+      <Header title={t('naginiRecover')} onBack={onBack} />
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {/* Bundle select */}
         {bundles.length > 1 && !sessionId && (
           <div>
-            <div className="text-gray-400 text-xs mb-1">Оберіть bundle</div>
+            <div className="text-gray-400 text-xs mb-1">{t('naginiSelectBundle')}</div>
             <select value={bundleId} onChange={e => setBundleId(e.target.value)}
               className="w-full bg-[#0d1a12] border border-emerald-900/30 rounded-xl px-3 py-2 text-white text-sm">
               {bundles.map(b => <option key={b.bundle_id} value={b.bundle_id}>{b.label || b.bundle_id.slice(0,12)}</option>)}
@@ -1206,13 +1206,13 @@ const NaginiRecover = ({ onBack, bundles }) => {
         {!sessionId ? (
           <div className="space-y-3">
             <div className="bg-blue-900/10 border border-blue-800/20 rounded-xl p-3 text-xs text-blue-400">
-              Натисни "Почати відновлення", потім скануй кожну локацію по черзі. Сесія зберігається на сервері — стан не губиться.
+              {t('naginiSessionOpen')}
             </div>
             {bundles.length === 0 ? (
-              <div className="text-gray-500 text-sm text-center py-4">Немає bundles. Спочатку створи.</div>
+              <div className="text-gray-500 text-sm text-center py-4">{t('naginiYourBundles') || 'No bundles'}</div>
             ) : (
               <Btn onClick={startSession} disabled={starting} className="w-full bg-emerald-600 py-4 text-base font-semibold">
-                {starting ? '⏳ Відкриваю сесію...' : '🔑 Почати відновлення'}
+                {starting ? t('naginiStarting') : t('naginiStartSession')}
               </Btn>
             )}
           </div>
@@ -1221,8 +1221,8 @@ const NaginiRecover = ({ onBack, bundles }) => {
             {/* Progress */}
             <div className="bg-[#0d1a12]/80 border border-emerald-900/20 rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-gray-400 text-xs">Прогрес: {collected}/{sessionInfo?.threshold} шардів</div>
-                <button onClick={cancelSession} className="text-gray-600 text-xs">✕ Скасувати</button>
+                <div className="text-gray-400 text-xs">{collected}/{sessionInfo?.threshold} {t('naginiShardsCollected')}</div>
+                <button onClick={cancelSession} className="text-gray-600 text-xs">{t('naginiCancelSession')}</button>
               </div>
               <div className="flex gap-1">
                 {Array.from({length: sessionInfo?.n || 3}, (_, i) => (
@@ -1231,7 +1231,7 @@ const NaginiRecover = ({ onBack, bundles }) => {
               </div>
               {collected > 0 && sessionInfo && (
                 <div className="text-emerald-500 text-xs mt-1">
-                  {collected >= sessionInfo.threshold ? '✅ Достатньо — реконструкція...' : `Ще ${sessionInfo.threshold - collected} локацій`}
+                  {collected >= sessionInfo.threshold ? t('naginiRecovered') : `${t('naginiNeedMore')} ${sessionInfo.threshold - collected}`}
                 </div>
               )}
             </div>
@@ -1244,8 +1244,8 @@ const NaginiRecover = ({ onBack, bundles }) => {
                 ) : (
                   <>
                     <div>📡 {lastResult.lat}, {lastResult.lon} (±{lastResult.acc}м)</div>
-                    {lastResult.matched ? <div className="text-emerald-400 mt-0.5">✅ Шард #{lastResult.shard_index} знайдено</div>
-                      : <div className="text-gray-500 mt-0.5">❌ Шард не знайдено тут</div>}
+                    {lastResult.matched ? <div className="text-emerald-400 mt-0.5">✅ {t('naginiShardsCollected')} #{lastResult.shard_index}дено</div>
+                      : <div className="text-gray-500 mt-0.5">{t('naginiNeedMore')}</div>}
                   </>
                 )}
               </div>
@@ -1253,11 +1253,11 @@ const NaginiRecover = ({ onBack, bundles }) => {
 
             {/* Scan button */}
             <Btn onClick={scan} disabled={locating} className="w-full bg-emerald-600 hover:bg-emerald-500 py-5 text-lg font-bold">
-              {locating ? '📡 Отримую GPS...' : '📍 Сканувати цю локацію'}
+              {locating ? t('naginiGettingGPS') : t('naginiScanGPS')}
             </Btn>
 
             <div className="text-gray-600 text-xs text-center">
-              GPS повинен бути в межах ~200м від збереженої локації
+              {t('naginiScanLocation')}
             </div>
           </div>
         )}
@@ -1596,6 +1596,7 @@ const MainApp = ({ onLogout }) => {
       referral: <ReferralView onBack={back} />,
       pol: <PolView onBack={back} profile={profile} />,
       nagini: <NaginiView onBack={back} profile={profile} />,
+      level: <LevelUpView onBack={back} profile={profile} onRefresh={reload} />,
     };
     return (
       <div className="w-full h-[100dvh] bg-[#060f0c] flex items-center justify-center sm:bg-gradient-to-br sm:from-gray-900 sm:to-gray-950 sm:p-4">
@@ -1991,7 +1992,7 @@ const useVoiceRecorder = () => {
   const start = async () => {
     // Check if getUserMedia is available (requires HTTPS or localhost)
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      toast.error('🎤 Мікрофон потребує HTTPS. Використай кнопку 📎 для завантаження аудіофайлу.');
+      toast.error('🎤 Microphone requires HTTPS. Use 📎 to upload audio file.');
       return;
     }
     try {
@@ -2005,7 +2006,7 @@ const useVoiceRecorder = () => {
       setSeconds(0);
       timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
     } catch(e) {
-      toast.error('Мікрофон недоступний: ' + e.message);
+      toast.error('Microphone unavailable: ' + e.message);
     }
   };
 
@@ -2942,6 +2943,109 @@ const LevelBar = ({ level, balance }) => {
     </div>
   );
 };
+
+const LevelUpView = ({ onBack, profile, onRefresh }) => {
+  const { t } = useT();
+  const p = profile || {};
+  const level = p.level ?? 0;
+  const balance = p.balance || 0;
+  const [loading, setLoading] = useState(false);
+  const levelCosts2 = [100, 700, 2000, 10000, 100000, 500000, 2000000, 0];
+  const levelNames2 = ['Newbie','Starter','Active','Trusted','Expert','Validator','Priority','⚡ GOD'];
+  const bonuses2 = [
+    null,
+    '+10 LAC/day faucet',
+    '+20 LAC/day faucet',
+    '+30 LAC/day faucet',
+    '+40 LAC/day faucet · Validator access',
+    'Validator · 2x block rewards',
+    'Priority Validator · 2x weight + 2x rewards',
+    '⚡ 2x mining chance · 2x validator reward · MAX LEVEL',
+  ];
+  const isMax = level >= 7;
+  const cost = levelCosts2[level] || 0;
+  const canUpgrade = !isMax && balance >= cost;
+  const pct = cost > 0 ? Math.min(100, (balance / cost) * 100) : 100;
+
+  const upgrade = async () => {
+    setLoading(true);
+    try {
+      const r = await post('/api/upgrade_level');
+      toast.success(r.message || 'Level upgraded!');
+      onRefresh();
+      onBack();
+    } catch(e) { toast.error(e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="h-full bg-[#060f0c] flex flex-col">
+      <Header title={t('levelProgress')} onBack={onBack} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {/* Current level card */}
+        <Card gradient="bg-gradient-to-br from-amber-900/20 to-[#0f1f18] border-amber-800/20">
+          <div className="flex items-center gap-4">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-black shadow-lg bg-gradient-to-br ${isMax?'from-amber-400 to-orange-500':'from-emerald-500 to-teal-500'}`}>
+              L{level}
+            </div>
+            <div className="flex-1">
+              <p className={`text-xl font-bold ${isMax?'text-amber-400':'text-white'}`}>{levelNames2[level]}</p>
+              {bonuses2[level] && <p className="text-gray-400 text-xs mt-1">{bonuses2[level]}</p>}
+            </div>
+          </div>
+        </Card>
+
+        {/* Progress */}
+        {!isMax && (
+          <Card>
+            <p className="text-gray-500 text-xs mb-2">{t('levelProgress')}</p>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-gray-400">{levelNames2[level]} → {levelNames2[level+1]}</span>
+              <span className="text-emerald-400">{fmt(balance)} / {fmt(cost)} LAC</span>
+            </div>
+            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all" style={{width:`${pct}%`}} />
+            </div>
+            <p className="text-gray-600 text-[10px] mt-1">{cost > 0 ? `${fmt(Math.max(0,cost-balance))} LAC needed` : 'Ready!'}</p>
+          </Card>
+        )}
+
+        {/* Upgrade button */}
+        {!isMax && (
+          <Btn onClick={upgrade} color="emerald" full loading={loading} disabled={!canUpgrade}>
+            {canUpgrade ? `⬆️ ${t('upgradeLevel')} → L${level+1}` : `Need ${fmt(cost)} LAC to upgrade`}
+          </Btn>
+        )}
+
+        {isMax && (
+          <Card gradient="bg-gradient-to-br from-amber-900/30 to-[#0f1f18] border-amber-700/30">
+            <p className="text-amber-400 text-center font-bold">⚡ MAX LEVEL — GOD Status</p>
+            <p className="text-gray-500 text-xs text-center mt-1">2x mining chance · 2x validator reward</p>
+          </Card>
+        )}
+
+        {/* All levels */}
+        <div className="space-y-1.5">
+          <p className="text-gray-600 text-xs font-medium px-1">All Levels</p>
+          {levelNames2.map((name, i) => (
+            <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-xl border ${i === level ? 'border-emerald-600/50 bg-emerald-900/10' : 'border-gray-800/30 bg-[#0a1a15]'}`}>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-bold w-6 text-center ${i === level ? 'text-emerald-400' : 'text-gray-600'}`}>L{i}</span>
+                <span className={`text-sm ${i === level ? 'text-white' : 'text-gray-500'}`}>{name}</span>
+              </div>
+              <div className="text-right">
+                {i < level && <span className="text-emerald-500 text-xs">✓</span>}
+                {i === level && <span className="text-emerald-400 text-xs font-bold">Current</span>}
+                {i > level && <span className="text-gray-600 text-xs">{levelCosts2[i] ? fmt(levelCosts2[i])+' LAC' : 'MAX'}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 const RecentTxs = ({ visible=false }) => {
   const [txs, setTxs] = useState(null);
