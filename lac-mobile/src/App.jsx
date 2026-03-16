@@ -1816,36 +1816,25 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // Compress image before upload — iPhone photos can be 5-10MB
 const compressImage = (file, maxPx = 1280, quality = 0.82) => new Promise((resolve) => {
-  // Skip non-images and GIFs
   if (!file.type.startsWith('image/') || file.type === 'image/gif') {
-    resolve(file); return;
+    resolve(file); return; // don't compress gif/audio
   }
   const img = new window.Image();
   const url = URL.createObjectURL(file);
   img.onload = () => {
     URL.revokeObjectURL(url);
     let { width: w, height: h } = img;
-    // Always convert HEIC/HEIF and large images to JPEG
-    const needsConvert = file.type === 'image/heic' || file.type === 'image/heif' ||
-                         file.name.match(/\.heic$/i) || file.name.match(/\.heif$/i);
-    if (w <= maxPx && h <= maxPx && !needsConvert) {
-      resolve(file); return; // small standard format - send as is
-    }
+    if (w <= maxPx && h <= maxPx) { resolve(file); return; } // already small
     if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
     else { w = Math.round(w * maxPx / h); h = maxPx; }
     const canvas = document.createElement('canvas');
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
     canvas.toBlob(blob => {
-      if (!blob) { resolve(file); return; } // canvas failed - send original
       resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
     }, 'image/jpeg', quality);
   };
-  img.onerror = () => {
-    // HEIC not supported by browser Canvas - try sending as-is
-    URL.revokeObjectURL(url);
-    resolve(file);
-  };
+  img.onerror = () => resolve(file);
   img.src = url;
 });
 
@@ -2450,9 +2439,7 @@ const GroupView = ({ group, onBack, profile }) => {
   const sentKeys = useRef(new Set());
   const [imgPreview, setImgPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const { recording, startRecording } = useVoiceRecorder(async (blob) => {
-    if (blob) await sendGroupMedia(blob, 'voice');
-  });
+  const voice = useVoiceRecorder();
 
   const sendGroupMedia = async (file, type) => {
     setUploading(true);
@@ -2637,9 +2624,16 @@ const GroupView = ({ group, onBack, profile }) => {
               e.target.value='';
             }} />
           </label>
-          <MicButton recording={recording} disabled={uploading}
-            onStart={() => startRecording()}
-            onStop={async (blob) => { if(blob) await sendGroupMedia(blob,'voice'); }} />
+          <MicButton recording={voice.recording} disabled={uploading}
+            onStart={() => voice.start()}
+            onStop={async () => {
+              const blob = await voice.stop();
+              if (blob && blob.size > 500) {
+                const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
+                const file = new File([blob], `voice.${ext}`, { type: blob.type });
+                await sendGroupMedia(file, 'voice');
+              } else if (blob) { toast.error('Too short'); }
+            }} />
           <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key==='Enter'&&!e.shiftKey&&send()}
             className="flex-1 bg-[#0a1a15] text-white px-4 py-2.5 rounded-2xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600" placeholder={t('message')+'…'} />
           <button onClick={send} disabled={sending||!text.trim()} className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shrink-0 disabled:opacity-30"><Send className="w-4 h-4 text-white ml-0.5" /></button>
