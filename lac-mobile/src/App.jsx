@@ -1816,25 +1816,36 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // Compress image before upload — iPhone photos can be 5-10MB
 const compressImage = (file, maxPx = 1280, quality = 0.82) => new Promise((resolve) => {
+  // Skip non-images and GIFs
   if (!file.type.startsWith('image/') || file.type === 'image/gif') {
-    resolve(file); return; // don't compress gif/audio
+    resolve(file); return;
   }
   const img = new window.Image();
   const url = URL.createObjectURL(file);
   img.onload = () => {
     URL.revokeObjectURL(url);
     let { width: w, height: h } = img;
-    if (w <= maxPx && h <= maxPx) { resolve(file); return; } // already small
+    // Always convert HEIC/HEIF and large images to JPEG
+    const needsConvert = file.type === 'image/heic' || file.type === 'image/heif' ||
+                         file.name.match(/\.heic$/i) || file.name.match(/\.heif$/i);
+    if (w <= maxPx && h <= maxPx && !needsConvert) {
+      resolve(file); return; // small standard format - send as is
+    }
     if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
     else { w = Math.round(w * maxPx / h); h = maxPx; }
     const canvas = document.createElement('canvas');
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
     canvas.toBlob(blob => {
+      if (!blob) { resolve(file); return; } // canvas failed - send original
       resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
     }, 'image/jpeg', quality);
   };
-  img.onerror = () => resolve(file);
+  img.onerror = () => {
+    // HEIC not supported by browser Canvas - try sending as-is
+    URL.revokeObjectURL(url);
+    resolve(file);
+  };
   img.src = url;
 });
 
