@@ -2613,6 +2613,19 @@ const GroupView = ({ group, onBack, profile }) => {
             className="mt-1 px-3 py-1 bg-emerald-600 rounded-lg text-white text-xs block">Send Image</button>
         </div>
       )}
+      {voice.recording && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-red-900/20 border-t border-red-900/30">
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-red-400 text-sm flex-1">🎤 {voice.seconds}s · <span className="text-amber-400 text-xs">⚡ L2</span></span>
+          <button onClick={voice.cancel} className="text-gray-500 text-xs">Cancel</button>
+          <button onClick={async () => {
+            const blob = await voice.stop();
+            if (!blob || blob.size < 500) { toast.error('Too short'); return; }
+            const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
+            await sendGroupMedia(new File([blob], `voice.${ext}`, {type: blob.type}), 'voice');
+          }} className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg">⏹ Send</button>
+        </div>
+      )}
       <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
         <div className="flex gap-2 items-end">
           <label className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-gray-300 cursor-pointer shrink-0">
@@ -2625,14 +2638,12 @@ const GroupView = ({ group, onBack, profile }) => {
             }} />
           </label>
           <MicButton recording={voice.recording} disabled={uploading}
-            onStart={() => voice.start()}
+            onStart={voice.start}
             onStop={async () => {
               const blob = await voice.stop();
-              if (blob && blob.size > 500) {
-                const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
-                const file = new File([blob], `voice.${ext}`, { type: blob.type });
-                await sendGroupMedia(file, 'voice');
-              } else if (blob) { toast.error('Too short'); }
+              if (!blob || blob.size < 500) { toast.error('Too short'); return; }
+              const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
+              await sendGroupMedia(new File([blob], `voice.${ext}`, {type: blob.type}), 'voice');
             }} />
           <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key==='Enter'&&!e.shiftKey&&send()}
             className="flex-1 bg-[#0a1a15] text-white px-4 py-2.5 rounded-2xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600" placeholder={t('message')+'…'} />
