@@ -2813,7 +2813,7 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
               <p className="text-4xl font-bold text-white mt-1">{fmt(p.balance)}</p>
               <p className="text-purple-200 text-lg">LAC</p>
             </div>
-            <LevelBadge level={p.level??0} />
+            <button onClick={() => onNav({type:'level'})} className="active:scale-95 transition-transform"><LevelBadge level={p.level??0} /></button>
           </div>
           <div className="flex items-center gap-2 mt-3">
             <span className="text-purple-200/60 text-[11px] font-mono">{sAddr(p.address)}</span>
@@ -2827,12 +2827,13 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
       </div>
 
       {/* Quick Grid */}
-      <div className="grid grid-cols-4 gap-2 px-4 mt-3">
+      <div className="grid grid-cols-5 gap-2 px-4 mt-3">
         {[
           {icon:'👻',label:t('veil'),act:()=>onNav({type:'send'})},
           {icon:'🎒',label:t('stash'),act:()=>onNav({type:'stash'})},
           {icon:'🎲',label:t('dice'),act:()=>onNav({type:'dice'})},
           {icon:'👥',label:t('contacts'),act:()=>onNav({type:'contacts'})},
+          {icon:'🐍',label:t('naginiTitle'),act:()=>onNav({type:'nagini'})},
         ].map((a,i) => (
           <button key={i} onClick={a.act} className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-[#0a1a15] border border-emerald-900/15 active:bg-emerald-900/20">
             <span className="text-xl">{a.icon}</span>
@@ -2841,26 +2842,28 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
         ))}
       </div>
 
-      {/* Mining */}
+      {/* Level - clickable to upgrade */}
       <div className="mx-4 mt-3">
-        <Card>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2"><Zap className="w-4 h-4 text-emerald-400" /><span className="text-white text-sm font-semibold">{t('mining')}</span></div>
-            <button onClick={() => onNav({type:'mining'})} className="text-emerald-500 text-xs">{t('miningDetails')} →</button>
-          </div>
-          <MiningMini />
-        </Card>
-      </div>
-
-      {/* Level */}
-      <div className="mx-4 mt-3">
-        <Card>
+        <Card onClick={() => onNav({type:'level'})}>
           <div className="flex items-center justify-between mb-1">
             <span className="text-white text-sm font-semibold">{t('levelProgress')}</span>
             <Badge>L{p.level??0}</Badge>
           </div>
           <LevelBar level={p.level??0} balance={p.balance||0} />
           <LevelBonuses level={p.level??0} />
+        </Card>
+      </div>
+
+      {/* Mining - minimal */}
+      <div className="mx-4 mt-3">
+        <Card>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2"><Zap className="w-4 h-4 text-emerald-400" /><span className="text-white text-sm font-semibold">{t('mining')}</span></div>
+            <div className="flex items-center gap-2">
+              <MiningMini />
+              <button onClick={() => onNav({type:'mining'})} className="text-emerald-500 text-xs">{t('miningDetails')} →</button>
+            </div>
+          </div>
         </Card>
       </div>
 
@@ -2891,16 +2894,10 @@ const MiningMini = () => {
     return () => clearInterval(i);
   }, []);
   if (!d) return <p className="text-gray-600 text-xs">Loading…</p>;
-  const earned = d.total_mined || 0;
   const mined = d.count || 0;
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-2xl font-bold text-emerald-400">{earned > 0 ? fmt(earned) : '0'} <span className="text-sm text-gray-500">LAC earned</span></p>
-      </div>
-      <div className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${mined>0?'bg-emerald-900/40 text-emerald-400':'bg-amber-900/30 text-amber-400'}`}>
-        {mined>0?'⛏ Active':'⏳ Waiting'}
-      </div>
+    <div className={`px-2.5 py-1 rounded-lg text-xs font-semibold w-fit ${mined>0?'bg-emerald-900/40 text-emerald-400':'bg-amber-900/30 text-amber-400'}`}>
+      {mined>0?'⛏ Active':'⏳ Waiting'}
     </div>
   );
 };

@@ -1210,6 +1210,11 @@ class ZeroHistoryManager:
         )
         
         self.l3_blocks[block['index']] = l3_block
+        # Auto-trim L3 to last 1000 blocks to prevent unbounded growth
+        if len(self.l3_blocks) > 1000:
+            oldest = sorted(self.l3_blocks.keys())[:-1000]
+            for h in oldest:
+                del self.l3_blocks[h]
         self.current_height = block['index']
         
         # Check if pruning needed
