@@ -1707,6 +1707,8 @@ const cacheSet = (k, v) => { _cache[k] = v; };
 const ChatsTab = ({ profile, onNav, onMenu }) => {
   const { t } = useT();
   const [sec, setSec] = useState('dm');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQ, setSearchQ] = useState('');
   const [msgs, setMsgs] = useState(() => cacheGet('inbox') || []);
   const [groups, setGroups] = useState(() => cacheGet('groups') || []);
   const [loading, setLoading] = useState(!cacheGet('inbox'));
@@ -1751,7 +1753,9 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
     convos[peer].cnt++;
     if (!convos[peer].last || (m.timestamp||0) > (convos[peer].last.timestamp||0)) { convos[peer].last = m; if (!sent) convos[peer].name = name; }
   });
-  const sorted = Object.values(convos).sort((a,b) => (b.last?.timestamp||0)-(a.last?.timestamp||0));
+  const allSorted = Object.values(convos).sort((a,b) => (b.last?.timestamp||0)-(a.last?.timestamp||0));
+  const sorted = searchQ.trim() ? allSorted.filter(c => c.name.toLowerCase().includes(searchQ.toLowerCase())) : allSorted;
+  const filteredGroups = searchQ.trim() ? groups.filter(g => g.name.toLowerCase().includes(searchQ.toLowerCase())) : groups;
 
   return (
     <div className="h-full flex flex-col">
@@ -1761,10 +1765,22 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
             <button onClick={onMenu} className="text-gray-400 hover:text-white"><Menu className="w-5 h-5" /></button>
             <h1 className="text-xl font-bold text-white">{t('chats')}</h1>
           </div>
-          <button onClick={() => onNav({type: sec==='dm'?'newchat':'newgroup'})}
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSearchOpen(s => !s)} className="text-gray-500 hover:text-white">
+              <Search className="w-4 h-4" />
+            </button>
+            <button onClick={() => onNav({type: sec==='dm'?'newchat':'newgroup'})}
             className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg shadow-emerald-600/25">
             <Plus className="w-4 h-4 text-white" />
           </button>
+          </div>
+        {searchOpen && (
+          <div className="mb-2">
+            <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
+              placeholder={t('search') + '…'} autoFocus
+              className="w-full bg-[#0a1a15] text-white px-3 py-2 rounded-xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600" />
+          </div>
+        )}
         </div>
         <TabBar tabs={[['dm','💬 '+t('messages')],['groups','👥 '+t('groups')]]} active={sec} onChange={setSec} />
       </div>
@@ -1794,7 +1810,7 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
         ) : (
           loading ? <div className="space-y-0">{[1,2,3].map(i=><div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-900/50 animate-pulse"><div className="w-11 h-11 rounded-full bg-gray-800/60 shrink-0"/><div className="flex-1 space-y-2"><div className="h-3 bg-gray-800/60 rounded w-1/4"/><div className="h-2.5 bg-gray-800/40 rounded w-1/3"/></div></div>)}</div> :
           groups.length === 0 ? <Empty emoji="👥" text={t('noGroups')} sub={t('createGroup')} /> :
-          [...groups].sort((a,b) => (b.last_post_ts||b.created_at||0) - (a.last_post_ts||a.created_at||0)).map(g => {
+          [...filteredGroups].sort((a,b) => (b.last_post_ts||b.created_at||0) - (a.last_post_ts||a.created_at||0)).map(g => {
             const tb = {public:['emerald','🌍 Public'],private:['purple','🔒 Private'],l1_blockchain:['blue','⛓ L1 Chain'],l2_ephemeral:['amber','⚡ L2 Ephemeral']}[g.type]||['gray', g.type||'Group'];
             return (
             <ListItem key={g.id||g.name}
@@ -2811,12 +2827,46 @@ const ReferralView = ({ onBack }) => {
 };
 
 // ━━━ WALLET TAB ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ━━━ QR CODE (canvas-based, no external lib) ━━━━━━━━━━━━
+const QRModal = ({ value, title, onClose }) => {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    if (!canvasRef.current || !value) return;
+    // Simple QR via Google Charts API (no JS lib needed)
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { ctx.drawImage(img, 0, 0, 200, 200); };
+    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(value)}&bgcolor=060f0c&color=25d18b&margin=10`;
+  }, [value]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={onClose}>
+      <div className="bg-[#0a1a15] rounded-2xl p-5 flex flex-col items-center gap-3 border border-emerald-900/30 mx-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between w-full">
+          <p className="text-white font-semibold text-sm">{title}</p>
+          <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+        <canvas ref={canvasRef} width={200} height={200} className="rounded-xl" />
+        <p className="text-gray-500 text-[10px] font-mono text-center break-all max-w-[200px]">{value}</p>
+        <button onClick={() => { cp(value); }} className="w-full py-2 bg-emerald-900/30 text-emerald-400 text-xs rounded-xl border border-emerald-900/30">
+          📋 Copy
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
+  const [qrAddr, setQrAddr] = useState(null);
   const p = profile || {};
   const { t } = useT();
   const [txOpen, setTxOpen] = useState(false); // collapsed by default — saves load
   return (
     <div className="h-full overflow-y-auto pb-4">
+      {qrAddr && <QRModal value={qrAddr} title="Receive LAC" onClose={() => setQrAddr(null)} />}
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-3">
@@ -2839,6 +2889,7 @@ const WalletTab = ({ profile, onNav, onRefresh, onMenu, setTab }) => {
           <div className="flex items-center gap-2 mt-3">
             <span className="text-purple-200/60 text-[11px] font-mono">{sAddr(p.address)}</span>
             <button onClick={() => cp(p.address)} className="text-purple-200/40 hover:text-white"><Copy className="w-3 h-3" /></button>
+            <button onClick={() => setQrAddr(p.address)} className="text-purple-200/40 hover:text-white"><QrCode className="w-3 h-3" /></button>
           </div>
           <div className="grid grid-cols-2 gap-2 mt-4">
             <Btn onClick={() => onNav({type:'send'})} color="emerald" small>↗ {t('send')}</Btn>

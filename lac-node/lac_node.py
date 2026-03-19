@@ -3917,6 +3917,26 @@ def p2p_list_peers():
             ]
         })
 
+@app.route('/api/p2p/known_peers', methods=['GET'])
+def p2p_known_peers():
+    """Return list of known peers for peer exchange"""
+    with peers_lock:
+        peers_list = list(known_peers)
+    return jsonify({'ok': True, 'peers': peers_list})
+
+@app.route('/api/p2p/connect', methods=['POST'])
+def p2p_connect():
+    """A peer announces itself to us"""
+    data = request.get_json() or {}
+    peer_url = data.get('url', '').strip()
+    if peer_url and peer_url.startswith('http'):
+        add_peer(peer_url)
+        # Return our peer list so they can discover others
+        with peers_lock:
+            peers_list = list(known_peers)
+        return jsonify({'ok': True, 'peers': peers_list, 'height': len(S.chain)})
+    return jsonify({'error': 'Invalid URL'}), 400
+
 @app.route('/api/p2p/announce', methods=['POST'])
 def p2p_announce():
     seed = request.headers.get('X-Seed', '').strip()
@@ -4858,9 +4878,36 @@ def username_debug():
 import requests
 from urllib.parse import urlparse
 
+# Bootstrap nodes — hardcoded known good nodes (like Bitcoin DNS seeds)
+BOOTSTRAP_NODES = [
+    'https://lac-beta.uk',   # Main testnet node
+]
+
 # Store known peers
 known_peers = set()
 peers_lock = Lock()
+PEERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'peers.json')
+
+def load_peers_from_disk():
+    """Load persisted peers from disk"""
+    try:
+        if os.path.exists(PEERS_FILE):
+            with open(PEERS_FILE) as f:
+                saved = json.load(f)
+            for p in saved:
+                known_peers.add(p)
+            print(f"📡 Loaded {len(saved)} peers from disk")
+    except Exception as e:
+        print(f"⚠️ Could not load peers: {e}")
+
+def save_peers_to_disk():
+    """Persist known peers to disk"""
+    try:
+        os.makedirs(os.path.dirname(PEERS_FILE), exist_ok=True)
+        with open(PEERS_FILE, 'w') as f:
+            json.dump(list(known_peers), f)
+    except Exception as e:
+        print(f"⚠️ Could not save peers: {e}")
 
 # P2P mesh network state
 p2p_lock = Lock()
@@ -4869,11 +4916,43 @@ p2p_peers = {}  # {peerId: {address, lastSeen}}
 def add_peer(peer_url):
     """Add peer to known peers list"""
     with peers_lock:
-        # Normalize URL
         if not peer_url.startswith('http'):
             peer_url = f'http://{peer_url}'
-        known_peers.add(peer_url)
-        print(f"🔗 Added peer: {peer_url}")
+        if peer_url not in known_peers:
+            known_peers.add(peer_url)
+            print(f"🔗 Added peer: {peer_url}")
+            save_peers_to_disk()
+
+def broadcast_to_peers(endpoint, data, timeout=3):
+    """Broadcast data to all known peers (gossip protocol)"""
+    peers = list(known_peers)
+    if not peers:
+        return
+    import threading as _bt
+    def _send(peer):
+        try:
+            url = peer.rstrip('/') + endpoint
+            requests.post(url, json=data, timeout=timeout)
+        except:
+            pass
+    for peer in peers:
+        _bt.Thread(target=_send, args=(peer,), daemon=True).start()
+
+def bootstrap_connect():
+    """Connect to bootstrap nodes on startup"""
+    for node_url in BOOTSTRAP_NODES:
+        try:
+            r = requests.get(f'{node_url}/api/chain/height', timeout=5)
+            if r.status_code == 200:
+                add_peer(node_url)
+                # Exchange peer lists
+                pr = requests.get(f'{node_url}/api/p2p/known_peers', timeout=5)
+                if pr.status_code == 200:
+                    for p in pr.json().get('peers', []):
+                        add_peer(p)
+                print(f"✅ Connected to bootstrap: {node_url}")
+        except Exception as e:
+            print(f"⚠️ Bootstrap {node_url} unreachable: {e}")
 
 def sync_from_peer(peer_url, silent=False):
     """Synchronize blockchain from peer"""
@@ -5380,22 +5459,25 @@ def main():
     
     
     # P2P Bootstrap and Sync
+    load_peers_from_disk()  # Restore peers from last session
     synced_from_peer = False
     if args.bootstrap:
         print(f"\n🔗 Bootstrapping from peer: {args.bootstrap}")
         synced_from_peer = sync_from_peer(args.bootstrap)
+    
+    # Connect to bootstrap nodes in background
+    import threading as _bst
+    _bst.Thread(target=bootstrap_connect, daemon=True).start()
     
     # Auto-discover local peers
     if args.discover and not synced_from_peer:
         print("\n🔍 Discovering local peers...")
         discovered = discover_local_peers()
         if discovered:
-            # Try to sync from first discovered peer
             sync_from_peer(discovered[0])
     
     # Start periodic sync thread
     Thread(target=periodic_sync_loop, daemon=True).start()
-    
     # Initialize PoET Mining
     if POET_ENABLED:
         init_mining()
