@@ -1,5 +1,9 @@
 {
   "appId": "uk.lac.mobile",
   "appName": "LAC",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "url": "https://lac-beta.uk",
+    "cleartext": false
+  }
 }
