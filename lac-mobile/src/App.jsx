@@ -149,6 +149,56 @@ const useRealtimeSocket = (onMessage) => {
   return { isConnected: () => _wsConnected };
 };
 
+// ─── LAC Mesh — offline WiFi Direct transport ─────────────────────────────────
+// Активується автоматично коли немає інтернету.
+// Вхідні mesh повідомлення йдуть через той самий _wsListeners pipeline.
+let _meshPlugin = null;
+let _meshReady = false; // true = є TCP з'єднання з хоча б одним вузлом
+
+const _initMesh = () => {
+  const plugin = window.Capacitor?.Plugins?.LacWifiDirect;
+  if (!plugin) return; // PWA без Capacitor — пропускаємо
+  _meshPlugin = plugin;
+
+  plugin.start().catch(() => {});
+
+  plugin.addListener('tcpConnected',    () => { _meshReady = true; });
+  plugin.addListener('tcpDisconnected', () => {
+    plugin.getStatus().then(s => { _meshReady = s.peers > 0; }).catch(() => { _meshReady = false; });
+  });
+
+  // Вхідні mesh повідомлення → той самий pipeline що й WebSocket
+  plugin.addListener('packet', (d) => {
+    try {
+      const msg = JSON.parse(d.data);
+      // Адаптуємо до формату LAC повідомлення
+      const adapted = {
+        type: 'message',
+        from: msg.from,
+        to:   msg.to,
+        text: msg.text || msg.payload || '',
+        timestamp: msg.ts ? ~~(msg.ts / 1000) : ~~(Date.now() / 1000),
+        ephemeral: false,
+        _mesh: true,
+      };
+      _wsListeners.forEach(fn => { try { fn(adapted); } catch {} });
+    } catch {}
+  });
+};
+
+// Відправка через mesh (викликається як fallback)
+const _meshSend = (to, text) => {
+  if (!_meshPlugin || !_meshReady) return false;
+  const seed = localStorage.getItem('lac_seed') || '';
+  const msg = JSON.stringify({ from: seed.slice(0, 16), to, text, ts: Date.now() });
+  _meshPlugin.broadcast({ data: msg }).catch(() => {});
+  return true;
+};
+
+// Ініціалізуємо mesh при старті (тільки в Capacitor середовищі)
+if (typeof window !== 'undefined') {
+  window.addEventListener('load', () => setTimeout(_initMesh, 2000));
+}
 // ─── Utils ────────────────────────────────────────────
 const sAddr = (a) => a ? `${a.slice(0,8)}…${a.slice(-4)}` : '';
 const ago = (ts) => { if (!ts) return ''; const s = ~~(Date.now()/1000-ts); return s<60?'now':s<3600?~~(s/60)+'m':s<86400?~~(s/3600)+'h':~~(s/86400)+'d'; };
@@ -2235,9 +2285,14 @@ const ChatView = ({ peer, onBack, profile }) => {
     post('/api/message.send',{to:peer.address,text:txt,ephemeral:isEph,burn:isBurn,reply_to:reply})
       .then(res => { if (res.to_address) resolvedAddr.current = res.to_address; })
       .catch(e => {
-        toast.error(e.message);
-        localMsgs.current = localMsgs.current.filter(m => m !== opt);
-        setMsgs([...localMsgs.current]);
+        // Fallback: якщо немає інтернету — спробуємо mesh
+        if (_meshReady && _meshSend(peer.address, txt)) {
+          toast('📡 Sent via mesh', { icon: '🔗', duration: 2000 });
+        } else {
+          toast.error(e.message);
+          localMsgs.current = localMsgs.current.filter(m => m !== opt);
+          setMsgs([...localMsgs.current]);
+        }
       });
   };
 
