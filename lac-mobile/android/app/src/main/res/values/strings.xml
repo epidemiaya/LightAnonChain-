@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LAC</string>
+    <string name="title_activity_main">LAC</string>
+    <string name="package_name">uk.lac.mobile</string>
+    <string name="custom_url_scheme">uk.lac.mobile</string>
+</resources>
