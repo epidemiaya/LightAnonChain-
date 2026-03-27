@@ -1,0 +1,28 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Keystore (never commit wallet files)
+*.nulla
+~/.nulla/
+
+# Node
+node_modules/
+ui/node_modules/
+
+# Build output (generated, not needed in repo)
+ui/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

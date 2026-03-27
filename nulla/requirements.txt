@@ -1,0 +1,20 @@
+# Nulla — Bitcoin Light Wallet dependencies
+
+# secp256k1 (libsecp256k1 bindings — same as Bitcoin Core)
+coincurve>=14.0.0
+
+# BIP39 mnemonic
+mnemonic>=0.21
+
+# Base58Check encoding (addresses)
+base58>=2.1.1
+
+# AES-256-GCM keystore encryption
+cryptography>=42.0.0
+
+# Web server
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# HTTP (fallback + fee APIs)
+requests>=2.31.0
