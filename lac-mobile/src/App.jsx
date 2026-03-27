@@ -654,87 +654,83 @@ const LevelBadge = ({ level }) => {
 
 // ━━━ APP ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// ━━━ BITCOIN WALLET ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Security: keys derived locally from LAC seed, never sent to any server.
-// Uses Blockstream Esplora public API (blockstream.info) for blockchain data.
-// P2WPKH (native segwit, bc1q...) via BIP143 transaction signing.
+// ━━━ BITCOIN WALLET — Nulla Light Client (embedded) ━━━━━━━━━━
+// Nulla runs as a separate local server on port 7421.
+// Start it with: python nulla/nulla_server.py --testnet
+// This tab embeds it via iframe — zero changes to LAC node required.
 
-// --- BTC Crypto Helpers (loaded lazily) ---
+const NULLA_URL = 'http://localhost:7421';
+
 const BitcoinWalletTab = ({ onMenu }) => {
-  const [addr, setAddr] = React.useState('');
-  const [copied, setCopied] = React.useState(false);
+  const [status, setStatus] = React.useState('loading'); // loading | ok | error
 
   React.useEffect(() => {
-    (async () => {
+    const check = async () => {
       try {
-        const seed = localStorage.getItem('lac_seed');
-        if (!seed) return;
-        const enc = new TextEncoder().encode('LAC-BTC-v1:' + seed);
-        const h1 = await crypto.subtle.digest('SHA-256', enc);
-        const h2 = await crypto.subtle.digest('SHA-256', h1);
-        const bytes = new Uint8Array(h2);
-        // encode as bech32 watch-only address (display only, no signing yet)
-        const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-        const toWords = (b) => {
-          let acc=0,bits=0; const r=[];
-          for(const v of b){acc=(acc<<8)|v;bits+=8;while(bits>=5){bits-=5;r.push((acc>>bits)&31);}}
-          if(bits>0)r.push((acc<<(5-bits))&31); return r;
-        };
-        const words = [0, ...toWords(bytes.slice(0,20))];
-        // simple checksum
-        const GEN=[0x3b6a57b2,0x26508e6d,0x1ea119fa,0x3d4233dd,0x2a1462b3];
-        const hrpExp = (hrp) => { const r=[]; for(const c of hrp)r.push(c.charCodeAt(0)>>5); r.push(0); for(const c of hrp)r.push(c.charCodeAt(0)&31); return r; };
-        const polymod = (v) => { let c=1; for(const d of v){const b=c>>25;c=((c&0x1ffffff)<<5)^d;for(let i=0;i<5;i++)if((b>>i)&1)c^=GEN[i];} return c; };
-        const chk = (hrp,data) => { const v=[...hrpExp(hrp),...data,0,0,0,0,0,0]; const p=polymod(v)^1; return Array.from({length:6},(_,i)=>(p>>(5*(5-i)))&31); };
-        const combined = [...words, ...chk('bc', words)];
-        const address = 'bc1' + combined.map(i=>CHARSET[i]).join('');
-        setAddr(address);
-      } catch(e) { console.error('BTC addr:', e); }
-    })();
+        const r = await fetch(NULLA_URL + '/api/status', { signal: AbortSignal.timeout(3000) });
+        setStatus(r.ok ? 'ok' : 'error');
+      } catch {
+        setStatus('error');
+      }
+    };
+    check();
   }, []);
 
-  const copy = () => { navigator.clipboard?.writeText(addr); setCopied(true); setTimeout(()=>setCopied(false),2000); };
-
-  return (
+  // Error state — Nulla server not running
+  if (status === 'error') return (
     <div className="h-full flex flex-col bg-[#0a0a0a]">
       <div className="flex items-center gap-3 px-4 pt-12 pb-6">
         <button onClick={onMenu} className="text-gray-400"><span className="text-xl">☰</span></button>
         <span className="text-yellow-400 text-xl">₿</span>
         <h1 className="text-xl font-bold text-white">Bitcoin</h1>
       </div>
-
-      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6">
-        <div className="w-20 h-20 rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center">
-          <span className="text-4xl">₿</span>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-5 text-center">
+        <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-3xl">₿</div>
+        <div>
+          <p className="text-white font-semibold mb-1">Nulla wallet offline</p>
+          <p className="text-gray-500 text-sm leading-relaxed">Start the Bitcoin wallet server to continue</p>
         </div>
-
-        <div className="text-center">
-          <p className="text-white font-semibold text-lg mb-1">Bitcoin Watch Wallet</p>
-          <p className="text-gray-500 text-sm">Receive-only · Signing coming soon</p>
+        <div className="w-full bg-[#111] border border-gray-800 rounded-2xl p-4 text-left">
+          <p className="text-gray-500 text-xs font-mono mb-2 uppercase tracking-wider">Start command:</p>
+          <p className="text-yellow-400 text-xs font-mono leading-relaxed">cd nulla{"
+"}python nulla_server.py --testnet</p>
         </div>
-
-        {addr ? (
-          <div className="w-full bg-gray-900/60 border border-gray-800 rounded-2xl p-4">
-            <p className="text-gray-500 text-xs mb-2 text-center">Your Bitcoin Address</p>
-            <p className="text-white text-xs text-center break-all font-mono leading-relaxed">{addr}</p>
-            <button onClick={copy}
-              className="mt-3 w-full py-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm font-medium">
-              {copied ? '✓ Copied!' : 'Copy Address'}
-            </button>
-          </div>
-        ) : (
-          <div className="w-full bg-gray-900/60 border border-gray-800 rounded-2xl p-4 text-center">
-            <p className="text-gray-600 text-sm">Log in to LAC to generate address</p>
-          </div>
-        )}
-
-        <div className="w-full bg-gray-900/40 border border-gray-800/50 rounded-2xl p-4 space-y-3">
-          <p className="text-gray-400 text-xs font-medium uppercase tracking-wider">Coming Soon</p>
-          <div className="flex items-center gap-3 text-gray-600 text-sm"><span>⚡</span><span>Send & receive BTC</span></div>
-          <div className="flex items-center gap-3 text-gray-600 text-sm"><span>🔄</span><span>BTC ↔ LAC atomic swaps</span></div>
-          <div className="flex items-center gap-3 text-gray-600 text-sm"><span>🔒</span><span>HD wallet (BIP32/39/44)</span></div>
-        </div>
+        <button
+          onClick={() => { setStatus('loading'); setTimeout(async () => {
+            try { const r = await fetch(NULLA_URL + '/api/status', { signal: AbortSignal.timeout(3000) }); setStatus(r.ok ? 'ok' : 'error'); } catch { setStatus('error'); }
+          }, 300); }}
+          className="w-full py-3 rounded-2xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm font-medium">
+          ↻ Retry
+        </button>
       </div>
+    </div>
+  );
+
+  // Loading state
+  if (status === 'loading') return (
+    <div className="h-full flex items-center justify-center bg-[#0a0a0a]">
+      <div className="text-center">
+        <div className="text-yellow-400 text-4xl mb-4">₿</div>
+        <p className="text-gray-600 text-sm">Connecting to Nulla…</p>
+      </div>
+    </div>
+  );
+
+  // Connected — full iframe
+  return (
+    <div className="h-full flex flex-col bg-[#080808]" style={{ position: 'relative' }}>
+      <iframe
+        src={NULLA_URL}
+        style={{
+          width: '100%',
+          height: '100%',
+          border: 'none',
+          display: 'block',
+          flex: 1,
+        }}
+        title="Nulla Bitcoin Wallet"
+        allow="clipboard-write"
+      />
     </div>
   );
 };
