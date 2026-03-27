@@ -659,7 +659,7 @@ const LevelBadge = ({ level }) => {
 // Start it with: python nulla/nulla_server.py --testnet
 // This tab embeds it via iframe — zero changes to LAC node required.
 
-const NULLA_URL = 'http://localhost:7421';
+const NULLA_URL = '/nulla';
 
 const BitcoinWalletTab = ({ onMenu }) => {
   const [status, setStatus] = React.useState('loading'); // loading | ok | error
