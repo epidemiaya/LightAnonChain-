@@ -692,8 +692,8 @@ const BitcoinWalletTab = ({ onMenu }) => {
         </div>
         <div className="w-full bg-[#111] border border-gray-800 rounded-2xl p-4 text-left">
           <p className="text-gray-500 text-xs font-mono mb-2 uppercase tracking-wider">Start command:</p>
-          <p className="text-yellow-400 text-xs font-mono leading-relaxed">cd nulla{"
-"}python nulla_server.py --testnet</p>
+          <p className="text-yellow-400 text-xs font-mono leading-relaxed">cd nulla &amp;&amp; python nulla_server.py --testnet</p>
+
         </div>
         <button
           onClick={() => { setStatus('loading'); setTimeout(async () => {
