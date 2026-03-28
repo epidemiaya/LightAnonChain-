@@ -2635,10 +2635,6 @@ def dice_play():
         if wallet.get('balance', 0) < bet_amount:
             return jsonify({'error': 'Insufficient balance'}), 400
 
-        # Dice cooldown: 5 seconds per wallet (prevent spam/exploit)
-        now_dice = int(time.time())
-        if now_dice - wallet.get('last_dice', 0) < 5:
-            return jsonify({'error': 'Wait 5 seconds between rolls'}), 429
         
         # Generate provably fair result using block hash + timestamp
         last_hash = S.chain[-1]['hash'] if S.chain else 'genesis'
@@ -2730,9 +2726,6 @@ def dice_play():
             'proof_hash': result_hash[:16]
         }
         
-        # Store last dice timestamp
-        wallet['last_dice'] = int(time.time())
-
         # Store in wallet history
         if 'dice_history' not in wallet:
             wallet['dice_history'] = []
