@@ -6049,12 +6049,11 @@ def stash_withdraw():
             if nullifier in spent:
                 return jsonify({'error': 'STASH key already spent', 'ok': False}), 400
             
-            # SECURITY: verify amount from pool, not from key string
+            # SECURITY: key must exist in pool — no deposit record = fake key
             deposit_record = S.stash_pool.get('deposits', {}).get(nullifier_hash)
-            if deposit_record:
-                amount = deposit_record['amount']
-            elif amount not in STASH_NOMINALS.values():
-                return jsonify({'error': 'Invalid STASH key amount', 'ok': False}), 400
+            if not deposit_record:
+                return jsonify({'error': 'STASH key not found in pool', 'ok': False}), 400
+            amount = deposit_record['amount']  # always use server-side amount
             
             pool_balance = S.stash_pool.get('total_balance', 0)
             if pool_balance < amount:
