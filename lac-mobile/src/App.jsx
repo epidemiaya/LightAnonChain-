@@ -3619,8 +3619,13 @@ const DiceView = ({ onBack, profile, onRefresh }) => {
   };
   useEffect(() => { loadHistory(); }, []);
 
+  const lastRollRef = useRef(0);
+
   const play = async (choice) => {
     if (playing) return;
+    const now = Date.now();
+    if (now - lastRollRef.current < 1000) return;
+    lastRollRef.current = now;
     const amount = parseFloat(bet) || 0;
     if (amount < 1) { toast.error('Min bet: 1 LAC'); return; }
     if (amount > (profile?.balance||0)) { toast.error('Not enough LAC'); return; }
