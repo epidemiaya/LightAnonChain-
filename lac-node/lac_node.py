@@ -6039,6 +6039,7 @@ def stash_withdraw():
             return jsonify({'error': 'Invalid secret', 'ok': False}), 400
         
         nullifier = hashlib.sha256(b"STASH_NULL" + secret).hexdigest()
+        nullifier_hash = hashlib.sha256(nullifier.encode()).hexdigest()
         
         with S.lock:
             if to_addr not in S.wallets:
@@ -6047,6 +6048,13 @@ def stash_withdraw():
             spent = S.stash_pool.get('spent_nullifiers', [])
             if nullifier in spent:
                 return jsonify({'error': 'STASH key already spent', 'ok': False}), 400
+            
+            # SECURITY: verify amount from pool, not from key string
+            deposit_record = S.stash_pool.get('deposits', {}).get(nullifier_hash)
+            if deposit_record:
+                amount = deposit_record['amount']
+            elif amount not in STASH_NOMINALS.values():
+                return jsonify({'error': 'Invalid STASH key amount', 'ok': False}), 400
             
             pool_balance = S.stash_pool.get('total_balance', 0)
             if pool_balance < amount:
