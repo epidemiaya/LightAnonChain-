@@ -6045,7 +6045,7 @@ def stash_withdraw():
             if to_addr not in S.wallets:
                 return jsonify({'error': 'Wallet not found', 'ok': False}), 404
             
-            spent = S.stash_pool.get('spent_nullifiers', [])
+            spent = set(S.stash_pool.get('spent_nullifiers', []))
             if nullifier in spent:
                 return jsonify({'error': 'STASH key already spent', 'ok': False}), 400
             
@@ -6084,6 +6084,8 @@ def stash_withdraw():
             if 'spent_nullifiers' not in S.stash_pool:
                 S.stash_pool['spent_nullifiers'] = []
             S.stash_pool['spent_nullifiers'].append(nullifier)
+            # Remove deposit record after withdrawal
+            S.stash_pool.get('deposits', {}).pop(nullifier_hash, None)
             
             S.save()
             
