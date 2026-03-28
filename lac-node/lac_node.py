@@ -1994,7 +1994,6 @@ def faucet():
             'amount': faucet_amount,
             'type': 'faucet',
             'timestamp': int(time.time()),
-            'ip': ip
         }
         S.mempool.append(faucet_tx)
         
