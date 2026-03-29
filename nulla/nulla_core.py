@@ -57,7 +57,7 @@ def dsha256(data: bytes) -> bytes:
     return sha256(sha256(data))
 
 def hash160(data: bytes) -> bytes:
-    return hashlib.new("ripemd160", sha256(data)).digest()
+    return hashlib.new("ripemd160", sha256(data), usedforsecurity=False).digest()
 
 def base58check_encode(payload: bytes) -> str:
     checksum = dsha256(payload)[:4]
