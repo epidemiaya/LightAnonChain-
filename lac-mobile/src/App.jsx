@@ -934,7 +934,8 @@ const BitcoinWalletTab=({onMenu})=>{
       const sigs=[];
       for(let i=0;i<sel.length;i++){
         const u=sel[i];
-        const sc=[0x19,0x76,0xa9,0x14,...h160,0x88,0xac];
+        // BIP143 scriptCode for P2WPKH (without length prefix — vi() adds it)
+        const sc=[0x76,0xa9,0x14,...h160,0x88,0xac];
         const pre=new Uint8Array([...le4(2),...hprev,...hseq,...txid2b(u.txid),...le4(u.vout),...vi(sc.length),...sc,...le8(u.value),0xff,0xff,0xff,0xff,...hout,...le4(0),...le4(1)]);
         const hash=await dsha(pre);
         const sig=await _secp.sign(priv,hash);
