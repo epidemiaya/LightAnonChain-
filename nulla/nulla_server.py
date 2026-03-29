@@ -43,7 +43,7 @@ app.config.update(
 )
 
 if _HAS_CORS:
-    CORS(app, origins=["http://localhost:5173", "http://localhost:7421"],
+    CORS(app, origins=["http://localhost:5173", "http://localhost:7421", "https://lac-beta.uk", "https://www.lac-beta.uk"],
          supports_credentials=True)
 
 DEFAULT_KEYSTORE = str(Path.home() / ".nulla" / "wallet.nulla")
