@@ -61,7 +61,11 @@ const _bech32 = (() => {
   const createChecksum=(hrp,data)=>{const v=[...hrpExpand(hrp),...data,0,0,0,0,0,0];const p=polymod(v)^1;return Array.from({length:6},(_,i)=>(p>>(5*(5-i)))&31);};
   const convertbits=(data,frombits,tobits,pad=true)=>{let acc=0,bits=0;const r=[];for(const v of data){acc=(acc<<frombits)|v;bits+=frombits;while(bits>=tobits){bits-=tobits;r.push((acc>>bits)&((1<<tobits)-1));}}if(pad&&bits>0)r.push((acc<<(tobits-bits))&((1<<tobits)-1));return r;};
   const toWords=(data)=>convertbits(Array.from(data),8,5);
-  return {encode:(hrp,data)=>{const d=toWords(data);const combined=[...d,...createChecksum(hrp,d)];return hrp+'1'+combined.map(i=>CHARSET[i]).join('');},toWords};
+  return {
+    encode:(hrp,witver,data)=>{const d=[witver,...toWords(data)];const combined=[...d,...createChecksum(hrp,d)];return hrp+'1'+combined.map(i=>CHARSET[i]).join('');},
+    encodeRaw:(hrp,data)=>{const d=toWords(data);const combined=[...d,...createChecksum(hrp,d)];return hrp+'1'+combined.map(i=>CHARSET[i]).join('');},
+    toWords
+  };
 })();
 
 // ─── API Layer ────────────────────────────────────────
@@ -758,7 +762,7 @@ const _btcAddr = {
     const sha=new Uint8Array(await crypto.subtle.digest('SHA-256',pub));
     const h160=_ripemd160(sha);
     const hrp=network==='mainnet'?'bc':'tb';
-    return _bech32.encode(hrp,h160);
+    return _bech32.encode(hrp,0,h160);
   },
   async scripthash(addr){
     // ElectrumX scripthash = SHA256(scriptPubKey)[::-1]
@@ -805,7 +809,8 @@ const _btcTx = {
       const CHARSET='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
       const sep=addr.lastIndexOf('1');
       const data=addr.slice(sep+1).toLowerCase().split('').map(c=>CHARSET.indexOf(c));
-      const payload=data.slice(1,-6);
+      // data[0] = witness version, data[-6:] = checksum — skip both
+      const payload=data.slice(2,-6); // skip witness version (index 0) + checksum (last 6)
       let acc=0,bits=0;const result=[];
       for(const v of payload){acc=(acc<<5)|v;bits+=5;while(bits>=8){bits-=8;result.push((acc>>bits)&0xff);}}
       return new Uint8Array(result.slice(0,20));
@@ -924,16 +929,30 @@ const BitcoinWalletTab = ({ onMenu }) => {
     else setScreen('setup');
   },[]);
 
-  const loadBalance=async(addr)=>{
+  const loadBalance=async(addr,allAddrs)=>{
     try{
-      const[bal,txList]=await Promise.all([esplora.getBalance(addr),esplora.getTxs(addr)]);
-      setBalance(bal);
+      const addrs=allAddrs||(wallet?.addresses?.map(a=>a.address)||[addr]);
+      const results=await Promise.all(addrs.map(a=>esplora.getBalance(a).catch(()=>({confirmed:0,unconfirmed:0}))));
+      const total=results.reduce((s,b)=>({confirmed:s.confirmed+(b.confirmed||0),unconfirmed:s.unconfirmed+(b.unconfirmed||0)}),{confirmed:0,unconfirmed:0});
+      setBalance(total);
+      // Get txs for primary address only (for speed)
+      const txList=await esplora.getTxs(addr).catch(()=>[]);
       setTxs(txList.slice(0,10).map(tx=>{
-        const myOut=tx.vout.filter(o=>o.scriptpubkey_address===addr).reduce((s,o)=>s+o.value,0);
-        const myIn=tx.vin.filter(i=>i.prevout?.scriptpubkey_address===addr).reduce((s,i)=>s+i.prevout.value,0);
-        return{txid:tx.txid,amount:myOut-myIn,confirmed:!!tx.status.confirmed,height:tx.status.block_height};
+        const myOut=tx.vout.filter(o=>addrs.includes(o.scriptpubkey_address)).reduce((s,o)=>s+o.value,0);
+        const myIn=(tx.vin||[]).filter(i=>addrs.includes(i.prevout?.scriptpubkey_address)).reduce((s,i)=>s+i.prevout.value,0);
+        return{txid:tx.txid,amount:myOut-myIn,confirmed:!!tx.status?.confirmed,height:tx.status?.block_height};
       }));
     }catch(e){console.error(e);}
+  };
+
+  const deriveAddresses=async(seed,count=5)=>{
+    const addrs=[];
+    for(let i=0;i<count;i++){
+      const priv=await _bip32.derive(seed,`m/84'/0'/0'/0/${i}`);
+      const addr=await _btcAddr.fromPrivkey(priv,'testnet');
+      addrs.push({index:i,path:`m/84'/0'/0'/0/${i}`,address:addr,privkeyHex:Array.from(priv).map(b=>b.toString(16).padStart(2,'0')).join('')});
+    }
+    return addrs;
   };
 
   const createWallet=async()=>{
@@ -941,9 +960,8 @@ const BitcoinWalletTab = ({ onMenu }) => {
     try{
       const mn=await _btcMnemonic.generate(128);
       const seed=await _btcMnemonic.toSeed(mn);
-      const privkey=await _bip32.derive(seed,"m/84'/0'/0'/0/0");
-      const address=await _btcAddr.fromPrivkey(privkey,'testnet');
-      const w={mnemonic:mn,address,privkeyHex:Array.from(privkey).map(b=>b.toString(16).padStart(2,'0')).join('')};
+      const addrs=await deriveAddresses(seed,5);
+      const w={mnemonic:mn,address:addrs[0].address,addresses:addrs,privkeyHex:addrs[0].privkeyHex};
       _btcStore.save(w);setWallet(w);setMnemonic(mn);setShowMnemonic(true);
     }catch(e){setError(e.message);}
     setLoading(false);
@@ -954,10 +972,9 @@ const BitcoinWalletTab = ({ onMenu }) => {
     setLoading(true);setError('');
     try{
       const seed=await _btcMnemonic.toSeed(mnemonicInput.trim());
-      const privkey=await _bip32.derive(seed,"m/84'/0'/0'/0/0");
-      const address=await _btcAddr.fromPrivkey(privkey,'testnet');
-      const w={mnemonic:mnemonicInput.trim(),address,privkeyHex:Array.from(privkey).map(b=>b.toString(16).padStart(2,'0')).join('')};
-      _btcStore.save(w);setWallet(w);setScreen('dashboard');loadBalance(address);
+      const addrs=await deriveAddresses(seed,5);
+      const w={mnemonic:mnemonicInput.trim(),address:addrs[0].address,addresses:addrs,privkeyHex:addrs[0].privkeyHex};
+      _btcStore.save(w);setWallet(w);setScreen('dashboard');loadBalance(addrs[0].address);
     }catch(e){setError(e.message);}
     setLoading(false);
   };
