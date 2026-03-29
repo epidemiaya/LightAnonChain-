@@ -906,7 +906,7 @@ const BitcoinWalletTab=({onMenu})=>{
         const payload=data.slice(1,-6); // include witness ver, skip checksum
         // convert 5-bit to 8-bit, skip first element (witness version=0)
         let acc=0,bits=0;const res=[];
-        for(let i=1;i<payload.length;i++){
+        for(let i=0;i<payload.length;i++){
           const v=payload[i];
           acc=((acc<<5)>>>0)|v; bits+=5;
           while(bits>=8){bits-=8;res.push((acc>>>bits)&0xff);}
