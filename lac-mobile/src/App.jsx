@@ -859,7 +859,6 @@ const BitcoinWalletTab=({onMenu})=>{
       const addrs=await _deriveWallet(mn);
       const w={mnemonic:mn,addresses:addrs};
       _btcStore.save(w);setWallet(w);setMnemonic(mn);
-      setSetupStep('mnemonic');
     }catch(e){setErr(e.message);}
     setLoading(false);
   };
@@ -903,9 +902,15 @@ const BitcoinWalletTab=({onMenu})=>{
         const CS='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
         const sep=addr.lastIndexOf('1');
         const data=addr.slice(sep+1).toLowerCase().split('').map(c=>CS.indexOf(c));
-        const payload=data.slice(2,-6);
+        // data[0] = witness version (0 for P2WPKH), last 6 = checksum
+        const payload=data.slice(1,-6); // include witness ver, skip checksum
+        // convert 5-bit to 8-bit, skip first element (witness version=0)
         let acc=0,bits=0;const res=[];
-        for(const v of payload){acc=(acc<<5)|v;bits+=5;while(bits>=8){bits-=8;res.push((acc>>bits)&0xff);}}
+        for(let i=1;i<payload.length;i++){
+          const v=payload[i];
+          acc=((acc<<5)>>>0)|v; bits+=5;
+          while(bits>=8){bits-=8;res.push((acc>>>bits)&0xff);}
+        }
         return new Uint8Array(res.slice(0,20));
       };
 
