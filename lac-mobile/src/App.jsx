@@ -654,85 +654,516 @@ const LevelBadge = ({ level }) => {
 
 // ━━━ APP ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// ━━━ BITCOIN WALLET — Nulla Light Client (embedded) ━━━━━━━━━━
-// Nulla runs as a separate local server on port 7421.
-// Start it with: python nulla/nulla_server.py --testnet
-// This tab embeds it via iframe — zero changes to LAC node required.
+// ━━━ BITCOIN WALLET — Client-side HD wallet (BIP39/32/84) ━━━━━━━━━━
+// Keys generated IN BROWSER, stored per-LAC-user in localStorage.
+// No server needed. Electrum-compatible (same BIP39 mnemonic).
+// Esplora REST API (blockstream.info) for blockchain data.
 
-const NULLA_URL = 'https://btc.lac-beta.uk';
+// ── secp256k1 inline (BigInt, no deps) ───────────────────────────────
+const _secp = (() => {
+  const P=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2Fn;
+  const N=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
+  const Gx=0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n;
+  const Gy=0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n;
+  const md=(a,m=P)=>{const r=a%m;return r<0n?r+m:r;};
+  const inv=(a,m=P)=>{let[or,r,os,s]=[md(a,m),m,1n,0n];while(r){const q=or/r;[or,r]=[r,or-q*r];[os,s]=[s,os-q*s];}return md(os,m);};
+  const dbl=([x,y])=>{const l=md(3n*x*x*inv(2n*y));const x2=md(l*l-2n*x);return[x2,md(l*(x-x2)-y)];};
+  const add=(p1,p2)=>{if(!p1)return p2;if(!p2)return p1;const[x1,y1]=p1,[x2,y2]=p2;if(x1===x2){if(y1===y2)return dbl(p1);return null;}const l=md((y2-y1)*inv(x2-x1));const x3=md(l*l-x1-x2);return[x3,md(l*(x1-x3)-y1)];};
+  const mul=(n,p)=>{let r=null,c=p;while(n>0n){if(n&1n)r=add(r,c);c=add(c,c);n>>=1n;}return r;};
+  const b2i=(b)=>BigInt('0x'+Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join(''));
+  const i2b=(n)=>{const h=n.toString(16).padStart(64,'0');return new Uint8Array(32).map((_,i)=>parseInt(h.slice(i*2,i*2+2),16));};
+  const G=[Gx,Gy];
+  const pubkey=(priv)=>{const k=b2i(priv);const[x,y]=mul(k,G);const r=new Uint8Array(33);r[0]=(y&1n)?3:2;i2b(x).forEach((v,i)=>r[i+1]=v);return r;};
+  const hmac256=async(key,...data)=>{const k=await crypto.subtle.importKey('raw',key,{name:'HMAC',hash:'SHA-256'},false,['sign']);const d=new Uint8Array(data.reduce((s,x)=>s+x.length,0));let o=0;data.forEach(x=>{d.set(x,o);o+=x.length;});return new Uint8Array(await crypto.subtle.sign('HMAC',k,d));};
+  const sign=async(priv,hash)=>{
+    const pn=b2i(priv),hn=b2i(hash);
+    let V=new Uint8Array(32).fill(1),K=new Uint8Array(32).fill(0);
+    K=await hmac256(K,V,new Uint8Array([0]),priv,hash);V=await hmac256(K,V);
+    K=await hmac256(K,V,new Uint8Array([1]),priv,hash);V=await hmac256(K,V);
+    for(let i=0;i<100;i++){
+      V=await hmac256(K,V);const kn=b2i(V);
+      if(kn<1n||kn>=N){K=await hmac256(K,V,new Uint8Array([0]));V=await hmac256(K,V);continue;}
+      const R=mul(kn,G);if(!R)continue;const r=md(R[0],N);if(r===0n)continue;
+      let s=md(inv(kn,N)*(hn+r*pn),N);if(s===0n)continue;if(s>N/2n)s=N-s;
+      const enc=(n)=>{let h=n.toString(16);if(h.length%2)h='0'+h;const b=[...Array.from({length:h.length/2},(_,i)=>parseInt(h.slice(i*2,i*2+2),16))];if(b[0]&0x80)b.unshift(0);return[0x02,b.length,...b];};
+      const rd=enc(r),sd=enc(s);return new Uint8Array([0x30,rd.length+sd.length,...rd,...sd]);
+    }
+    throw new Error('sign failed');
+  };
+  return{pubkey,sign,b2i,i2b,N};
+})();
 
-const BitcoinWalletTab = ({ onMenu }) => {
-  const [status, setStatus] = React.useState('loading'); // loading | ok | error
+// ── BIP32 key derivation (Web Crypto HMAC-SHA512) ─────────────────────
+const _bip32 = {
+  async master(seed){
+    const key=await crypto.subtle.importKey('raw',new TextEncoder().encode('Bitcoin seed'),{name:'HMAC',hash:'SHA-512'},false,['sign']);
+    const I=new Uint8Array(await crypto.subtle.sign('HMAC',key,seed));
+    return{k:I.slice(0,32),c:I.slice(32)};
+  },
+  async child({k,c},index,hardened=false){
+    const idx=hardened?index+0x80000000:index;
+    const data=new Uint8Array(37);
+    if(hardened){data[0]=0;data.set(k,1);}else{data.set(_secp.pubkey(k),0);}
+    new DataView(data.buffer).setUint32(33,idx);
+    const key=await crypto.subtle.importKey('raw',c,{name:'HMAC',hash:'SHA-512'},false,['sign']);
+    const I=new Uint8Array(await crypto.subtle.sign('HMAC',key,data));
+    const il=_secp.b2i(I.slice(0,32));
+    const kn=(_secp.b2i(k)+il)%_secp.N;
+    if(kn===0n||il>=_secp.N)throw new Error('invalid child key');
+    return{k:_secp.i2b(kn),c:I.slice(32)};
+  },
+  async derive(seed,path){
+    const parts=path.replace('m/','').split('/').filter(Boolean);
+    let node=await this.master(seed);
+    for(const p of parts){
+      const h=p.endsWith("'");
+      node=await this.child(node,parseInt(p),h);
+    }
+    return node.k;
+  }
+};
 
-  React.useEffect(() => {
-    const check = async () => {
-      try {
-        const r = await fetch(NULLA_URL + '/api/status', { signal: AbortSignal.timeout(3000) });
-        setStatus(r.ok ? 'ok' : 'error');
-      } catch {
-        setStatus('error');
-      }
+// ── BIP39 mnemonic ────────────────────────────────────────────────────
+const BIP39_WORDS='abandon ability able about above absent absorb abstract absurd abuse access accident account accuse achieve acid acoustic acquire across act action actor actress actual adapt add addict address adjust admit adult advance advice aerobic afford afraid again age agent agree ahead aim air airport aisle alarm album alcohol alert alien all alley allow almost alone alpha already also alter always amateur amazing among amount amused analyst anchor ancient anger angle angry animal ankle announce annual another answer antenna antique anxiety any apart apology appear apple approve april arch arctic area arena argue arm armed armor army around arrange arrest arrive arrow art artefact artist artwork ask aspect assault asset assist assume asthma athlete atom attack attend attitude attract auction audit august aunt author auto autumn average avocado avoid awake aware away awesome awful awkward axis baby bachelor bacon badge bag balance balcony ball bamboo banana banner bar barely bargain barrel base basic basket battle beach bean beauty because become beef before begin behave behind believe below belt bench benefit best betray better between beyond bicycle bid bike bind biology bird birth bitter black blade blame blanket blast bleak bless blind blood blossom blouse blue blur blush board boat body boil bomb bone book boost border boring borrow boss bottom bounce box boy bracket brain brand brave bread breeze brick bridge brief bright bring brisk broccoli broken bronze broom brother brown brush bubble buddy budget buffalo build bulb bulk bullet bundle bunker burden burger burst bus business busy butter buyer buzz cabbage cabin cable cactus cage cake call calm camera camp can canal cancel candy cannon canvas canyon capable capital captain car carbon card cargo carpet carry cart case cash casino castle casual cat catalog catch category cattle caught cause caution cave census chair chaos chapter charge chase chat cheap check cheese chef cherry chest chicken chief child chimney choice choose chronic chuckle chunk cigar cinnamon circle citizen city civil claim clap clarify claw clay clean clerk clever click client cliff climb clinic clip clock clog close cloth cloud clown club clump cluster clutch coach coast coconut code coffee coil coin collect color column combine come comfort comic common company concert conduct confirm congress connect consider control convince cook cool copper copy coral core corn correct cost cotton couch country couple course cousin cover coyote crack cradle craft cram crane crash crater crawl crazy cream credit creek crew cricket crime crisp critic cross crouch crowd crucial cruel cruise crumble crunch crush cry crystal cube culture cup cupboard curious current curtain cycle dad damage damp dance danger daring dash daughter dawn day deal debate debris decade december decide decline decorate decrease deer defense define defy degree delay deliver demand demise denial dentist deny depart depend deposit depth deputy derive describe desert design desk despair destroy detail detect develop device devote diagram dial diamond diary dice diesel diet differ digital dignity dilemma dinner dinosaur direct dirt disagree discover disease dish dismiss disorder display distance divert divide divorce dizzy doctor document dog doll dolphin domain donate donkey donor door dose double dove draft dragon drama drastic draw dream dress drift drill drink drip drive drop drum dry duck dumb dune during dust dutch duty dwarf dynamic eager eagle early earn earth easily east easy echo ecology edge edit educate effort egg eight either elbow elder electric elegant element elephant elevator elite else embark embody embrace emerge emotion employ empower empty enable enact endless endorse enemy engage engine enhance enjoy enlist enough enrich enroll ensure enter entire entry envelope episode equal equip erase erode erosion error erupt escape essay essence estate eternal ethics evidence evil evoke evolve exact example excess exchange excite exclude exercise exhaust exhibit exile exist exit exotic expand expire explain expose express extend extra eye fable face faculty fade faint faith fall false fame family famous fan fancy fantasy far fashion fat fatal father fatigue fault favorite feature february federal fee feed feel feet fellow felt fence festival fetch fever few fiber fiction field figure file film filter final find fine finger finish fire firm first fiscal fish fit fitness fix flag flame flash flat flavor flee flight flip float flock floor flower fluid flush fly foam focus fog foil follow food foot force forest forget fork fortune forum forward fossil foster found fox fragile frame frequent fresh friend fringe frog front frost frown frozen fruit fuel fun funny furnace fury future gadget gain galaxy gallery game gap garbage garden garlic garment gas gasp gate gather gauge gaze general genius genre gentle genuine gesture ghost girl give glad glance glare glass glide glimpse globe gloom glory glove glow glue goat goddess gold good goose gorilla gospel gossip govern gown grab grace grain grant grape grasp grass gravity great green grid grief grit grocery group grow grunt guard guide guilt guitar gun gym habit hair half hamster hand happy harsh harvest hat have hawk hazard head health heart heavy hedgehog height hello helmet help hen hero hidden high hill hint hip hire history hobby hockey hold hole holiday hollow home honey hood hope horn hospital host hour hover hub huge human humble humor hundred hungry hunt hurdle hurry hurt husband hybrid ice icon ignore ill illegal image imitate immense immune impact impose improve impulse inbox income increase index indicate indoor industry infant inflict inform inhale inject injury inmate inner innocent input inquiry insane insect inside inspire install intact interest into invest invite involve iron island isolate issue item ivory jacket jaguar jar jazz jealous jeans jelly jewel job join joke journey joy judge juice jump jungle junior junk just kangaroo keen keep ketchup key kick kid kingdom kiss kit kitchen kite kitten kiwi knee knife knock know lab ladder lamp language laptop large later laugh laundry lava law lawn lawsuit layer lazy leader learn leave lecture left leg legal legend leisure lemon lend length lens leopard lesson letter level liar liberty library license life lift light like limb limit link lion liquid list little live lizard load loan lobster local lock logic lonely long loop lottery loud lounge love loyal lucky luggage lumber lunar lunch luxury lyrics mad magnet maid main make mammal mango mansion manual maple marble march margin marine market marriage mask master match maze meadow mean medal media melody melt member memory mention mentor menu mercy merge merit merry mesh message metal method middle midnight milk million mimic mind minimum minor minute miracle misery miss mistake mix mixed mixture mobile model modify mom monitor monkey monster month moon moral more morning mosquito mother motion mold mountain mouse move movie much muffin mule multiply muscle museum mushroom music must mutual myself mystery naive name napkin narrow nasty natural nature near neck need negative neglect neither nephew nerve network news next nice night noble noise nominee noodle normal north notable note nothing notice novel now nuclear number nurse nut oak obey object oblige obscure observe obtain ocean october odor off offer office often oil okay old olive olympic omit once onion open option orange orbit orchard order ordinary organ orient original orphan ostrich other outdoor outside oval over own oyster ozone pact paddle page pair palace palm panda panel panic panther paper parade parent park parrot party pass patch path patrol pause pave payment peace peanut peasant pelican pen penalty pencil people pepper perfect permit person pet phone photo phrase physical piano picnic picture piece pig pigeon pill pilot pink pioneer pipe pistol pitch pizza place planet plastic plate play plot plunge poem poet point polar pole police pond pony popular portion position possible post potato pottery poverty powder power practice praise predict prefer prepare present pretty prevent price pride primary print priority prison private prize problem process produce profit program project promote proof property prosper protect proud provide public pudding pull pulp pulse pumpkin punish pupil purchase purity purpose push put puzzle pyramid quality quantum quarter question quick quit quiz quote rabbit raccoon race rack radar radio rage rail rain raise rally ramp ranch random range rapid rare rate rather raven reach ready real reason rebel rebuild recall receive recipe record recycle reduce reflect reform refuse region regret regular reject relax release relief rely remain remember remind remove render renew rent reopen repair repeat replace report require rescue resemble resist resource response result retire retreat return reunion reveal review reward rhythm ribbon rice rich ride rifle right rigid ring riot ripple risk ritual rival river road roast robot robust rocket romance roof rookie rose rotate rough royal rubber rude rug rule run runway rural sad saddle sadness safe sail salad salmon salon salt salute same sample sand satisfy satoshi sauce sausage save say scale scan scare scatter scene scheme scissors scorpion scout scrap screen script scrub sea search season seat second secret section security seek segment select sell seminar senior sense sentence series service session settle setup seven shadow shaft shallow share shed shell sheriff shield shift shine ship shiver shock shoe shoot shop short shoulder shove shrimp shrug shuffle shy sibling siege sight sign silent silk silly silver similar simple since sing siren sister situate six size sketch skill skin skirt skull slab slam sleep slender slice slide slight slim slogan slot slow slush small smart smile smoke smooth snack snake snap sniff snow soap soccer social sock soda soft solar soldier solid solution solve someone song soon sorry soul sound soup source south space spare spatial spawn speak special speed spell spend sphere spice spider spike spin spirit split spoil sponsor spoon spray spread spring spy square squeeze squirrel stable stadium staff stage stairs stamp stand start state stay steak steel stem step stereo stick still sting stock stomach stone stop store story stove strategy street strike strong struggle student stuff stumble style subject submit suburb success such sudden suffer sugar suggest suit summer sun sunny sunset super supply supreme sure surface surge surprise sustain swallow swamp swap swear sweet swift swim swing switch sword symbol symptom syrup table tackle tag tail talent tamper tank tape target task tattoo taxi teach team tell ten tenant tennis tent term test text thank that theme then theory there they thing this thought three thrive throw thumb thunder ticket tilt timber time tiny tip tired title toast tobacco today together toilet token tomato tomorrow tone tongue tonight tool tooth top topic topple torch tornado tortoise toss total tourist toward tower town toy track trade traffic tragic train transfer trap trash travel tray treat tree trend trial tribe trick trigger trim trip trophy trouble truck truly trumpet trust truth tube tuition tumble tuna tunnel turkey turn turtle twelve twenty twice twin twist two type typical ugly umbrella unable unaware uncle uncover under undo unfair unfold unhappy uniform unique universe unknown unlock until unusual unveil update upgrade uphold upon upper upset urban usage use used useful useless usual utility vacant vacuum vague valid valley valve van vanish vapor various vast vault vehicle velvet vendor venture venue verb verify version very veteran viable vibrant vicious victory video view village vintage violin virtual virus visa visit visual vital vivid vocal voice void volcano volume vote voyage wage wagon wait walk wall walnut want warfare warm warrior wash wasp waste water wave way wealth weapon wear weasel web wedding weekend weird welcome well west wet whale wheat wheel where whip whisper wide width wife wild will win window wine wing wink winner winter wire wisdom wise wish witness wolf woman wonder wood wool word world worry worth wrap wreck wrestle wrist write wrong yard year yellow you young youth zebra zero zone zoo'.split(' ');
+
+// ── BIP39 helpers ─────────────────────────────────────────────────────
+const _btcMnemonic = {
+  async generate(bits=128){
+    const bytes=bits/8;
+    const entropy=crypto.getRandomValues(new Uint8Array(bytes));
+    const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',entropy));
+    const checkBits=bits/32;
+    const allBits=Array.from(entropy).flatMap(b=>[7,6,5,4,3,2,1,0].map(i=>(b>>i)&1));
+    for(let i=0;i<checkBits;i++)allBits.push((hash[Math.floor(i/8)]>>(7-i%8))&1);
+    const words=[];
+    for(let i=0;i<allBits.length;i+=11)words.push(BIP39_WORDS[allBits.slice(i,i+11).reduce((a,b)=>a*2+b,0)]);
+    return words.join(' ');
+  },
+  async toSeed(mnemonic,passphrase=''){
+    const enc=new TextEncoder();
+    const key=await crypto.subtle.importKey('raw',enc.encode(mnemonic.normalize('NFKD')),{name:'PBKDF2'},false,['deriveBits']);
+    const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode('mnemonic'+passphrase.normalize('NFKD')),iterations:2048,hash:'SHA-512'},key,512);
+    return new Uint8Array(bits);
+  },
+  validate(m){
+    const words=m.trim().split(/\s+/);
+    return[12,15,18,21,24].includes(words.length)&&words.every(w=>BIP39_WORDS.includes(w));
+  }
+};
+
+// ── Bitcoin address helpers ───────────────────────────────────────────
+const _btcAddr = {
+  async fromPrivkey(privkey, network='testnet'){
+    const pub=_secp.pubkey(privkey);
+    const sha=new Uint8Array(await crypto.subtle.digest('SHA-256',pub));
+    const h160=_ripemd160(sha);
+    const hrp=network==='mainnet'?'bc':'tb';
+    return _bech32.encode(hrp,h160);
+  },
+  async scripthash(addr){
+    // ElectrumX scripthash = SHA256(scriptPubKey)[::-1]
+    // P2WPKH scriptPubKey = OP_0 PUSH20 <hash160>
+    const hrp=addr.startsWith('bc1')?'bc':'tb';
+    // decode bech32
+    const CHARSET='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+    const sep=addr.lastIndexOf('1');
+    const data=addr.slice(sep+1).toLowerCase().split('').map(c=>CHARSET.indexOf(c));
+    const payload=data.slice(1,-6); // remove witness version and checksum
+    // convert from 5-bit groups to 8-bit
+    let acc=0,bits=0;const result=[];
+    for(const val of payload){acc=(acc<<5)|val;bits+=5;while(bits>=8){bits-=8;result.push((acc>>bits)&0xff);}}
+    const h160=new Uint8Array(result.slice(0,20));
+    const spk=new Uint8Array([0x00,0x14,...h160]);
+    const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',spk));
+    return Array.from(hash).reverse().map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+};
+
+// ── Esplora API ───────────────────────────────────────────────────────
+const ESPLORA_URL='https://blockstream.info/testnet/api';
+const esplora={
+  async get(path){const r=await fetch(ESPLORA_URL+path);if(!r.ok)throw new Error('Esplora '+r.status);return r.json();},
+  async getBalance(addr){try{const d=await this.get('/address/'+addr);return{confirmed:d.chain_stats.funded_txo_sum-d.chain_stats.spent_txo_sum,unconfirmed:d.mempool_stats.funded_txo_sum-d.mempool_stats.spent_txo_sum};}catch{return{confirmed:0,unconfirmed:0};}},
+  async getTxs(addr){try{return await this.get('/address/'+addr+'/txs');}catch{return[];}},
+  async getUtxos(addr){try{return await this.get('/address/'+addr+'/utxo');}catch{return[];}},
+  async getFeeRate(){try{const d=await this.get('/fee-estimates');return Math.ceil(d['3']||5);}catch{return 5;}},
+  async broadcast(hex){const r=await fetch(ESPLORA_URL+'/tx',{method:'POST',headers:{'Content-Type':'text/plain'},body:hex});if(!r.ok)throw new Error(await r.text());return r.text();}
+};
+
+// ── Transaction builder (P2WPKH) ──────────────────────────────────────
+const _btcTx = {
+  varint(n){if(n<0xfd)return[n];if(n<0xffff)return[0xfd,n&0xff,n>>8];return[0xfe,n&0xff,(n>>8)&0xff,(n>>16)&0xff,n>>24];},
+  le4(n){return[n&0xff,(n>>8)&0xff,(n>>16)&0xff,(n>>24)&0xff];},
+  le8(n){const b=BigInt(n);return[...Array(8)].map((_,i)=>Number((b>>BigInt(i*8))&0xffn));},
+  async build(utxos,toAddr,toSat,changeAddr,feeRate,privkey){
+    const pub=_secp.pubkey(privkey);
+    const sha=new Uint8Array(await crypto.subtle.digest('SHA-256',pub));
+    const h160=_ripemd160(sha);
+
+    // Decode recipient address
+    const decodeBech32Addr=(addr)=>{
+      const CHARSET='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+      const sep=addr.lastIndexOf('1');
+      const data=addr.slice(sep+1).toLowerCase().split('').map(c=>CHARSET.indexOf(c));
+      const payload=data.slice(1,-6);
+      let acc=0,bits=0;const result=[];
+      for(const v of payload){acc=(acc<<5)|v;bits+=5;while(bits>=8){bits-=8;result.push((acc>>bits)&0xff);}}
+      return new Uint8Array(result.slice(0,20));
     };
-    check();
-  }, []);
 
-  // Error state — Nulla server not running
-  if (status === 'error') return (
-    <div className="h-full flex flex-col bg-[#0a0a0a]">
-      <div className="flex items-center gap-3 px-4 pt-12 pb-6">
-        <button onClick={onMenu} className="text-gray-400"><span className="text-xl">☰</span></button>
-        <span className="text-yellow-400 text-xl">₿</span>
-        <h1 className="text-xl font-bold text-white">Bitcoin</h1>
-      </div>
-      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-5 text-center">
-        <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-3xl">₿</div>
-        <div>
-          <p className="text-white font-semibold mb-1">Nulla wallet offline</p>
-          <p className="text-gray-500 text-sm leading-relaxed">Start the Bitcoin wallet server to continue</p>
+    const toH160=decodeBech32Addr(toAddr);
+    const chH160=decodeBech32Addr(changeAddr);
+    const toSpk=[0x00,0x14,...toH160];
+    const chSpk=[0x00,0x14,...chH160];
+
+    // Estimate fee: 10 overhead + 41*n inputs + 31*2 outputs (vbytes for segwit)
+    const vbytes=10+68*utxos.length+31*2;
+    const fee=vbytes*feeRate;
+    const totalIn=utxos.reduce((s,u)=>s+u.value,0);
+    const change=totalIn-toSat-fee;
+    if(change<0)throw new Error(`Insufficient funds: ${totalIn} sat, need ${toSat+fee} sat`);
+
+    const outputs=[[toSpk,toSat]];
+    if(change>546)outputs.push([chSpk,change]);
+
+    // BIP143 sighash
+    const txid2bytes=(txid)=>Array.from({length:32},(_,i)=>parseInt(txid.slice((31-i)*2,(31-i)*2+2),16));
+
+    const hashPrevouts=async()=>{
+      const data=utxos.flatMap(u=>[...txid2bytes(u.txid),...this.le4(u.vout)]);
+      const h1=new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array(data)));
+      return new Uint8Array(await crypto.subtle.digest('SHA-256',h1));
+    };
+    const hashSeq=async()=>{
+      const data=utxos.flatMap(()=>[0xff,0xff,0xff,0xff]);
+      const h1=new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array(data)));
+      return new Uint8Array(await crypto.subtle.digest('SHA-256',h1));
+    };
+    const hashOuts=async()=>{
+      const data=outputs.flatMap(([spk,sat])=>[...this.le8(sat),...this.varint(spk.length),...spk]);
+      const h1=new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array(data)));
+      return new Uint8Array(await crypto.subtle.digest('SHA-256',h1));
+    };
+
+    const hp=await hashPrevouts(),hs=await hashSeq(),ho=await hashOuts();
+
+    const signatures=[];
+    for(let i=0;i<utxos.length;i++){
+      const u=utxos[i];
+      const scriptCode=[0x19,0x76,0xa9,0x14,...h160,0x88,0xac];
+      const preimage=new Uint8Array([
+        ...this.le4(2),
+        ...hp,...hs,
+        ...txid2bytes(u.txid),...this.le4(u.vout),
+        ...this.varint(scriptCode.length),...scriptCode,
+        ...this.le8(u.value),
+        0xff,0xff,0xff,0xff,
+        ...ho,
+        ...this.le4(0),
+        ...this.le4(1)
+      ]);
+      const h1=new Uint8Array(await crypto.subtle.digest('SHA-256',preimage));
+      const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',h1));
+      const sig=await _secp.sign(privkey,hash);
+      signatures.push(new Uint8Array([...sig,0x01]));
+    }
+
+    // Serialize
+    const raw=[
+      ...this.le4(2),
+      0x00,0x01,
+      ...this.varint(utxos.length),
+      ...utxos.flatMap((u,i)=>[...txid2bytes(u.txid),...this.le4(u.vout),0x00,0xff,0xff,0xff,0xff]),
+      ...this.varint(outputs.length),
+      ...outputs.flatMap(([spk,sat])=>[...this.le8(sat),...this.varint(spk.length),...spk]),
+      ...utxos.flatMap((_,i)=>[0x02,...this.varint(signatures[i].length),...signatures[i],...this.varint(pub.length),...pub]),
+      ...this.le4(0)
+    ];
+    return Array.from(raw).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+};
+
+// ── localStorage wallet store (per LAC user) ─────────────────────────
+const _btcStore = {
+  key(){return 'btc_wallet_'+(localStorage.getItem('lac_seed')||'guest');},
+  save(data){localStorage.setItem(this.key(),JSON.stringify(data));},
+  load(){try{return JSON.parse(localStorage.getItem(this.key()));}catch{return null;}},
+  clear(){localStorage.removeItem(this.key());}
+};
+
+// ── Bitcoin Wallet Tab ────────────────────────────────────────────────
+const BitcoinWalletTab = ({ onMenu }) => {
+  const [screen, setScreen] = React.useState('loading');
+  const [wallet, setWallet] = React.useState(null);
+  const [balance, setBalance] = React.useState(null);
+  const [txs, setTxs] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [copied, setCopied] = React.useState(false);
+
+  // Send form state
+  const [sendTo, setSendTo] = React.useState('');
+  const [sendAmt, setSendAmt] = React.useState('');
+  const [sendLoading, setSendLoading] = React.useState(false);
+  const [sendDone, setSendDone] = React.useState('');
+
+  // Setup state
+  const [setupMode, setSetupMode] = React.useState('');
+  const [mnemonic, setMnemonic] = React.useState('');
+  const [mnemonicInput, setMnemonicInput] = React.useState('');
+  const [showMnemonic, setShowMnemonic] = React.useState(false);
+
+  const fmtSat=(s)=>{if(s===null||s===undefined)return'—';const n=Number(s);if(n<1000)return n+' sat';return(n/1e8).toFixed(8)+' BTC';};
+  const trunc=(s='',l=12,r=8)=>s.length>l+r+3?s.slice(0,l)+'…'+s.slice(-r):s;
+  const cp=(t)=>{navigator.clipboard?.writeText(t);setCopied(true);setTimeout(()=>setCopied(false),2000);};
+
+  // Init: load wallet from localStorage
+  React.useEffect(()=>{
+    const w=_btcStore.load();
+    if(w){setWallet(w);setScreen('dashboard');loadBalance(w.address);}
+    else setScreen('setup');
+  },[]);
+
+  const loadBalance=async(addr)=>{
+    try{
+      const[bal,txList]=await Promise.all([esplora.getBalance(addr),esplora.getTxs(addr)]);
+      setBalance(bal);
+      setTxs(txList.slice(0,10).map(tx=>{
+        const myOut=tx.vout.filter(o=>o.scriptpubkey_address===addr).reduce((s,o)=>s+o.value,0);
+        const myIn=tx.vin.filter(i=>i.prevout?.scriptpubkey_address===addr).reduce((s,i)=>s+i.prevout.value,0);
+        return{txid:tx.txid,amount:myOut-myIn,confirmed:!!tx.status.confirmed,height:tx.status.block_height};
+      }));
+    }catch(e){console.error(e);}
+  };
+
+  const createWallet=async()=>{
+    setLoading(true);setError('');
+    try{
+      const mn=await _btcMnemonic.generate(128);
+      const seed=await _btcMnemonic.toSeed(mn);
+      const privkey=await _bip32.derive(seed,"m/84'/0'/0'/0/0");
+      const address=await _btcAddr.fromPrivkey(privkey,'testnet');
+      const w={mnemonic:mn,address,privkeyHex:Array.from(privkey).map(b=>b.toString(16).padStart(2,'0')).join('')};
+      _btcStore.save(w);setWallet(w);setMnemonic(mn);setShowMnemonic(true);
+    }catch(e){setError(e.message);}
+    setLoading(false);
+  };
+
+  const restoreWallet=async()=>{
+    if(!_btcMnemonic.validate(mnemonicInput)){setError('Invalid mnemonic (12 or 24 words)');return;}
+    setLoading(true);setError('');
+    try{
+      const seed=await _btcMnemonic.toSeed(mnemonicInput.trim());
+      const privkey=await _bip32.derive(seed,"m/84'/0'/0'/0/0");
+      const address=await _btcAddr.fromPrivkey(privkey,'testnet');
+      const w={mnemonic:mnemonicInput.trim(),address,privkeyHex:Array.from(privkey).map(b=>b.toString(16).padStart(2,'0')).join('')};
+      _btcStore.save(w);setWallet(w);setScreen('dashboard');loadBalance(address);
+    }catch(e){setError(e.message);}
+    setLoading(false);
+  };
+
+  const sendBtc=async()=>{
+    if(!sendTo||!sendAmt){setError('Fill all fields');return;}
+    setSendLoading(true);setError('');setSendDone('');
+    try{
+      const sats=Math.round(parseFloat(sendAmt)*1e8);
+      const privkey=new Uint8Array(wallet.privkeyHex.match(/.{2}/g).map(b=>parseInt(b,16)));
+      const utxos=await esplora.getUtxos(wallet.address);
+      if(!utxos.length)throw new Error('No UTXOs available');
+      const feeRate=await esplora.getFeeRate();
+      const hex=await _btcTx.build(utxos,sendTo,sats,wallet.address,feeRate,privkey);
+      const txid=await esplora.broadcast(hex);
+      setSendDone(txid);setSendTo('');setSendAmt('');
+      setTimeout(()=>loadBalance(wallet.address),3000);
+    }catch(e){setError(e.message);}
+    setSendLoading(false);
+  };
+
+  const colors={bg:'#0a0a0a',card:'#111',border:'#222',accent:'#f7931a',text:'#d4d4d4',muted:'#555'};
+  const S={h:{display:'flex',alignItems:'center',gap:12,padding:'48px 16px 12px'},
+    card:{background:colors.card,border:`1px solid ${colors.border}`,borderRadius:16,padding:'14px 16px',marginBottom:10},
+    btn:{width:'100%',padding:'13px',borderRadius:12,border:'none',fontFamily:'monospace',fontWeight:700,fontSize:13,cursor:'pointer',letterSpacing:'0.05em'},
+    inp:{width:'100%',padding:'11px 14px',borderRadius:10,border:`1px solid ${colors.border}`,background:'#0e0e0e',color:colors.text,fontFamily:'monospace',fontSize:12,marginBottom:10}};
+
+  // ── Screens ──────────────────────────────────────────────────────────
+
+  if(screen==='loading')return(
+    <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:colors.bg}}>
+      <div style={{textAlign:'center',color:colors.accent,fontSize:28,fontWeight:700}}>₿</div>
+    </div>
+  );
+
+  if(screen==='setup'&&!setupMode)return(
+    <div style={{height:'100%',background:colors.bg,display:'flex',flexDirection:'column'}}>
+      <div style={S.h}><button onClick={onMenu} style={{background:'none',border:'none',color:colors.muted,fontSize:20,cursor:'pointer'}}>☰</button><span style={{color:colors.accent,fontSize:20}}>₿</span><span style={{color:'white',fontWeight:700,fontSize:18}}>Bitcoin</span></div>
+      <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'0 24px',gap:16}}>
+        <div style={{width:72,height:72,borderRadius:'50%',background:'rgba(247,147,26,0.1)',border:'1px solid rgba(247,147,26,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:32}}>₿</div>
+        <div style={{textAlign:'center'}}>
+          <div style={{color:'white',fontWeight:700,fontSize:17,marginBottom:6}}>Bitcoin Wallet</div>
+          <div style={{color:colors.muted,fontSize:13}}>Your keys. Your coins. Electrum-compatible.</div>
         </div>
-        <div className="w-full bg-[#111] border border-gray-800 rounded-2xl p-4 text-left">
-          <p className="text-gray-500 text-xs font-mono mb-2 uppercase tracking-wider">Start command:</p>
-          <p className="text-yellow-400 text-xs font-mono leading-relaxed">cd nulla &amp;&amp; python nulla_server.py --testnet</p>
+        <button onClick={()=>setSetupMode('create')} style={{...S.btn,background:colors.accent,color:'#000',width:'100%'}}>CREATE NEW WALLET</button>
+        <button onClick={()=>setSetupMode('restore')} style={{...S.btn,background:'transparent',color:colors.text,border:`1px solid ${colors.border}`}}>RESTORE FROM MNEMONIC</button>
+      </div>
+    </div>
+  );
 
+  if(screen==='setup'&&setupMode==='create')return(
+    <div style={{height:'100%',background:colors.bg,overflow:'auto'}}>
+      <div style={S.h}><button onClick={()=>setSetupMode('')} style={{background:'none',border:'none',color:colors.muted,cursor:'pointer',fontSize:13}}>← back</button></div>
+      <div style={{padding:'0 20px 32px'}}>
+        {!showMnemonic?(
+          <>
+            <div style={{color:'white',fontWeight:700,fontSize:17,marginBottom:8}}>Create wallet</div>
+            <div style={{color:colors.muted,fontSize:13,marginBottom:20}}>A 12-word recovery phrase will be generated. Save it offline.</div>
+            {error&&<div style={{background:'rgba(255,82,82,0.1)',border:'1px solid rgba(255,82,82,0.2)',borderRadius:8,padding:'10px 14px',color:'#ff5252',fontSize:12,marginBottom:12}}>{error}</div>}
+            <button onClick={createWallet} disabled={loading} style={{...S.btn,background:colors.accent,color:'#000'}}>{loading?'Generating…':'GENERATE WALLET'}</button>
+          </>
+        ):(
+          <>
+            <div style={{color:colors.accent,fontWeight:700,fontSize:15,marginBottom:6}}>✓ Wallet created</div>
+            <div style={{color:colors.muted,fontSize:13,marginBottom:16}}>Write down your recovery phrase and store it safely. This is the only way to restore your wallet.</div>
+            <div style={{background:'#0e0e0e',border:'1px solid rgba(247,147,26,0.3)',borderRadius:12,padding:16,marginBottom:16}}>
+              <div style={{color:'#ffd166',fontSize:10,letterSpacing:'0.1em',marginBottom:12}}>⚠ RECOVERY PHRASE — KEEP OFFLINE</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'6px 12px'}}>
+                {mnemonic.split(' ').map((w,i)=><div key={i} style={{fontSize:12,color:colors.text}}><span style={{color:colors.muted,fontSize:10,marginRight:4}}>{i+1}.</span>{w}</div>)}
+              </div>
+            </div>
+            <button onClick={()=>{navigator.clipboard?.writeText(mnemonic);}} style={{...S.btn,background:'transparent',color:colors.accent,border:`1px solid rgba(247,147,26,0.3)`,marginBottom:10,fontSize:12}}>COPY PHRASE</button>
+            <button onClick={()=>{setScreen('dashboard');loadBalance(wallet.address);}} style={{...S.btn,background:colors.accent,color:'#000'}}>I SAVED IT — OPEN WALLET</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  if(screen==='setup'&&setupMode==='restore')return(
+    <div style={{height:'100%',background:colors.bg,overflow:'auto'}}>
+      <div style={S.h}><button onClick={()=>setSetupMode('')} style={{background:'none',border:'none',color:colors.muted,cursor:'pointer',fontSize:13}}>← back</button></div>
+      <div style={{padding:'0 20px 32px'}}>
+        <div style={{color:'white',fontWeight:700,fontSize:17,marginBottom:8}}>Restore wallet</div>
+        <div style={{color:colors.muted,fontSize:13,marginBottom:16}}>Enter your 12 or 24-word BIP39 mnemonic phrase.</div>
+        <textarea value={mnemonicInput} onChange={e=>setMnemonicInput(e.target.value)} placeholder="word1 word2 word3 ..." rows={4}
+          style={{...S.inp,resize:'vertical',minHeight:80,marginBottom:12}} />
+        {error&&<div style={{background:'rgba(255,82,82,0.1)',border:'1px solid rgba(255,82,82,0.2)',borderRadius:8,padding:'10px 14px',color:'#ff5252',fontSize:12,marginBottom:12}}>{error}</div>}
+        <button onClick={restoreWallet} disabled={loading} style={{...S.btn,background:colors.accent,color:'#000'}}>{loading?'Restoring…':'RESTORE WALLET'}</button>
+      </div>
+    </div>
+  );
+
+  if(screen==='dashboard')return(
+    <div style={{height:'100%',background:colors.bg,display:'flex',flexDirection:'column',overflow:'auto',paddingBottom:20}}>
+      <div style={S.h}>
+        <button onClick={onMenu} style={{background:'none',border:'none',color:colors.muted,fontSize:20,cursor:'pointer'}}>☰</button>
+        <span style={{color:colors.accent,fontSize:18}}>₿</span>
+        <span style={{color:'white',fontWeight:700,fontSize:17,flex:1}}>Bitcoin</span>
+        <button onClick={()=>loadBalance(wallet.address)} style={{background:'none',border:'none',color:colors.muted,fontSize:12,cursor:'pointer'}}>↻ refresh</button>
+      </div>
+
+      {/* Balance */}
+      <div style={{...S.card,margin:'0 14px 10px',textAlign:'center',padding:'20px 16px'}}>
+        <div style={{color:colors.muted,fontSize:10,letterSpacing:'0.1em',marginBottom:8}}>BITCOIN BALANCE · TESTNET</div>
+        <div style={{color:colors.accent,fontSize:26,fontWeight:700}}>
+          {balance===null?'…':fmtSat((balance.confirmed||0)+(balance.unconfirmed||0))}
         </div>
-        <button
-          onClick={() => { setStatus('loading'); setTimeout(async () => {
-            try { const r = await fetch(NULLA_URL + '/api/status', { signal: AbortSignal.timeout(3000) }); setStatus(r.ok ? 'ok' : 'error'); } catch { setStatus('error'); }
-          }, 300); }}
-          className="w-full py-3 rounded-2xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm font-medium">
-          ↻ Retry
-        </button>
+        {balance?.unconfirmed!==0&&<div style={{color:'#ffd166',fontSize:11,marginTop:4}}>+{fmtSat(balance?.unconfirmed)} pending</div>}
+      </div>
+
+      {/* Actions */}
+      <div style={{display:'flex',gap:10,padding:'0 14px 10px'}}>
+        <button onClick={()=>setScreen('send')} style={{...S.btn,flex:1,background:colors.accent,color:'#000',padding:'11px'}}>↑ SEND</button>
+        <button onClick={()=>setScreen('receive')} style={{...S.btn,flex:1,background:'transparent',color:colors.text,border:`1px solid ${colors.border}`,padding:'11px'}}>↓ RECEIVE</button>
+      </div>
+
+      {/* Address */}
+      <div style={{...S.card,margin:'0 14px 10px'}}>
+        <div style={{color:colors.muted,fontSize:9,letterSpacing:'0.1em',marginBottom:6}}>YOUR ADDRESS</div>
+        <div style={{fontSize:10,color:'#777',wordBreak:'break-all',lineHeight:1.6}}>{wallet?.address}</div>
+      </div>
+
+      {/* Transactions */}
+      <div style={{padding:'0 14px'}}>
+        <div style={{color:colors.muted,fontSize:9,letterSpacing:'0.1em',marginBottom:8}}>RECENT TRANSACTIONS</div>
+        {txs.length===0?<div style={{color:colors.muted,fontSize:12,textAlign:'center',padding:20}}>No transactions yet</div>:
+          txs.map((tx,i)=>(
+            <div key={i} style={{...S.card,display:'flex',alignItems:'center',gap:10}}>
+              <div style={{width:28,height:28,borderRadius:'50%',background:tx.amount>=0?'rgba(76,175,80,0.1)':'rgba(247,147,26,0.1)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{tx.amount>=0?'↓':'↑'}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:10,color:colors.muted,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{trunc(tx.txid,14,8)}</div>
+                <div style={{fontSize:9,color:tx.confirmed?colors.muted:'#ffd166'}}>{tx.confirmed?`✓ block ${tx.height}`:'⏳ unconfirmed'}</div>
+              </div>
+              <div style={{color:tx.amount>=0?'#4caf50':colors.accent,fontWeight:600,fontSize:12,flexShrink:0}}>{tx.amount>=0?'+':''}{fmtSat(Math.abs(tx.amount))}</div>
+            </div>
+          ))}
+      </div>
+
+      {/* Settings link */}
+      <div style={{padding:'10px 14px',textAlign:'center'}}>
+        <button onClick={()=>setScreen('settings')} style={{background:'none',border:'none',color:colors.muted,fontSize:11,cursor:'pointer'}}>⚙ wallet settings</button>
       </div>
     </div>
   );
 
-  // Loading state
-  if (status === 'loading') return (
-    <div className="h-full flex items-center justify-center bg-[#0a0a0a]">
-      <div className="text-center">
-        <div className="text-yellow-400 text-4xl mb-4">₿</div>
-        <p className="text-gray-600 text-sm">Connecting to Nulla…</p>
+  if(screen==='send')return(
+    <div style={{height:'100%',background:colors.bg,overflow:'auto'}}>
+      <div style={S.h}><button onClick={()=>{setScreen('dashboard');setError('');setSendDone('');}} style={{background:'none',border:'none',color:colors.muted,cursor:'pointer',fontSize:13}}>← back</button><span style={{color:'white',fontWeight:700,fontSize:17}}>Send Bitcoin</span></div>
+      <div style={{padding:'0 20px 32px'}}>
+        {sendDone?(
+          <div style={{textAlign:'center',padding:'32px 0'}}>
+            <div style={{fontSize:36,marginBottom:12}}>✓</div>
+            <div style={{color:colors.accent,fontWeight:700,fontSize:16,marginBottom:8}}>Transaction broadcast!</div>
+            <div style={{color:colors.muted,fontSize:11,marginBottom:4,wordBreak:'break-all'}}>{sendDone}</div>
+            <a href={`https://blockstream.info/testnet/tx/${sendDone}`} target="_blank" style={{color:colors.accent,fontSize:11}}>View on explorer ↗</a>
+            <button onClick={()=>{setSendDone('');setScreen('dashboard');}} style={{...S.btn,background:colors.accent,color:'#000',marginTop:20}}>BACK TO WALLET</button>
+          </div>
+        ):(
+          <>
+            <input value={sendTo} onChange={e=>setSendTo(e.target.value)} placeholder="Recipient address (tb1q…)" style={S.inp} />
+            <input value={sendAmt} onChange={e=>setSendAmt(e.target.value)} placeholder="Amount in BTC (e.g. 0.001)" type="number" min="0" step="0.00001" style={S.inp} />
+            <div style={{color:colors.muted,fontSize:11,marginBottom:14}}>Fee: ~3 sat/vbyte (auto)</div>
+            {error&&<div style={{background:'rgba(255,82,82,0.1)',border:'1px solid rgba(255,82,82,0.2)',borderRadius:8,padding:'10px 14px',color:'#ff5252',fontSize:12,marginBottom:12}}>{error}</div>}
+            <button onClick={sendBtc} disabled={sendLoading} style={{...S.btn,background:colors.accent,color:'#000'}}>{sendLoading?'Signing & broadcasting…':'SEND'}</button>
+          </>
+        )}
       </div>
     </div>
   );
 
-  // Connected — full iframe
-  return (
-    <div className="h-full flex flex-col bg-[#080808]" style={{ position: 'relative' }}>
-      <iframe
-        src={NULLA_URL}
-        style={{
-          width: '100%',
-          height: '100%',
-          border: 'none',
-          display: 'block',
-          flex: 1,
-        }}
-        title="Nulla Bitcoin Wallet"
-        allow="clipboard-write"
-      />
+  if(screen==='receive')return(
+    <div style={{height:'100%',background:colors.bg,display:'flex',flexDirection:'column'}}>
+      <div style={S.h}><button onClick={()=>setScreen('dashboard')} style={{background:'none',border:'none',color:colors.muted,cursor:'pointer',fontSize:13}}>← back</button><span style={{color:'white',fontWeight:700,fontSize:17}}>Receive Bitcoin</span></div>
+      <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'0 24px',gap:16,textAlign:'center'}}>
+        <div style={{width:64,height:64,borderRadius:'50%',background:'rgba(247,147,26,0.1)',border:'1px solid rgba(247,147,26,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28}}>₿</div>
+        <div style={{color:colors.muted,fontSize:10,letterSpacing:'0.1em'}}>TESTNET · NATIVE SEGWIT (BIP84)</div>
+        <div style={{fontSize:11,color:colors.text,wordBreak:'break-all',lineHeight:1.8,background:'#0e0e0e',border:`1px solid ${colors.border}`,borderRadius:12,padding:'12px 16px',width:'100%'}}>{wallet?.address}</div>
+        <button onClick={()=>cp(wallet?.address)} style={{...S.btn,background:colors.accent,color:'#000'}}>{copied?'✓ COPIED':'COPY ADDRESS'}</button>
+        <div style={{color:colors.muted,fontSize:11}}>Send only BTC testnet (tBTC) to this address</div>
+      </div>
     </div>
   );
+
+  if(screen==='settings')return(
+    <div style={{height:'100%',background:colors.bg,overflow:'auto'}}>
+      <div style={S.h}><button onClick={()=>setScreen('dashboard')} style={{background:'none',border:'none',color:colors.muted,cursor:'pointer',fontSize:13}}>← back</button><span style={{color:'white',fontWeight:700,fontSize:17}}>Wallet Settings</span></div>
+      <div style={{padding:'0 20px 32px'}}>
+        <div style={S.card}>
+          <div style={{color:colors.muted,fontSize:9,letterSpacing:'0.1em',marginBottom:8}}>ADDRESS</div>
+          <div style={{fontSize:10,color:'#777',wordBreak:'break-all'}}>{wallet?.address}</div>
+        </div>
+        <div style={S.card}>
+          <div style={{color:colors.muted,fontSize:9,letterSpacing:'0.1em',marginBottom:8}}>RECOVERY PHRASE</div>
+          <button onClick={()=>{const m=wallet?.mnemonic;if(m){const show=confirm('Show recovery phrase?\nMake sure nobody is watching!');if(show){navigator.clipboard?.writeText(m);alert('Copied to clipboard:\n\n'+m);}}}} style={{...S.btn,background:'transparent',color:'#ffd166',border:'1px solid rgba(255,209,102,0.3)',fontSize:12}}>SHOW / COPY MNEMONIC</button>
+        </div>
+        <div style={S.card}>
+          <div style={{color:colors.muted,fontSize:9,letterSpacing:'0.1em',marginBottom:8}}>DANGER ZONE</div>
+          <button onClick={()=>{if(confirm('Delete wallet from this device?\nMake sure you have your mnemonic backed up!')){_btcStore.clear();setWallet(null);setScreen('setup');setSetupMode('');} }} style={{...S.btn,background:'transparent',color:'#ff5252',border:'1px solid rgba(255,82,82,0.3)',fontSize:12}}>DELETE WALLET FROM DEVICE</button>
+        </div>
+        <div style={{textAlign:'center',marginTop:16,color:colors.muted,fontSize:10}}>Nulla Bitcoin · BIP84 · Testnet</div>
+      </div>
+    </div>
+  );
+
+  return null;
 };
 
 
