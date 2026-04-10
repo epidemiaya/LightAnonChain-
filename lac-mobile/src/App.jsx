@@ -2103,7 +2103,7 @@ const MainApp = ({ onLogout }) => {
         const incoming = msgs.filter(m => m.direction === 'received').length;
         if (lastMsgCount.current > 0 && incoming > lastMsgCount.current) {
           const newMsgs = msgs.filter(m => m.direction === 'received').slice(0, incoming - lastMsgCount.current);
-          newMsgs.forEach(m => sendPushNotif('💬 LAC — New message', `${m.from || 'Someone'}: ${(m.text||'').slice(0,80)}`));
+          newMsgs.forEach(() => sendPushNotif('💬 LAC', '📨 New message'));
         }
         lastMsgCount.current = incoming;
       } catch {}

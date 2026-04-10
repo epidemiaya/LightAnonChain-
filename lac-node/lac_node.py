@@ -2242,9 +2242,10 @@ def send_message():
         push_data = {
             'from': from_wallet.get('username', from_addr[:8]),
             'from_address': from_addr,
-            'text': text[:100],
+            'message_id': hashlib.sha256(json.dumps(msg).encode()).hexdigest()[:16],
             'timestamp': msg.get('timestamp', 0),
             'direction': 'received'
+            # NO plaintext — fetch on client
         }
         # to_address is the resolved recipient address
         _recv_addr = to_address if to_address and to_address.startswith('lac') else None
@@ -3054,8 +3055,8 @@ def post_to_group():
             'group_id': gid,
             'from': username,
             'from_address': from_addr,
-            'text': text[:100],
             'timestamp': post['timestamp']
+            # NO plaintext — fetch on client
         }
         members_snap = list(group.get('members', []))
         ws_push_to_peers(members_snap, 'new_group_post', push_data)
