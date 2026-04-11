@@ -2166,52 +2166,34 @@ const MainApp = ({ onLogout }) => {
   if (sub) {
     const back = () => setSub(null);
     const done = () => { back(); reload(); };
-    // IMPORTANT: use switch/lazy — never use object literal with all screens at once.
-    // Object literal evaluates ALL components immediately, crashing on undefined props.
-    const renderSub = () => {
-      switch(sub.type) {
-        case 'chat':         return <ChatView peer={sub.peer} onBack={back} profile={profile} />;
-        case 'group':        return <GroupView group={sub.group} onBack={back}
-                               onOpenGroup={g => setSub({type:'group',group:g})}
-                               onSettings={() => setSub({type:'groupsettings',group:sub.group})}
-                               onOpenComments={p => setSub({type:'comments',
-                                 channelId: sub.group.id||sub.group.name,
-                                 chatId: p._linkedChatId || sub.group.linked_chat_id,
-                                 postKey: p.msg_key,
-                                 postText: p.text||p.message,
-                                 postFrom: p.from,
-                                 postTs: p.timestamp})}
-                               profile={profile} />;
-        case 'groupsettings':return <GroupSettingsView group={sub.group} onBack={back} profile={profile} onRefresh={done} />;
-        case 'comments':     return <CommentsView channelId={sub.channelId} chatId={sub.chatId}
-                               postKey={sub.postKey} postText={sub.postText}
-                               postFrom={sub.postFrom} postTs={sub.postTs}
-                               onBack={back} profile={profile} />;
-        case 'newchat':      return <NewChat onBack={back} onGo={p => setSub({type:'chat',peer:p})} />;
-        case 'newgroup':     return <NewGroup onBack={back} onDone={done} initKind={sub.initKind} />;
-        case 'send':         return <SendView onBack={back} profile={profile} onDone={done} />;
-        case 'stash':        return <STASHView onBack={back} onDone={done} />;
-        case 'txs':          return <TxsView onBack={back} />;
-        case 'username':     return <UsernameView onBack={back} onDone={done} />;
-        case 'contacts':     return <ContactsView onBack={back} onChat={p => setSub({type:'chat',peer:p})} />;
-        case 'timelock':     return <TimelockView onBack={back} profile={profile} onDone={done} />;
-        case 'dms':          return <DeadManSwitchView onBack={back} profile={profile} onDone={done} />;
-        case 'mining':       return <MiningView onBack={back} profile={profile} />;
-        case 'explorer':     return <ExplorerView onBack={back} />;
-        case 'dashboard':    return <DashboardView onBack={back} />;
-        case 'validator':    return <ValidatorView onBack={back} profile={profile} onRefresh={reload} />;
-        case 'dice':         return <DiceView onBack={back} profile={profile} onRefresh={reload} />;
-        case 'referral':     return <ReferralView onBack={back} />;
-        case 'pol':          return <PolView onBack={back} profile={profile} />;
-        case 'nagini':       return <NaginiView onBack={back} profile={profile} />;
-        case 'level':        return <LevelUpView onBack={back} profile={profile} onRefresh={reload} />;
-        default:             return null;
-      }
+    const screens = {
+      chat: <ChatView peer={sub.peer} onBack={back} profile={profile} />,
+      group: <GroupView group={sub.group} onBack={back} onOpenGroup={g => setSub({type:'group',group:g})} onSettings={() => setSub({type:'groupsettings',group:sub.group})} onOpenComments={(p) => setSub({type:'comments',channelId:sub.group.id||sub.group.name,chatId:sub.group.linked_chat_id,postKey:p.msg_key,postText:p.text||p.message,postFrom:p.from,postTs:p.timestamp})} profile={profile} />,
+      groupsettings: <GroupSettingsView group={sub.group} onBack={back} profile={profile} onRefresh={done} />,
+      comments: <CommentsView channelId={sub.channelId} chatId={sub.chatId} postKey={sub.postKey} postText={sub.postText} postFrom={sub.postFrom} postTs={sub.postTs} onBack={back} profile={profile} />,
+      newchat: <NewChat onBack={back} onGo={p => setSub({type:'chat',peer:p})} />,
+      newgroup: <NewGroup onBack={back} onDone={done} initKind={sub.initKind} />,
+      send: <SendView onBack={back} profile={profile} onDone={done} />,
+      stash: <STASHView onBack={back} onDone={done} />,
+      txs: <TxsView onBack={back} />,
+      username: <UsernameView onBack={back} onDone={done} />,
+      contacts: <ContactsView onBack={back} onChat={p => setSub({type:'chat',peer:p})} />,
+      timelock: <TimelockView onBack={back} profile={profile} onDone={done} />,
+      dms: <DeadManSwitchView onBack={back} profile={profile} onDone={done} />,
+      mining: <MiningView onBack={back} profile={profile} />,
+      explorer: <ExplorerView onBack={back} />,
+      dashboard: <DashboardView onBack={back} />,
+      validator: <ValidatorView onBack={back} profile={profile} onRefresh={reload} />,
+      dice: <DiceView onBack={back} profile={profile} onRefresh={reload} />,
+      referral: <ReferralView onBack={back} />,
+      pol: <PolView onBack={back} profile={profile} />,
+      nagini: <NaginiView onBack={back} profile={profile} />,
+      level: <LevelUpView onBack={back} profile={profile} onRefresh={reload} />,
     };
     return (
       <div className="w-full h-[100dvh] bg-[#060f0c] flex items-center justify-center sm:bg-gradient-to-br sm:from-gray-900 sm:to-gray-950 sm:p-4">
         <div className="w-full h-full max-w-md sm:max-h-[850px] bg-[#060f0c] sm:rounded-3xl sm:shadow-2xl sm:shadow-emerald-900/20 overflow-hidden sm:border sm:border-emerald-900/30 flex flex-col relative">
-          {renderSub()}
+          {screens[sub.type] || null}
         </div>
       </div>
     );
@@ -3293,7 +3275,7 @@ const GroupView = ({ group, onBack, onOpenGroup, onSettings, onOpenComments, pro
       return true;
     });
     const merged = [...deduped, ...surviving].sort((a,b) => (a.timestamp||0) - (b.timestamp||0));
-    const json = JSON.stringify(merged.map(p => postKey(p) + (p._opt?'_o':'') + '|' + (p.comment_count||0)));
+    const json = JSON.stringify(merged.map(p => postKey(p) + (p._opt?'_o':'')));
     if (json !== lastJson.current) {
       lastJson.current = json;
       localPosts.current = merged;
@@ -3301,12 +3283,10 @@ const GroupView = ({ group, onBack, onOpenGroup, onSettings, onOpenComments, pro
     }
   };
 
-  const [linkedChatId, setLinkedChatId] = useState(group.linked_chat_id || null);
   const load = async () => {
     try {
       const r = await get('/api/group/posts?group_id='+encodeURIComponent(gid));
       mergeServer(r.posts||[]);
-      if (r.linked_chat_id) setLinkedChatId(r.linked_chat_id);
     } catch {}
   };
   useRealtimeSocket((msg) => {
@@ -3385,8 +3365,8 @@ const GroupView = ({ group, onBack, onOpenGroup, onSettings, onOpenComments, pro
     <div className="h-full bg-[#060f0c] flex flex-col">
       <Header title={group.name} onBack={onBack} right={
         <div className="flex items-center gap-2">
-          {isChannel && linkedChatId && (
-            <button onClick={() => { if(onOpenGroup) onOpenGroup({ id: linkedChatId, name: group.name + ' 💬 Comments', type: 'public', linked_to_channel: gid }); }}
+          {isChannel && group.linked_chat_id && (
+            <button onClick={() => { if(onOpenGroup) onOpenGroup({ id: group.linked_chat_id, name: group.name + ' 💬 Comments', type: 'public', linked_to_channel: gid }); }}
               className="px-2 py-1 rounded-lg bg-cyan-900/40 border border-cyan-700/40 text-cyan-400 text-[11px] font-medium">💬 Comments</button>
           )}
           <button onClick={() => onSettings && onSettings()} className="p-1.5 rounded-lg bg-gray-800 text-gray-400 active:bg-gray-700" title="Settings">⚙️</button>
@@ -3447,7 +3427,7 @@ const GroupView = ({ group, onBack, onOpenGroup, onSettings, onOpenComments, pro
             )}
             {/* 💬 Comments button for channel posts */}
             {isChannel && (
-              <button onClick={() => onOpenComments && onOpenComments({...p, _linkedChatId: linkedChatId})}
+              <button onClick={() => onOpenComments && onOpenComments(p)}
                 className="flex items-center gap-1.5 mt-1.5 px-3 py-1.5 rounded-full bg-[#0a1a15] border border-emerald-900/30 text-gray-400 text-[12px] active:bg-emerald-900/20 active:text-emerald-400 transition">
                 <span>💬</span>
                 <span>{(p.comment_count > 0) ? `${p.comment_count} comment${p.comment_count===1?'':'s'}` : 'Comment'}</span>
@@ -3551,8 +3531,10 @@ const CommentsView = ({ channelId, chatId, postKey, postText, postFrom, postTs, 
 
   useEffect(() => { end.current?.scrollIntoView({ behavior: 'instant', block: 'end' }); }, [allPosts]);
 
-  // Show all posts from linked chat — it's a dedicated comment space for this channel
-  const comments = allPosts;
+  // Filter: show only comments for this post (by reply_to_post_key OR all if postKey is null)
+  const comments = postKey
+    ? allPosts.filter(p => p.reply_to_post_key === postKey || !p.reply_to_post_key) // fallback: show all if no key
+    : allPosts;
 
   const send = async () => {
     if (!text.trim() || sending) return;

@@ -3085,6 +3085,7 @@ def post_to_group():
     gid = data.get('group_id', '').strip() or data.get('gid', '').strip()
     text = data.get('message', '').strip() or data.get('text', '').strip()
     reply_to = data.get('reply_to', None)  # {text, from}
+    reply_to_post_key = data.get('reply_to_post_key', None)  # for channel comments
     
     media_url = data.get('media_url', '').strip()  # optional media
     if not gid or (not text and not media_url):
