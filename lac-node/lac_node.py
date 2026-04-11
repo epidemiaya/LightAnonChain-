@@ -2861,6 +2861,8 @@ def groups():
                 'is_member': True,  # by definition — we filtered above
                 'linked_chat_id': group.get('linked_chat_id'),
                 'is_comment_chat': group.get('is_comment_chat', False),
+                # include token only for creator so they can build invite links
+                'invite_token': group.get('invite_token') if current_addr == group.get('creator') else None,
             })
 
         result = {'ok': True, 'groups': groups_list}
@@ -2951,6 +2953,10 @@ def create_group():
                 if existing_g.get('handle') == handle:
                     return jsonify({'error': f'Handle @{handle} already taken'}), 409
         
+        # Generate a random invite token for this group
+        import secrets as _secrets
+        invite_token = _secrets.token_urlsafe(16)
+
         group_data = {
             'name': name,
             'type': group_type,
@@ -2961,6 +2967,7 @@ def create_group():
             'description': description,
             'visibility': visibility,
             'handle': handle,
+            'invite_token': invite_token,
         }
         
         # For channels: auto-create a linked comment chat group
@@ -3010,7 +3017,8 @@ def create_group():
             'type': group_type,
             'visibility': visibility,
             'handle': handle,
-            'linked_chat_id': linked_chat_id
+            'linked_chat_id': linked_chat_id,
+            'invite_token': invite_token,
         })
 
 @app.route('/api/group/posts', methods=['GET'])
@@ -3216,21 +3224,21 @@ def delete_message():
 
     with S.lock:
         deleted = False
-        for store in (S.ephemeral_msgs, S.persistent_msgs):
+        for store_name in ('ephemeral_msgs', 'persistent_msgs'):
+            store = getattr(S, store_name)
             new_store = []
             for m in store:
-                mk = m.get('msg_key') or m.get('id') or ''
-                if mk == msg_key:
+                # msg_key is computed dynamically — match using make_msg_key
+                computed_mk = make_msg_key(m)
+                msg_id = m.get('id', '')
+                if computed_mk == msg_key or msg_id == msg_key:
                     if m.get('from_address') != from_addr:
                         return jsonify({'error': 'Not your message'}), 403
                     deleted = True  # skip = delete
                 else:
                     new_store.append(m)
             if deleted:
-                if store is S.ephemeral_msgs:
-                    S.ephemeral_msgs = new_store
-                else:
-                    S.persistent_msgs = new_store
+                setattr(S, store_name, new_store)
                 break
 
         if not deleted:
@@ -3389,6 +3397,65 @@ def add_channel_comment():
         _cache_del_prefix('groups:')
         S.save_groups()
         return jsonify({'ok': True, 'comment': comment})
+
+@app.route('/api/group.invite', methods=['GET'])
+def group_invite_link():
+    """Get invite link token for a group (creator only for private/secret)"""
+    seed = request.headers.get('X-Seed', '').strip()
+    gid = request.args.get('group_id', '').strip()
+    if not gid:
+        return jsonify({'error': 'group_id required'}), 400
+    current_addr = get_address_from_seed(seed) if validate_seed(seed) else None
+    with S.lock:
+        if gid not in S.groups:
+            return jsonify({'error': 'Group not found'}), 404
+        group = S.groups[gid]
+        visibility = group.get('visibility', 'public')
+        members = group.get('members', [])
+        is_creator = current_addr == group.get('creator')
+        is_member  = current_addr in members
+
+        # Public groups: anyone can get join link
+        # Private/secret: only members can share invite
+        if visibility == 'secret' and not is_member:
+            return jsonify({'error': 'Not a member'}), 403
+
+        # Generate token if missing (for old groups)
+        if not group.get('invite_token'):
+            import secrets as _secrets
+            group['invite_token'] = _secrets.token_urlsafe(16)
+            S.save_groups()
+
+        token = group.get('invite_token', '')
+        handle = group.get('handle')
+        base = 'https://lac-beta.uk'
+        if handle:
+            invite_url = f'{base}/@{handle}?t={token}'
+        else:
+            invite_url = f'{base}/#/join/{gid}?t={token}'
+
+        return jsonify({'ok': True, 'invite_url': invite_url, 'token': token,
+                        'group_id': gid, 'handle': handle})
+
+@app.route('/api/group.invite.reset', methods=['POST'])
+def reset_invite_link():
+    """Regenerate invite token (invalidates old links) — creator only"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json() or {}
+    gid = data.get('group_id', '').strip()
+    from_addr = get_address_from_seed(seed)
+    with S.lock:
+        if gid not in S.groups:
+            return jsonify({'error': 'Group not found'}), 404
+        group = S.groups[gid]
+        if group.get('creator') != from_addr:
+            return jsonify({'error': 'Only creator can reset invite link'}), 403
+        import secrets as _secrets
+        group['invite_token'] = _secrets.token_urlsafe(16)
+        S.save_groups()
+        return jsonify({'ok': True, 'token': group['invite_token']})
 
 @app.route('/api/group.update', methods=['POST'])
 def update_group():
@@ -3632,8 +3699,12 @@ def join_group():
             return jsonify({'ok': True, 'invited': invite_addr})
 
         # Self-join checks
-        if gtype in ('private', 'secret') or visibility == 'secret':
-            if from_addr not in members:
+        invite_token = data.get('invite_token', '').strip()
+        is_restricted = gtype in ('private', 'secret') or visibility == 'secret'
+        if is_restricted and from_addr not in members:
+            # Allow if valid invite_token provided
+            stored_token = group.get('invite_token', '')
+            if not stored_token or invite_token != stored_token:
                 return jsonify({'error': 'This group requires an invite link'}), 403
 
         if from_addr not in members:

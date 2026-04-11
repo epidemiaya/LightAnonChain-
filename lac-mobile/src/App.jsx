@@ -2073,28 +2073,32 @@ const MainApp = ({ onLogout }) => {
   // Handle invite links: #/join/GROUP_ID or ?handle=@name
   useEffect(() => {
     const hash = window.location.hash;
+    const search = window.location.search;
     const joinMatch = hash.match(/#\/join\/([^?&#]+)/);
     const handleMatch = window.location.pathname.match(/\/@([a-z0-9_]+)/i);
+    const tokenParam = new URLSearchParams(search).get('t') || new URLSearchParams(hash.split('?')[1]||'').get('t') || '';
     if (joinMatch || handleMatch) {
-      const joinById = async (gid) => {
+      const joinById = async (gid, token) => {
         try {
-          await post('/api/group.join', { group_id: gid });
+          await post('/api/group.join', { group_id: gid, invite_token: token || '' });
           setSub({ type: 'group', group: { id: gid, name: '…', type: 'public' } });
           window.history.replaceState(null, '', '/');
+          toast.success('Joined!');
         } catch(e) { toast.error('Could not join: ' + e.message); }
       };
-      const joinByHandle = async (handle) => {
+      const joinByHandle = async (handle, token) => {
         try {
           const r = await get('/api/group.by_handle?handle=' + encodeURIComponent(handle));
           if (r.ok) {
-            await post('/api/group.join', { group_id: r.id });
+            await post('/api/group.join', { group_id: r.id, invite_token: token || '' });
             setSub({ type: 'group', group: r });
             window.history.replaceState(null, '', '/');
+            toast.success('Joined!');
           }
         } catch(e) { toast.error('Could not join: ' + e.message); }
       };
-      if (joinMatch) joinById(joinMatch[1]);
-      else if (handleMatch) joinByHandle(handleMatch[1]);
+      if (joinMatch) joinById(joinMatch[1], tokenParam);
+      else if (handleMatch) joinByHandle(handleMatch[1], tokenParam);
     }
   }, []);
 
@@ -3731,6 +3735,29 @@ const GroupSettingsView = ({ group, onBack, profile, onRefresh }) => {
   const [name, setName] = useState(group.name || '');
   const [desc, setDesc] = useState(group.description || '');
   const [visibility, setVisibility] = useState(group.visibility || 'public');
+  const [inviteUrl, setInviteUrl] = useState(null);
+  const [resettingLink, setResettingLink] = useState(false);
+
+  useEffect(() => {
+    get('/api/group.invite?group_id=' + encodeURIComponent(gid))
+      .then(r => { if (r.ok) setInviteUrl(r.invite_url); })
+      .catch(() => {});
+  }, [gid]);
+
+  const resetInviteLink = async () => {
+    if (!confirm('Reset invite link? Old link will stop working.')) return;
+    setResettingLink(true);
+    try {
+      const r = await post('/api/group.invite.reset', { group_id: gid });
+      if (r.ok) {
+        // Reload invite url
+        const r2 = await get('/api/group.invite?group_id=' + encodeURIComponent(gid));
+        if (r2.ok) setInviteUrl(r2.invite_url);
+        toast.success('Invite link reset!');
+      }
+    } catch(e) { toast.error(e.message); }
+    finally { setResettingLink(false); }
+  };
   const [handle, setHandle] = useState(group.handle || '');
   const [handleInput, setHandleInput] = useState('');
   const [handleStatus, setHandleStatus] = useState(null); // {available, price, error}
@@ -3820,9 +3847,19 @@ const GroupSettingsView = ({ group, onBack, profile, onRefresh }) => {
           {/* Invite link */}
           <div className="p-3 rounded-xl bg-emerald-900/10 border border-emerald-800/30">
             <p className="text-gray-400 text-[11px] mb-1">🔗 Invite link</p>
-            <p className="text-emerald-400 text-xs font-mono break-all">{handle ? `lac-beta.uk/@${handle}` : inviteLink}</p>
-            <button onClick={() => { navigator.clipboard.writeText(handle ? `https://lac-beta.uk/@${handle}` : inviteLink); toast.success('Copied!'); }}
-              className="mt-2 text-[10px] text-gray-500 underline">Copy link</button>
+            {inviteUrl
+              ? <p className="text-emerald-400 text-xs font-mono break-all">{inviteUrl}</p>
+              : <p className="text-gray-600 text-xs">Loading…</p>}
+            <div className="flex items-center gap-3 mt-2">
+              <button onClick={() => { if(inviteUrl) { navigator.clipboard.writeText(inviteUrl); toast.success('Copied!'); } }}
+                className="text-[11px] text-emerald-400 underline">Copy link</button>
+              {isCreator && (
+                <button onClick={resetInviteLink} disabled={resettingLink}
+                  className="text-[11px] text-gray-500 underline disabled:opacity-50">
+                  {resettingLink ? 'Resetting…' : 'Reset link'}
+                </button>
+              )}
+            </div>
           </div>
 
           {isCreator && <>
