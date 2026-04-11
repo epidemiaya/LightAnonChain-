@@ -2790,47 +2790,51 @@ def dice_history():
 
 @app.route('/api/groups', methods=['GET'])
 def groups():
-    """Get all groups"""
+    """Get groups/channels the current user has joined (Telegram model)"""
     seed = request.headers.get('X-Seed', '').strip()
     current_addr = None
-    
     if validate_seed(seed):
         current_addr = get_address_from_seed(seed)
-    
+
     ck = 'groups:' + (current_addr or 'anon')
     cached = _cache_get(ck)
     if cached:
         return jsonify(cached)
-    
+
     with S.lock:
         groups_list = []
         for gid, group in S.groups.items():
             gtype = group.get('type', 'public')
             members = group.get('members', [])
-            
-            # Private groups: only visible to members
-            if gtype == 'private' and current_addr and current_addr not in members:
+            visibility = group.get('visibility', 'public')
+
+            # JOINED-ONLY MODEL: only show groups where user is a member
+            if current_addr and current_addr not in members:
                 continue
-            
+            # Unauthenticated: show nothing (must log in)
+            if not current_addr:
+                continue
+
             posts = group.get('posts', [])
             last_post_ts = max((p.get('timestamp', 0) for p in posts), default=0) if posts else group.get('created_at', 0)
-            group_data = {
+            groups_list.append({
                 'id': gid,
                 'name': group.get('name', 'Unknown'),
                 'type': gtype,
+                'visibility': visibility,
+                'handle': group.get('handle'),
+                'description': group.get('description', ''),
                 'post_count': len(posts),
                 'member_count': len(members),
                 'creator': group.get('creator'),
                 'created_at': group.get('created_at', 0),
                 'last_post_ts': last_post_ts,
-                'is_creator': current_addr == group.get('creator') if current_addr else False,
-                'is_member': current_addr in members if current_addr else False,
+                'is_creator': current_addr == group.get('creator'),
+                'is_member': True,  # by definition — we filtered above
                 'linked_chat_id': group.get('linked_chat_id'),
-                'description': group.get('description', ''),
                 'is_comment_chat': group.get('is_comment_chat', False),
-            }
-            groups_list.append(group_data)
-        
+            })
+
         result = {'ok': True, 'groups': groups_list}
         _cache_set(ck, result, ttl=10)
         return jsonify(result)
@@ -2905,6 +2909,19 @@ def create_group():
         # Generate group ID
         gid = f"group_{hashlib.sha256(f'{name}{time.time()}'.encode()).hexdigest()[:16]}"
         description = data.get('description', '').strip()[:200]
+        visibility = data.get('visibility', 'public')  # 'public' | 'secret'
+        if visibility not in ('public', 'secret'):
+            visibility = 'public'
+        handle = data.get('handle', '').strip().lower().lstrip('@') or None
+        # Validate handle if provided
+        import re as _re2
+        if handle:
+            if not _re2.match(r'^[a-z0-9_]{3,32}$', handle):
+                return jsonify({'error': 'Handle must be 3-32 chars, a-z 0-9 _'}), 400
+            # Check uniqueness across all groups
+            for existing_gid, existing_g in S.groups.items():
+                if existing_g.get('handle') == handle:
+                    return jsonify({'error': f'Handle @{handle} already taken'}), 409
         
         group_data = {
             'name': name,
@@ -2914,6 +2931,8 @@ def create_group():
             'members': [from_addr],
             'posts': [],
             'description': description,
+            'visibility': visibility,
+            'handle': handle,
         }
         
         # For channels: auto-create a linked comment chat group
@@ -2940,6 +2959,8 @@ def create_group():
             'id': gid,
             'name': name,
             'type': group_type,
+            'visibility': visibility,
+            'handle': handle,
             'linked_chat_id': linked_chat_id
         })
 
@@ -3159,6 +3180,206 @@ def delete_group_post():
         S.save_groups()
         
         return jsonify({'ok': True, 'deleted': msg_key})
+
+@app.route('/api/group.update', methods=['POST'])
+def update_group():
+    """Update group/channel settings (creator only)"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json() or {}
+    gid = data.get('group_id', '').strip()
+    if not gid:
+        return jsonify({'error': 'group_id required'}), 400
+    from_addr = get_address_from_seed(seed)
+    with S.lock:
+        if gid not in S.groups:
+            return jsonify({'error': 'Group not found'}), 404
+        group = S.groups[gid]
+        if group.get('creator') != from_addr:
+            return jsonify({'error': 'Only creator can update'}), 403
+        if 'name' in data and data['name'].strip():
+            group['name'] = data['name'].strip()[:60]
+        if 'description' in data:
+            group['description'] = data['description'].strip()[:300]
+        if 'visibility' in data and data['visibility'] in ('public', 'secret'):
+            group['visibility'] = data['visibility']
+        _cache_del_prefix('groups:')
+        S.save_groups()
+        return jsonify({'ok': True, 'group_id': gid})
+
+@app.route('/api/group.leave', methods=['POST'])
+def leave_group():
+    """Leave a group or unsubscribe from channel"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json() or {}
+    gid = data.get('group_id', '').strip()
+    if not gid:
+        return jsonify({'error': 'group_id required'}), 400
+    from_addr = get_address_from_seed(seed)
+    with S.lock:
+        if gid not in S.groups:
+            return jsonify({'error': 'Group not found'}), 404
+        group = S.groups[gid]
+        if group.get('creator') == from_addr:
+            return jsonify({'error': 'Creator cannot leave. Delete the group instead.'}), 400
+        members = group.get('members', [])
+        if from_addr in members:
+            members.remove(from_addr)
+            group['members'] = members
+        _cache_del_prefix('groups:')
+        S.save_groups()
+        return jsonify({'ok': True})
+
+@app.route('/api/group.kick', methods=['POST'])
+def kick_member():
+    """Kick member from group (creator only)"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json() or {}
+    gid = data.get('group_id', '').strip()
+    kick_addr = data.get('address', '').strip()
+    if not gid or not kick_addr:
+        return jsonify({'error': 'group_id and address required'}), 400
+    from_addr = get_address_from_seed(seed)
+    with S.lock:
+        if gid not in S.groups:
+            return jsonify({'error': 'Group not found'}), 404
+        group = S.groups[gid]
+        if group.get('creator') != from_addr:
+            return jsonify({'error': 'Only creator can kick'}), 403
+        members = group.get('members', [])
+        if kick_addr in members:
+            members.remove(kick_addr)
+            group['members'] = members
+        _cache_del_prefix('groups:')
+        S.save_groups()
+        return jsonify({'ok': True})
+
+@app.route('/api/group/members', methods=['GET'])
+def group_members():
+    """Get member list (creator or member for private groups)"""
+    seed = request.headers.get('X-Seed', '').strip()
+    gid = request.args.get('group_id', '').strip()
+    if not gid:
+        return jsonify({'error': 'group_id required'}), 400
+    current_addr = get_address_from_seed(seed) if validate_seed(seed) else None
+    with S.lock:
+        if gid not in S.groups:
+            return jsonify({'error': 'Group not found'}), 404
+        group = S.groups[gid]
+        gtype = group.get('type', 'public')
+        members = group.get('members', [])
+        if gtype in ('private', 'secret') and current_addr not in members:
+            return jsonify({'error': 'Not a member'}), 403
+        member_list = []
+        for addr in members:
+            wallet = S.wallets.get(addr, {})
+            key_id = wallet.get('key_id', '')
+            uname = get_username_by_key_id(key_id) if key_id else None
+            member_list.append({
+                'address': addr,
+                'username': uname or ('Creator' if addr == group.get('creator') else 'Anonymous'),
+                'is_creator': addr == group.get('creator'),
+                'joined_at': wallet.get('created_at', 0),
+            })
+        return jsonify({'ok': True, 'members': member_list, 'total': len(member_list)})
+
+@app.route('/api/group.handle.check', methods=['POST'])
+def check_group_handle():
+    """Check if a group handle (@name) is available and get price"""
+    data = request.get_json() or {}
+    handle = data.get('handle', '').strip().lower().lstrip('@')
+    if not handle:
+        return jsonify({'error': 'handle required'}), 400
+    import re as _re
+    if not _re.match(r'^[a-z0-9_]{3,32}$', handle):
+        return jsonify({'ok': False, 'available': False, 'error': 'Must be 3-32 chars, a-z 0-9 _'})
+    with S.lock:
+        taken = any(g.get('handle') == handle for g in S.groups.values())
+        # Also check user namespace (prevent conflicts)
+        user_taken = handle in S.usernames
+        available = not taken and not user_taken
+        price = {3: 5000, 4: 500, 5: 50}.get(len(handle), 10)
+        return jsonify({'ok': True, 'handle': f'@{handle}', 'available': available, 'price': price})
+
+@app.route('/api/group.handle.set', methods=['POST'])
+def set_group_handle():
+    """Mint a @handle for a group (paid, creator only)"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json() or {}
+    gid = data.get('group_id', '').strip()
+    handle = data.get('handle', '').strip().lower().lstrip('@')
+    if not gid or not handle:
+        return jsonify({'error': 'group_id and handle required'}), 400
+    import re as _re
+    if not _re.match(r'^[a-z0-9_]{3,32}$', handle):
+        return jsonify({'error': 'Handle must be 3-32 chars, a-z 0-9 _'}), 400
+    from_addr = get_address_from_seed(seed)
+    with S.lock:
+        if gid not in S.groups:
+            return jsonify({'error': 'Group not found'}), 404
+        group = S.groups[gid]
+        if group.get('creator') != from_addr:
+            return jsonify({'error': 'Only creator can set handle'}), 403
+        # Check uniqueness
+        for eg, eg_data in S.groups.items():
+            if eg != gid and eg_data.get('handle') == handle:
+                return jsonify({'error': f'@{handle} already taken'}), 409
+        if handle in S.usernames:
+            return jsonify({'error': f'@{handle} is reserved as a username'}), 409
+        wallet = S.wallets.get(from_addr)
+        if not wallet:
+            return jsonify({'error': 'Wallet not found'}), 404
+        price = {3: 5000, 4: 500, 5: 50}.get(len(handle), 10)
+        if wallet.get('balance', 0) < price:
+            return jsonify({'error': f'Need {price} LAC, you have {wallet.get("balance",0)}'}), 400
+        # Release old handle if exists
+        old_handle = group.get('handle')
+        # Charge and set
+        wallet['balance'] -= price
+        group['handle'] = handle
+        _cache_del_prefix('groups:')
+        S.save_groups()
+        return jsonify({'ok': True, 'handle': f'@{handle}', 'price_paid': price})
+
+@app.route('/api/group.by_handle', methods=['GET'])
+def group_by_handle():
+    """Look up group by @handle — for join links and search"""
+    handle = request.args.get('handle', '').strip().lower().lstrip('@')
+    seed = request.headers.get('X-Seed', '').strip()
+    current_addr = get_address_from_seed(seed) if validate_seed(seed) else None
+    if not handle:
+        return jsonify({'error': 'handle required'}), 400
+    with S.lock:
+        for gid, group in S.groups.items():
+            if group.get('handle') == handle:
+                gtype = group.get('type', 'public')
+                visibility = group.get('visibility', 'public')
+                members = group.get('members', [])
+                if visibility == 'secret' and current_addr not in members:
+                    return jsonify({'error': 'This is a private group'}), 403
+                posts = group.get('posts', [])
+                return jsonify({
+                    'ok': True,
+                    'id': gid,
+                    'name': group.get('name'),
+                    'type': gtype,
+                    'visibility': visibility,
+                    'handle': handle,
+                    'description': group.get('description', ''),
+                    'member_count': len(members),
+                    'post_count': len(posts),
+                    'is_member': current_addr in members if current_addr else False,
+                    'is_creator': current_addr == group.get('creator') if current_addr else False,
+                    'linked_chat_id': group.get('linked_chat_id'),
+                })
+    return jsonify({'error': 'Not found'}), 404
 
 @app.route('/api/group.join', methods=['POST'])
 def join_group():
@@ -4826,7 +5047,12 @@ def search_all():
         for gid, group in S.groups.items():
             gtype = group.get('type', 'public')
             members = group.get('members', [])
-            if gtype in ('private', 'secret') and current_addr not in members:
+            visibility = group.get('visibility', 'public')
+            # Secret groups hidden from search for non-members
+            if visibility == 'secret' and current_addr not in members:
+                continue
+            # Also hide old-style private from non-members
+            if gtype == 'private' and current_addr not in members:
                 continue
             if group.get('is_comment_chat'):
                 continue
@@ -4834,10 +5060,13 @@ def search_all():
             if search_type in ('all', 'groups', 'channels') and q in name.lower():
                 results['groups'].append({
                     'id': gid, 'name': name, 'type': gtype,
+                    'visibility': visibility,
+                    'handle': group.get('handle'),
                     'member_count': len(members),
                     'post_count': len(group.get('posts', [])),
                     'description': group.get('description', ''),
                     'linked_chat_id': group.get('linked_chat_id'),
+                    'is_member': current_addr in members if current_addr else False,
                 })
             if search_type in ('all', 'posts'):
                 for p in group.get('posts', [])[-200:]:

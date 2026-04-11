@@ -2069,6 +2069,35 @@ const MainApp = ({ onLogout }) => {
   const panicTimer = useRef(null);
 
   const reload = useCallback(async () => { try { setProfile(await get('/api/profile')); } catch {} }, []);
+
+  // Handle invite links: #/join/GROUP_ID or ?handle=@name
+  useEffect(() => {
+    const hash = window.location.hash;
+    const joinMatch = hash.match(/#\/join\/([^?&#]+)/);
+    const handleMatch = window.location.pathname.match(/\/@([a-z0-9_]+)/i);
+    if (joinMatch || handleMatch) {
+      const joinById = async (gid) => {
+        try {
+          await post('/api/group.join', { group_id: gid });
+          setSub({ type: 'group', group: { id: gid, name: '…', type: 'public' } });
+          window.history.replaceState(null, '', '/');
+        } catch(e) { toast.error('Could not join: ' + e.message); }
+      };
+      const joinByHandle = async (handle) => {
+        try {
+          const r = await get('/api/group.by_handle?handle=' + encodeURIComponent(handle));
+          if (r.ok) {
+            await post('/api/group.join', { group_id: r.id });
+            setSub({ type: 'group', group: r });
+            window.history.replaceState(null, '', '/');
+          }
+        } catch(e) { toast.error('Could not join: ' + e.message); }
+      };
+      if (joinMatch) joinById(joinMatch[1]);
+      else if (handleMatch) joinByHandle(handleMatch[1]);
+    }
+  }, []);
+
   useEffect(() => {
     reload();
     const i = setInterval(() => {
@@ -2139,9 +2168,10 @@ const MainApp = ({ onLogout }) => {
     const done = () => { back(); reload(); };
     const screens = {
       chat: <ChatView peer={sub.peer} onBack={back} profile={profile} />,
-      group: <GroupView group={sub.group} onBack={back} onOpenGroup={g => setSub({type:'group',group:g})} profile={profile} />,
+      group: <GroupView group={sub.group} onBack={back} onOpenGroup={g => setSub({type:'group',group:g})} onSettings={() => setSub({type:'groupsettings',group:sub.group})} profile={profile} />,
+      groupsettings: <GroupSettingsView group={sub.group} onBack={back} profile={profile} onRefresh={done} />,
       newchat: <NewChat onBack={back} onGo={p => setSub({type:'chat',peer:p})} />,
-      newgroup: <NewGroup onBack={back} onDone={done} />,
+      newgroup: <NewGroup onBack={back} onDone={done} initKind={sub.initKind} />,
       send: <SendView onBack={back} profile={profile} onDone={done} />,
       stash: <STASHView onBack={back} onDone={done} />,
       txs: <TxsView onBack={back} />,
@@ -2264,11 +2294,14 @@ const cacheSet = (k, v) => { _cache[k] = v; };
 const ChatsTab = ({ profile, onNav, onMenu, sec, onSecChange }) => {
   const { t } = useT();
   const setSec = onSecChange || (() => {});
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchMode, setSearchMode] = useState(false);
   const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState(null);
+  const [searching, setSearching] = useState(false);
   const [msgs, setMsgs] = useState(() => cacheGet('inbox') || []);
   const [groups, setGroups] = useState(() => cacheGet('groups') || []);
   const [loading, setLoading] = useState(!cacheGet('inbox'));
+  const searchTimer = useRef(null);
 
   const loadingRef = useRef(false);
   const load = async () => {
@@ -2290,16 +2323,26 @@ const ChatsTab = ({ profile, onNav, onMenu, sec, onSecChange }) => {
       wsDebounce.current = setTimeout(load, 200);
     }
   });
-
   useEffect(() => {
     load();
-    // Poll as fallback — WS handles real-time, poll only catches missed events
-    const i = setInterval(() => {
-      if (!document.hidden && !_wsConnected) load();
-      // WS connected - real-time push handles updates
-    }, 30000);
+    const i = setInterval(() => { if (!document.hidden && !_wsConnected) load(); }, 30000);
     return () => clearInterval(i);
   }, []);
+
+  // Live search with debounce
+  useEffect(() => {
+    if (!searchMode) { setSearchResults(null); return; }
+    if (!searchQ.trim() || searchQ.trim().length < 2) { setSearchResults(null); return; }
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const r = await get('/api/search?q=' + encodeURIComponent(searchQ.trim()));
+        setSearchResults(r);
+      } catch { setSearchResults(null); }
+      finally { setSearching(false); }
+    }, 350);
+  }, [searchQ, searchMode]);
 
   const convos = {};
   msgs.forEach(m => {
@@ -2311,65 +2354,157 @@ const ChatsTab = ({ profile, onNav, onMenu, sec, onSecChange }) => {
     if (!convos[peer].last || (m.timestamp||0) > (convos[peer].last.timestamp||0)) { convos[peer].last = m; if (!sent) convos[peer].name = name; }
   });
   const allSorted = Object.values(convos).sort((a,b) => (b.last?.timestamp||0)-(a.last?.timestamp||0));
-  const sorted = searchQ.trim() ? allSorted.filter(c => c.name.toLowerCase().includes(searchQ.toLowerCase())) : allSorted;
-  const filteredGroups = searchQ.trim() ? groups.filter(g => g.name.toLowerCase().includes(searchQ.toLowerCase())) : groups;
+  const myChannels = groups.filter(g => g.type === 'channel' && !g.is_comment_chat);
+  const myGroups = groups.filter(g => g.type !== 'channel' && !g.is_comment_chat);
+
+  const openSearch = () => { setSearchMode(true); setSearchQ(''); setSearchResults(null); };
+  const closeSearch = () => { setSearchMode(false); setSearchQ(''); setSearchResults(null); };
+
+  const joinGroup = async (g) => {
+    try {
+      await post('/api/group.join', { group_id: g.id });
+      toast.success('Joined!');
+      load();
+    } catch(e) { toast.error(e.message); }
+  };
 
   return (
     <div className="h-full flex flex-col">
       <div className="px-4 pt-4 pb-2">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <button onClick={onMenu} className="text-gray-400 hover:text-white"><Menu className="w-5 h-5" /></button>
-            <h1 className="text-xl font-bold text-white">{t('chats')}</h1>
+        {searchMode ? (
+          <div className="flex items-center gap-2 mb-3">
+            <button onClick={closeSearch} className="text-gray-400"><X className="w-5 h-5" /></button>
+            <input value={searchQ} onChange={e => setSearchQ(e.target.value)} autoFocus
+              placeholder="Search channels, groups, posts…"
+              className="flex-1 bg-[#0a1a15] text-white px-3 py-2 rounded-xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600" />
+            {searching && <span className="text-gray-500 text-xs">…</span>}
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setSearchOpen(s => !s)} className="text-gray-500 hover:text-white">
-              <Search className="w-4 h-4" />
-            </button>
-            <button onClick={() => onNav({type: sec==='dm'?'newchat':'newgroup'})}
-            className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg shadow-emerald-600/25">
-            <Plus className="w-4 h-4 text-white" />
-          </button>
-          </div>
-        {searchOpen && (
-          <div className="mb-2">
-            <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
-              placeholder={t('search') + '…'} autoFocus
-              className="w-full bg-[#0a1a15] text-white px-3 py-2 rounded-xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600" />
+        ) : (
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <button onClick={onMenu} className="text-gray-400 hover:text-white"><Menu className="w-5 h-5" /></button>
+              <h1 className="text-xl font-bold text-white">{t('chats')}</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={openSearch} className="text-gray-500 hover:text-white"><Search className="w-4 h-4" /></button>
+              <button onClick={() => onNav(sec==='dm' ? {type:'newchat'} : {type:'newgroup', initKind: sec==='channels'?'channel':undefined})}
+                className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg shadow-emerald-600/25">
+                <Plus className="w-4 h-4 text-white" />
+              </button>
+            </div>
           </div>
         )}
-        </div>
-        <TabBar tabs={[['dm','💬 '+t('messages')],['groups','👥 '+t('groups')]]} active={sec} onChange={setSec} />
+        {!searchMode && <TabBar tabs={[['dm','💬 '+t('messages')],['channels','📢 Channels'],['groups','👥 '+t('groups')]]} active={sec} onChange={setSec} />}
       </div>
+
       <div className="flex-1 overflow-y-auto">
-        {sec === 'dm' ? (
-          loading ? <div className="space-y-0">{[1,2,3,4].map(i=><div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-900/50 animate-pulse"><div className="w-11 h-11 rounded-full bg-gray-800/60 shrink-0"/><div className="flex-1 space-y-2"><div className="h-3 bg-gray-800/60 rounded w-1/3"/><div className="h-2.5 bg-gray-800/40 rounded w-2/3"/></div></div>)}</div> :
-          sorted.length === 0 ? <Empty emoji="💬" text={t('noMessages')} sub={t('startConvo')} /> :
-          sorted.map(c => {
+        {/* SEARCH MODE */}
+        {searchMode ? (
+          <SearchResults results={searchResults} searching={searching} query={searchQ}
+            onNav={onNav} onJoin={joinGroup} profile={profile} />
+        ) : sec === 'dm' ? (
+          loading ? <SkeletonList n={4} /> :
+          allSorted.length === 0 ? <Empty emoji="💬" text={t('noMessages')} sub={t('startConvo')} /> :
+          allSorted.map(c => {
             const hasUnread = c.last?.unread === 1;
             const preview = c.last?.text||c.last?.message||'';
-            // Show media preview
-            const previewText = preview.startsWith('[img:') ? '🖼 Image' :
-                                preview.startsWith('[voice:') ? '🎤 Voice' : preview;
+            const previewText = preview.startsWith('[img:') ? '🖼 Image' : preview.startsWith('[voice:') ? '🎤 Voice' : preview;
             return (
-            <ListItem key={c.peer}
-              icon={<User className="w-5 h-5 text-emerald-500" />}
-              title={c.name}
-              sub={previewText}
-              right={
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-gray-600 text-[11px]">{ago(c.last?.timestamp)}</span>
-                  {hasUnread && <span className="w-2 h-2 rounded-full bg-emerald-500 block" />}
-                </div>
-              }
-              onClick={() => onNav({type:'chat',peer:{address:c.peer,name:c.name}})} />
-          );})
+              <ListItem key={c.peer}
+                icon={<User className="w-5 h-5 text-emerald-500" />}
+                title={c.name} sub={previewText}
+                right={<div className="flex flex-col items-end gap-1"><span className="text-gray-600 text-[11px]">{ago(c.last?.timestamp)}</span>{hasUnread && <span className="w-2 h-2 rounded-full bg-emerald-500 block" />}</div>}
+                onClick={() => onNav({type:'chat',peer:{address:c.peer,name:c.name}})} />
+            );
+          })
+        ) : sec === 'channels' ? (
+          loading ? <SkeletonList n={3} /> :
+          <ChannelsSection groups={myChannels} onNav={onNav} onOpenSearch={openSearch} />
         ) : (
-          loading ? <div className="space-y-0">{[1,2,3].map(i=><div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-900/50 animate-pulse"><div className="w-11 h-11 rounded-full bg-gray-800/60 shrink-0"/><div className="flex-1 space-y-2"><div className="h-3 bg-gray-800/60 rounded w-1/4"/><div className="h-2.5 bg-gray-800/40 rounded w-1/3"/></div></div>)}</div> :
-          groups.length === 0 ? <Empty emoji="👥" text={t('noGroups')} sub={t('createGroup')} /> :
-          <GroupsSection groups={filteredGroups} onNav={onNav} profile={profile} />
+          loading ? <SkeletonList n={3} /> :
+          <GroupsSection groups={myGroups} onNav={onNav} profile={profile} onOpenSearch={openSearch} />
         )}
       </div>
+    </div>
+  );
+};
+
+const SkeletonList = ({ n=3 }) => (
+  <div className="space-y-0">
+    {Array.from({length:n}).map((_,i)=>(
+      <div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-900/50 animate-pulse">
+        <div className="w-11 h-11 rounded-full bg-gray-800/60 shrink-0"/>
+        <div className="flex-1 space-y-2"><div className="h-3 bg-gray-800/60 rounded w-1/3"/><div className="h-2.5 bg-gray-800/40 rounded w-2/3"/></div>
+      </div>
+    ))}
+  </div>
+);
+
+const SearchResults = ({ results, searching, query, onNav, onJoin, profile }) => {
+  if (!query || query.trim().length < 2) return (
+    <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+      <p className="text-4xl mb-3">🔍</p>
+      <p className="text-gray-300 font-medium">Search LAC</p>
+      <p className="text-gray-600 text-sm mt-1">Find channels, groups, and messages</p>
+    </div>
+  );
+  if (searching) return <SkeletonList n={3} />;
+  if (!results) return null;
+  const groups = results.groups || [];
+  const posts = results.posts || [];
+  if (groups.length === 0 && posts.length === 0) return (
+    <Empty emoji="🔍" text="Nothing found" sub={`No results for "${query}"`} />
+  );
+  return (
+    <div>
+      {groups.length > 0 && (
+        <>
+          <div className="px-4 py-2 text-gray-500 text-[11px] font-medium uppercase tracking-wider">Channels & Groups</div>
+          {groups.map(g => {
+            const isChannel = g.type === 'channel';
+            const [color, label] = GROUP_TYPE_META[g.type] || ['gray', g.type];
+            return (
+              <div key={g.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-900/40">
+                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-800 to-emerald-950 flex items-center justify-center shrink-0 text-xl">
+                  {isChannel ? '📢' : g.type === 'secret' ? '🕵️' : '👥'}
+                </div>
+                <div className="flex-1 min-w-0" onClick={() => onNav({type:'group',group:g})}>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-white text-sm font-medium truncate">{g.name}</p>
+                    {g.handle && <span className="text-gray-500 text-[10px]">@{g.handle}</span>}
+                    <Badge color={color}>{label}</Badge>
+                  </div>
+                  <p className="text-gray-500 text-xs truncate">{g.description || `${g.member_count||0} ${isChannel?'subscribers':'members'}`}</p>
+                </div>
+                {!g.is_member ? (
+                  <button onClick={() => onJoin(g)}
+                    className="shrink-0 px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-[11px] font-medium active:bg-emerald-700">
+                    {isChannel ? 'Subscribe' : 'Join'}
+                  </button>
+                ) : (
+                  <button onClick={() => onNav({type:'group',group:g})}
+                    className="shrink-0 px-3 py-1.5 rounded-xl bg-emerald-900/40 border border-emerald-800/40 text-emerald-400 text-[11px]">
+                    Open
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
+      {posts.length > 0 && (
+        <>
+          <div className="px-4 py-2 text-gray-500 text-[11px] font-medium uppercase tracking-wider">Messages</div>
+          {posts.map((p,i) => (
+            <div key={i} onClick={() => onNav({type:'group',group:{id:p.group_id,name:p.group_name,type:'public'}})}
+              className="px-4 py-3 border-b border-gray-900/40 active:bg-emerald-900/10">
+              <p className="text-gray-400 text-[10px] mb-0.5">in {p.group_name} · {p.from}</p>
+              <p className="text-white text-sm truncate">{p.text}</p>
+              <p className="text-gray-600 text-[10px] mt-0.5">{ago(p.timestamp)}</p>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 };
@@ -2383,17 +2518,46 @@ const GROUP_TYPE_META = {
   secret:       ['red',     '🕵️ Secret'],
 };
 
-const GroupsSection = ({ groups, onNav, profile }) => {
+const ChannelsSection = ({ groups, onNav, onOpenSearch }) => {
+  const sorted = [...groups].filter(g => !g.is_comment_chat).sort((a,b) => (b.last_post_ts||b.created_at||0)-(a.last_post_ts||a.created_at||0));
+  if (sorted.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center gap-3">
+      <p className="text-4xl">📢</p>
+      <p className="text-gray-300 font-medium">No channels yet</p>
+      <p className="text-gray-600 text-sm">Subscribe to a channel or create your own</p>
+      <button onClick={onOpenSearch} className="mt-1 px-4 py-2 rounded-xl bg-emerald-700/30 border border-emerald-700/40 text-emerald-400 text-sm">🔍 Find channels</button>
+    </div>
+  );
+  return (
+    <div>
+      {sorted.map(g => {
+        const visLabel = g.visibility === 'secret' ? ' · 🔒' : ' · 🌍';
+        return (
+          <ListItem key={g.id||g.name}
+            icon={<span className="text-xl">📢</span>}
+            title={g.name + (g.handle ? '' : '')}
+            badge={<Badge color={g.visibility==='secret'?'red':'cyan'}>{g.visibility==='secret'?'🔒 Secret':'📢 Public'}</Badge>}
+            sub={(g.handle ? `@${g.handle} · ` : '') + `${g.member_count||0} subscribers`}
+            right={<span className="text-gray-600 text-[11px]">{ago(g.last_post_ts||g.created_at)}</span>}
+            onClick={() => onNav({type:'group', group:g})} />
+        );
+      })}
+    </div>
+  );
+};
+
+const GroupsSection = ({ groups, onNav, onOpenSearch }) => {
   const [filter, setFilter] = useState('all');
   const filters = [
-    ['all', 'All'],
-    ['channel', '📢 Channels'],
-    ['public', '👥 Groups'],
-    ['secret', '🕵️ Secret'],
+    ['all',          'All'],
+    ['public',       '🌍 Public'],
+    ['private',      '🔒 Private'],
+    ['secret',       '🕵️ Secret'],
+    ['l1_blockchain','⛓ L1'],
     ['l2_ephemeral', '⚡ L2'],
   ];
   const visible = [...groups]
-    .filter(g => !g.is_comment_chat)
+    .filter(g => !g.is_comment_chat && g.type !== 'channel')
     .filter(g => filter === 'all' || g.type === filter)
     .sort((a,b) => (b.last_post_ts||b.created_at||0) - (a.last_post_ts||a.created_at||0));
   return (
@@ -2407,10 +2571,17 @@ const GroupsSection = ({ groups, onNav, profile }) => {
         ))}
       </div>
       {visible.length === 0
-        ? <Empty emoji="👥" text="Nothing here" sub="Try a different filter" />
+        ? (filter === 'all'
+          ? <div className="flex flex-col items-center justify-center py-16 px-6 text-center gap-3">
+              <p className="text-4xl">👥</p>
+              <p className="text-gray-300 font-medium">No groups yet</p>
+              <p className="text-gray-600 text-sm">Join a group or create your own</p>
+              <button onClick={onOpenSearch} className="mt-1 px-4 py-2 rounded-xl bg-emerald-700/30 border border-emerald-700/40 text-emerald-400 text-sm">🔍 Find groups</button>
+            </div>
+          : <Empty emoji="👥" text="Nothing here" sub="Try a different filter" />)
         : visible.map(g => {
             const [color, label] = GROUP_TYPE_META[g.type] || ['gray', g.type || 'Group'];
-            const icon = g.type === 'channel' ? '📢' : g.type === 'secret' ? '🕵️' : '👥';
+            const icon = g.type === 'secret' ? '🕵️' : g.type === 'private' ? '🔒' : '👥';
             return (
               <ListItem key={g.id||g.name}
                 icon={<span className="text-xl">{icon}</span>}
@@ -3041,7 +3212,7 @@ const ChatView = ({ peer, onBack, profile }) => {
 };
 
 // ━━━ GROUP VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const GroupView = ({ group, onBack, onOpenGroup, profile }) => {
+const GroupView = ({ group, onBack, onOpenGroup, onSettings, profile }) => {
   const [posts, setPosts] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -3197,7 +3368,7 @@ const GroupView = ({ group, onBack, onOpenGroup, profile }) => {
             <button onClick={() => { if(onOpenGroup) onOpenGroup({ id: group.linked_chat_id, name: group.name + ' 💬 Comments', type: 'public', linked_to_channel: gid }); }}
               className="px-2 py-1 rounded-lg bg-cyan-900/40 border border-cyan-700/40 text-cyan-400 text-[11px] font-medium">💬 Comments</button>
           )}
-          <button onClick={() => { cp(gid); toast.success(t('groupCopied')); }} className="p-1.5 rounded-lg bg-gray-800 text-gray-400 active:bg-gray-700"><Copy className="w-3.5 h-3.5" /></button>
+          <button onClick={() => onSettings && onSettings()} className="p-1.5 rounded-lg bg-gray-800 text-gray-400 active:bg-gray-700" title="Settings">⚙️</button>
           <Badge color={typeBadge[0]}>{typeBadge[1]}</Badge>
         </div>} />
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5" style={{WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}}>
@@ -3315,6 +3486,202 @@ const GroupView = ({ group, onBack, onOpenGroup, profile }) => {
   );
 };
 
+// ━━━ GROUP / CHANNEL SETTINGS ━━━━━━━━━━━━━━━━━━━━━━━━
+const GroupSettingsView = ({ group, onBack, profile, onRefresh }) => {
+  const gid = group.id || group.name;
+  const isCreator = profile?.address === group.creator;
+  const isChannel = group.type === 'channel';
+  const [name, setName] = useState(group.name || '');
+  const [desc, setDesc] = useState(group.description || '');
+  const [visibility, setVisibility] = useState(group.visibility || 'public');
+  const [handle, setHandle] = useState(group.handle || '');
+  const [handleInput, setHandleInput] = useState('');
+  const [handleStatus, setHandleStatus] = useState(null); // {available, price, error}
+  const [members, setMembers] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [checkingHandle, setCheckingHandle] = useState(false);
+  const [mintingHandle, setMintingHandle] = useState(false);
+  const [tab, setTab] = useState('info'); // 'info' | 'handle' | 'members'
+  const inviteLink = `https://lac-beta.uk/#/join/${gid}`;
+
+  useEffect(() => {
+    if (tab === 'members') {
+      get('/api/group/members?group_id=' + encodeURIComponent(gid)).then(r => setMembers(r.members || [])).catch(() => setMembers([]));
+    }
+  }, [tab]);
+
+  const checkHandle = async (h) => {
+    if (!h || h.length < 3) { setHandleStatus(null); return; }
+    setCheckingHandle(true);
+    try {
+      const r = await post('/api/group.handle.check', { handle: h });
+      setHandleStatus(r);
+    } catch(e) { setHandleStatus({ error: e.message }); }
+    finally { setCheckingHandle(false); }
+  };
+
+  const mintHandle = async () => {
+    if (!handleInput.trim()) return;
+    setMintingHandle(true);
+    try {
+      const r = await post('/api/group.handle.set', { group_id: gid, handle: handleInput.trim() });
+      toast.success(`@${r.handle} set! Paid ${r.price_paid} LAC`);
+      setHandle(handleInput.trim());
+      setHandleInput('');
+      setHandleStatus(null);
+      onRefresh && onRefresh();
+    } catch(e) { toast.error(e.message); }
+    finally { setMintingHandle(false); }
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await post('/api/group.update', { group_id: gid, name: name.trim(), description: desc.trim(), visibility });
+      toast.success('Saved!');
+      onRefresh && onRefresh();
+    } catch(e) { toast.error(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const leave = async () => {
+    if (!confirm('Leave this ' + (isChannel ? 'channel' : 'group') + '?')) return;
+    try {
+      await post('/api/group.leave', { group_id: gid });
+      toast.success('Left');
+      onBack();
+      onRefresh && onRefresh();
+    } catch(e) { toast.error(e.message); }
+  };
+
+  const deleteGroup = async () => {
+    if (!confirm('Delete this ' + (isChannel?'channel':'group') + '? This cannot be undone.')) return;
+    try {
+      await post('/api/group.delete', { group_id: gid });
+      toast.success('Deleted');
+      onBack();
+      onRefresh && onRefresh();
+    } catch(e) { toast.error(e.message); }
+  };
+
+  const kick = async (addr) => {
+    if (!confirm('Remove this member?')) return;
+    try {
+      await post('/api/group.kick', { group_id: gid, address: addr });
+      setMembers(m => m.filter(x => x.address !== addr));
+      toast.success('Removed');
+    } catch(e) { toast.error(e.message); }
+  };
+
+  return (
+    <div className="h-full bg-[#060f0c] flex flex-col">
+      <Header title={(isChannel ? '📢 ' : '👥 ') + (group.name || 'Settings')} onBack={onBack} />
+      <TabBar tabs={[['info','Info'],['handle','@Handle'],['members','Members']]} active={tab} onChange={setTab} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+        {tab === 'info' && <>
+          {/* Invite link */}
+          <div className="p-3 rounded-xl bg-emerald-900/10 border border-emerald-800/30">
+            <p className="text-gray-400 text-[11px] mb-1">🔗 Invite link</p>
+            <p className="text-emerald-400 text-xs font-mono break-all">{handle ? `lac-beta.uk/@${handle}` : inviteLink}</p>
+            <button onClick={() => { navigator.clipboard.writeText(handle ? `https://lac-beta.uk/@${handle}` : inviteLink); toast.success('Copied!'); }}
+              className="mt-2 text-[10px] text-gray-500 underline">Copy link</button>
+          </div>
+
+          {isCreator && <>
+            <div>
+              <label className="text-gray-500 text-xs mb-1 block">Name</label>
+              <Input value={name} onChange={setName} placeholder="Name" />
+            </div>
+            <div>
+              <label className="text-gray-500 text-xs mb-1 block">Description</label>
+              <textarea value={desc} onChange={e => setDesc(e.target.value)}
+                placeholder="Short description…" rows={3}
+                className="w-full bg-[#0a1a15] text-white px-3 py-2 rounded-xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600 resize-none" />
+            </div>
+            <div>
+              <label className="text-gray-500 text-xs mb-2 block">Visibility</label>
+              <div className="flex gap-2">
+                {[['public','🌍 Public'],['secret','🔒 Secret']].map(([v,l]) => (
+                  <button key={v} onClick={() => setVisibility(v)}
+                    className={`flex-1 py-2 rounded-xl border text-sm font-medium transition ${visibility===v ? 'border-emerald-500 bg-emerald-600/10 text-emerald-300' : 'border-gray-800 bg-[#0a1a15] text-gray-400'}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Btn onClick={save} color="emerald" full loading={saving}>Save changes</Btn>
+            <Btn onClick={deleteGroup} color="red" full>🗑 Delete {isChannel?'channel':'group'}</Btn>
+          </>}
+          {!isCreator && (
+            <Btn onClick={leave} color="red" full>Leave {isChannel?'channel':'group'}</Btn>
+          )}
+          <div className="text-center text-gray-600 text-[10px] pt-2">
+            ID: <span className="font-mono">{gid}</span>
+          </div>
+        </>}
+
+        {tab === 'handle' && <>
+          <div className="p-3 rounded-xl bg-[#0a1a15] border border-emerald-900/30">
+            <p className="text-gray-400 text-xs mb-1">Current handle</p>
+            <p className="text-emerald-400 text-base font-bold">{handle ? `@${handle}` : 'None set'}</p>
+            {handle && <p className="text-gray-500 text-[10px] mt-1">Link: lac-beta.uk/@{handle}</p>}
+          </div>
+          {isCreator && <>
+            <p className="text-gray-500 text-xs">Mint a unique @handle for this {isChannel?'channel':'group'}. Handles are paid and permanent (3 chars = 5000 LAC, 4 = 500, 5+ = 10 LAC).</p>
+            <div className="flex gap-2">
+              <div className="flex-1 flex items-center bg-[#0a1a15] border border-emerald-900/30 rounded-xl px-3">
+                <span className="text-gray-500 text-sm">@</span>
+                <input value={handleInput}
+                  onChange={e => { const v = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,''); setHandleInput(v); checkHandle(v); }}
+                  placeholder="yourhandle" maxLength={32}
+                  className="flex-1 bg-transparent text-white py-2.5 text-sm outline-none pl-1 placeholder-gray-600" />
+              </div>
+              <button onClick={() => checkHandle(handleInput)}
+                className="px-3 py-2 rounded-xl bg-gray-800 text-gray-300 text-sm">Check</button>
+            </div>
+            {checkingHandle && <p className="text-gray-500 text-xs">Checking…</p>}
+            {handleStatus && !checkingHandle && (
+              <div className={`p-3 rounded-xl border text-sm ${handleStatus.available ? 'border-emerald-700 bg-emerald-900/10 text-emerald-400' : 'border-red-800 bg-red-900/10 text-red-400'}`}>
+                {handleStatus.available
+                  ? `✅ @${handleInput} available — ${handleStatus.price} LAC`
+                  : `❌ ${handleStatus.error || 'Already taken'}`}
+              </div>
+            )}
+            {handleStatus?.available && (
+              <Btn onClick={mintHandle} color="emerald" full loading={mintingHandle}>
+                Mint @{handleInput} ({handleStatus.price} LAC)
+              </Btn>
+            )}
+          </>}
+          {!isCreator && <p className="text-gray-600 text-sm text-center py-4">Only the creator can set a handle.</p>}
+        </>}
+
+        {tab === 'members' && <>
+          {members === null ? <SkeletonList n={3} /> : members.length === 0 ? <Empty emoji="👥" text="No members" sub="" /> :
+          members.map(m => (
+            <div key={m.address} className="flex items-center gap-3 py-2 border-b border-gray-900/30">
+              <div className="w-9 h-9 rounded-full bg-emerald-900/40 flex items-center justify-center text-emerald-400 text-sm shrink-0">
+                {m.is_creator ? '👑' : '👤'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-medium truncate">{m.username}</p>
+                <p className="text-gray-600 text-[10px] font-mono truncate">{m.address.slice(0,16)}…</p>
+              </div>
+              {isCreator && !m.is_creator && (
+                <button onClick={() => kick(m.address)}
+                  className="shrink-0 px-2 py-1 rounded-lg bg-red-900/30 border border-red-800/40 text-red-400 text-[10px]">
+                  Kick
+                </button>
+              )}
+            </div>
+          ))}
+        </>}
+      </div>
+    </div>
+  );
+};
+
 // ━━━ NEW CHAT / GROUP ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const NewChat = ({ onBack, onGo }) => {
   const [to, setTo] = useState('');
@@ -3326,39 +3693,106 @@ const NewChat = ({ onBack, onGo }) => {
     </div></div>);
 };
 
-const NewGroup = ({ onBack, onDone }) => {
-  const [name, setName] = useState(''); const [type, setType] = useState('public'); const [ld, setLd] = useState(false);
+const NewGroup = ({ onBack, onDone, initKind }) => {
+  // Step 1: pick kind (channel or group), Step 2: pick subtype + name
+  const [kind, setKind] = useState(initKind || null); // 'channel' | 'group'
+  const [name, setName] = useState('');
+  const [type, setType] = useState('public');
+  const [ld, setLd] = useState(false);
+
+  const groupTypes = [
+    ['public',        '🌍 Public',       'Anyone can see and post.'],
+    ['private',       '🔒 Private',      'Invite-only. Hidden from search.'],
+    ['secret',        '🕵️ Secret',       'Max privacy. Ephemeral, invite-only.'],
+    ['l1_blockchain', '⛓ L1 Blockchain', 'Posts recorded on-chain.'],
+    ['l2_ephemeral',  '⚡ L2 Ephemeral', 'Auto-deleted in 5 minutes.'],
+  ];
+
   const go = async () => {
-    if (!name.trim()) { toast.error('Enter group name'); return; }
+    if (!name.trim()) { toast.error('Enter a name'); return; }
+    const finalType = kind === 'channel' ? 'channel' : type;
     setLd(true);
     try {
-      const r = await post('/api/group.create',{name:name.trim(),type});
-      if (r.ok) { toast.success('Group "'+name.trim()+'" created!'); onDone(); }
-      else { toast.error(r.error || 'Failed to create group', {duration:4000}); }
-    } catch(e){ toast.error('Error: ' + (e.message||'Unknown'), {duration:4000}); }
+      const r = await post('/api/group.create', { name: name.trim(), type: finalType, visibility });
+      if (r.ok) { toast.success((kind==='channel'?'Channel':'Group') + ' "' + name.trim() + '" created!'); onDone(); }
+      else { toast.error(r.error || 'Failed', { duration: 4000 }); }
+    } catch(e) { toast.error(e.message || 'Error', { duration: 4000 }); }
     finally { setLd(false); }
   };
-  const types = [
-    ['public','🌍 Public','Anyone can see and write.'],
-    ['channel','📢 Channel','Broadcast only. Owner posts, everyone reads. Has a comment chat.'],
-    ['private','🔒 Private','By invite only. Encrypted.'],
-    ['secret','🕵️ Secret','Invite-only, ephemeral, max privacy.'],
-    ['l1_blockchain','⛓ L1 Blockchain','Messages recorded in blockchain.'],
-    ['l2_ephemeral','⚡ L2 Ephemeral','5 minutes and gone.'],
-  ];
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="Create Group" onBack={onBack} />
-    <div className="p-4 space-y-4">
-      <div><label className="text-gray-500 text-xs mb-1 block">Name</label><Input value={name} onChange={setName} placeholder="Group name" /></div>
-      <div><label className="text-gray-500 text-xs mb-2 block">Type</label>
-        <div className="space-y-2">
-          {types.map(([id,l,d]) => (
-            <button key={id} onClick={() => setType(id)} className={`w-full p-3 rounded-xl border text-left transition ${type===id?'border-emerald-500 bg-emerald-600/10':'border-gray-800 bg-[#0a1a15]'}`}>
-              <p className="text-white text-sm font-medium">{l}</p><p className="text-gray-500 text-[10px] mt-0.5">{d}</p>
-            </button>))}
-        </div>
+
+  // Step 1 — choose Group or Channel
+  if (!kind) return (
+    <div className="h-full bg-[#060f0c] flex flex-col">
+      <Header title="Create" onBack={onBack} />
+      <div className="p-4 space-y-3">
+        <p className="text-gray-500 text-xs mb-4">What do you want to create?</p>
+        <button onClick={() => { setKind('channel'); setType('channel'); }}
+          className="w-full p-4 rounded-2xl border border-cyan-800/50 bg-cyan-900/10 text-left hover:bg-cyan-900/20 transition active:scale-[.98]">
+          <p className="text-cyan-300 text-base font-semibold">📢 Channel</p>
+          <p className="text-gray-400 text-xs mt-1">Broadcast to subscribers. Only you post. Has a comment chat for discussion.</p>
+        </button>
+        <button onClick={() => { setKind('group'); setType('public'); }}
+          className="w-full p-4 rounded-2xl border border-emerald-800/50 bg-emerald-900/10 text-left hover:bg-emerald-900/20 transition active:scale-[.98]">
+          <p className="text-emerald-300 text-base font-semibold">👥 Group</p>
+          <p className="text-gray-400 text-xs mt-1">Everyone can post. Public, private, secret, or on-chain.</p>
+        </button>
       </div>
-      <Btn onClick={go} color="emerald" full disabled={!name.trim()} loading={ld}>Create Group</Btn>
-    </div></div>);
+    </div>
+  );
+
+  // Step 2 — name + subtype
+  const [visibility, setVisibility] = useState('public');
+  return (
+    <div className="h-full bg-[#060f0c] flex flex-col">
+      <Header title={kind === 'channel' ? '📢 New Channel' : '👥 New Group'} onBack={() => setKind(null)} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div>
+          <label className="text-gray-500 text-xs mb-1 block">Name</label>
+          <Input value={name} onChange={setName} placeholder={kind === 'channel' ? 'Channel name' : 'Group name'} />
+        </div>
+        {/* Visibility for both channels and groups */}
+        <div>
+          <label className="text-gray-500 text-xs mb-2 block">Visibility</label>
+          <div className="flex gap-2">
+            <button onClick={() => setVisibility('public')}
+              className={`flex-1 p-3 rounded-xl border text-left transition ${visibility==='public'?'border-emerald-500 bg-emerald-600/10':'border-gray-800 bg-[#0a1a15]'}`}>
+              <p className="text-white text-sm font-medium">🌍 Public</p>
+              <p className="text-gray-500 text-[10px] mt-0.5">{kind==='channel'?'Discoverable in search':'Anyone can find and join'}</p>
+            </button>
+            <button onClick={() => setVisibility('secret')}
+              className={`flex-1 p-3 rounded-xl border text-left transition ${visibility==='secret'?'border-red-500 bg-red-600/10':'border-gray-800 bg-[#0a1a15]'}`}>
+              <p className="text-white text-sm font-medium">🔒 Secret</p>
+              <p className="text-gray-500 text-[10px] mt-0.5">Invite link only, not searchable</p>
+            </button>
+          </div>
+        </div>
+        {/* Group subtype (not for channels) */}
+        {kind === 'group' && (
+          <div>
+            <label className="text-gray-500 text-xs mb-2 block">Type</label>
+            <div className="space-y-2">
+              {groupTypes.map(([id, l, d]) => (
+                <button key={id} onClick={() => setType(id)}
+                  className={`w-full p-3 rounded-xl border text-left transition ${type===id ? 'border-emerald-500 bg-emerald-600/10' : 'border-gray-800 bg-[#0a1a15]'}`}>
+                  <p className="text-white text-sm font-medium">{l}</p>
+                  <p className="text-gray-500 text-[10px] mt-0.5">{d}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {kind === 'channel' && (
+          <div className="p-3 rounded-xl bg-cyan-900/10 border border-cyan-800/30 space-y-1">
+            <p className="text-cyan-400 text-xs">📢 Only you can post. Subscribers read and discuss in the linked comment chat.</p>
+            <p className="text-cyan-600 text-[10px]">You can set a @handle after creation in Settings.</p>
+          </div>
+        )}
+        <Btn onClick={go} color="emerald" full disabled={!name.trim()} loading={ld}>
+          Create {kind === 'channel' ? 'Channel' : 'Group'}
+        </Btn>
+      </div>
+    </div>
+  );
 };
 
 // ━━━ REFERRAL SYSTEM ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
