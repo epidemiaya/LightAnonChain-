@@ -1256,18 +1256,45 @@ def auto_cleanup():
                                 except: pass
                     if deleted:
                         print(f"🗑️ Deleted {deleted} expired media files")
-                # Remove L2 ephemeral group posts older than 5 minutes
+                # L2 cleanup: remove posts from l2_ephemeral groups,
+                # replace media posts in ANY group with [destroyed] placeholder
+                import re as _re2
+                media_pattern = _re2.compile(r'\[(img|voice):(/api/media/[^\]]+)\]')
+                changed_groups = set()
                 for gid, group in S.groups.items():
                     gtype = group.get('type', 'public')
-                    if gtype in ('l2_ephemeral', 'ephemeral'):
-                        before = len(group.get('posts', []))
-                        group['posts'] = [
-                            p for p in group.get('posts', [])
-                            if now - p.get('timestamp', 0) < 300
-                        ]
-                        after = len(group['posts'])
-                        if before > after:
-                            print(f"🧹 Cleaned {before - after} expired posts from {group.get('name', gid)}")
+                    new_posts = []
+                    changed = False
+                    for p in group.get('posts', []):
+                        age = now - p.get('timestamp', 0)
+                        txt = p.get('text', '') or p.get('message', '') or ''
+                        has_media = bool(media_pattern.search(txt))
+
+                        if gtype in ('l2_ephemeral', 'ephemeral') and age >= 300:
+                            # Whole L2 group: drop post entirely
+                            changed = True
+                            continue
+
+                        if has_media and age >= 300 and not p.get('_destroyed'):
+                            # Media in any group: replace with destroyed placeholder
+                            media_type = 'voice' if '[voice:' in txt else 'photo'
+                            p = dict(p)
+                            p['text'] = f'[destroyed:{media_type}]'
+                            p['message'] = p['text']
+                            p['_destroyed'] = True
+                            changed = True
+
+                        new_posts.append(p)
+
+                    if changed:
+                        group['posts'] = new_posts
+                        changed_groups.add(gid)
+                        _cache_del('gp:' + gid)
+
+                if changed_groups:
+                    _cache_del_prefix('groups:')
+                    S.save_groups()
+                    print(f"🧹 L2 cleanup: updated {len(changed_groups)} groups")
                 
                 # ===== SESSION CLEANUP (> 24h inactive) =====
                 session_timeout = 86400  # 24 hours
@@ -2119,7 +2146,8 @@ def send_message():
     verified = data.get('verified', False)
     ephemeral = data.get('ephemeral', False)  # False = regular, True = 5-min L2
     burn = data.get('burn', False)  # Burn after read
-    reply_to = data.get('reply_to', None)  # {text, from} of message being replied to
+    reply_to = data.get('reply_to', None)  # {text, from}
+    reply_to_post_key = data.get('reply_to_post_key', None)  # for channel post comments of message being replied to
     
     if not to or not text:
         return jsonify({'error': 'Recipient and text required'}), 400
@@ -2952,6 +2980,27 @@ def create_group():
             group_data['linked_chat_id'] = linked_chat_id
         
         S.groups[gid] = group_data
+
+        # Record group/channel creation on L1 blockchain — anonymous
+        try:
+            chain_tx = {
+                'from': 'anonymous',
+                'to': 'registry',
+                'type': 'group_create',
+                'group_id': gid,
+                'group_type': group_type,
+                'visibility': visibility,
+                'name_hash': hashlib.sha256(name.encode()).hexdigest()[:16],  # hash only, not plaintext
+                'has_handle': bool(handle),
+                'timestamp': int(time.time()),
+                'ring_signature': True,  # anonymous creation
+            }
+            if not hasattr(S, 'pending_txs'):
+                S.pending_txs = []
+            S.pending_txs.append(chain_tx)
+        except Exception:
+            pass  # non-critical, don't fail creation
+
         S.save_groups()  # FAST
         
         return jsonify({
@@ -3000,7 +3049,22 @@ def group_posts():
             ep['reactions'] = S.reactions.get(mk, S.reactions.get(legacy_key, {}))
             enriched_posts.append(ep)
         
-        result_gp = {'ok': True, 'posts': enriched_posts}
+        # For channels: add comment counts per post
+        gtype = group.get('type', 'public')
+        linked_chat_id = group.get('linked_chat_id')
+        if gtype == 'channel' and linked_chat_id and linked_chat_id in S.groups:
+            chat = S.groups[linked_chat_id]
+            chat_posts = chat.get('posts', [])
+            # Count comments per post_key
+            comment_counts = {}
+            for cp in chat_posts:
+                pk = cp.get('reply_to_post_key')
+                if pk:
+                    comment_counts[pk] = comment_counts.get(pk, 0) + 1
+            for ep in enriched_posts:
+                ep['comment_count'] = comment_counts.get(ep.get('msg_key', ''), 0)
+
+        result_gp = {'ok': True, 'posts': enriched_posts, 'linked_chat_id': linked_chat_id}
         _cache_set(ck_gp, result_gp, ttl=5)
         return jsonify(result_gp)
 
@@ -3080,7 +3144,8 @@ def post_to_group():
             'timestamp': int(time.time()),
             'ts': int(time.time()),
             'group_type': gtype,
-            'reply_to': reply_to if reply_to else None
+            'reply_to': reply_to if reply_to else None,
+            'reply_to_post_key': reply_to_post_key,
         }
         
         # Ensure posts list exists
@@ -3180,6 +3245,110 @@ def delete_group_post():
         S.save_groups()
         
         return jsonify({'ok': True, 'deleted': msg_key})
+
+@app.route('/api/channel.post.comments', methods=['GET'])
+def channel_post_comments():
+    """Get comments for a specific channel post"""
+    channel_id = request.args.get('channel_id', '').strip()
+    post_key = request.args.get('post_key', '').strip()
+    seed = request.headers.get('X-Seed', '').strip()
+    current_addr = get_address_from_seed(seed) if validate_seed(seed) else None
+
+    if not channel_id or not post_key:
+        return jsonify({'error': 'channel_id and post_key required'}), 400
+
+    with S.lock:
+        channel = S.groups.get(channel_id)
+        if not channel:
+            return jsonify({'error': 'Channel not found'}), 404
+
+        linked_id = channel.get('linked_chat_id')
+        if not linked_id or linked_id not in S.groups:
+            return jsonify({'ok': True, 'comments': [], 'count': 0})
+
+        # Auto-join linked chat if user is channel member
+        members = channel.get('members', [])
+        if current_addr and current_addr in members:
+            chat = S.groups[linked_id]
+            if current_addr not in chat.get('members', []):
+                chat.setdefault('members', []).append(current_addr)
+
+        chat = S.groups[linked_id]
+        # Filter posts that belong to this specific channel post
+        comments = [
+            p for p in chat.get('posts', [])
+            if p.get('reply_to_post_key') == post_key
+        ]
+        return jsonify({'ok': True, 'comments': comments, 'count': len(comments),
+                        'chat_id': linked_id})
+
+@app.route('/api/channel.post.comment', methods=['POST'])
+def add_channel_comment():
+    """Post a comment on a specific channel post"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    channel_id = data.get('channel_id', '').strip()
+    post_key = data.get('post_key', '').strip()
+    text = data.get('text', '').strip()
+    reply_to = data.get('reply_to', None)  # reply to another comment
+
+    if not channel_id or not post_key or not text:
+        return jsonify({'error': 'channel_id, post_key and text required'}), 400
+    if len(text) > 2000:
+        return jsonify({'error': 'Comment too long'}), 400
+
+    from_addr = get_address_from_seed(seed)
+
+    with S.lock:
+        channel = S.groups.get(channel_id)
+        if not channel:
+            return jsonify({'error': 'Channel not found'}), 404
+
+        linked_id = channel.get('linked_chat_id')
+        if not linked_id or linked_id not in S.groups:
+            return jsonify({'error': 'Comments not enabled for this channel'}), 404
+
+        # Auto-join linked chat
+        chat = S.groups[linked_id]
+        if from_addr not in chat.get('members', []):
+            chat.setdefault('members', []).append(from_addr)
+
+        wallet = S.wallets.get(from_addr, {})
+        key_id = wallet.get('key_id', '')
+        username = get_username_by_key_id(key_id) if key_id else 'Anonymous'
+
+        comment = {
+            'from': username,
+            'from_username': username,
+            'from_address': from_addr,
+            'message': text,
+            'text': text,
+            'timestamp': int(time.time()),
+            'ts': int(time.time()),
+            'reply_to_post_key': post_key,  # links comment to specific channel post
+            'reply_to': reply_to,
+            'group_type': 'comment',
+        }
+        comment['msg_key'] = make_msg_key(comment)
+
+        chat.setdefault('posts', []).append(comment)
+
+        # Push to all channel members
+        members_snap = list(channel.get('members', []))
+        ws_push_to_peers(members_snap, 'new_comment', {
+            'channel_id': channel_id,
+            'post_key': post_key,
+            'from': username,
+            'timestamp': comment['timestamp'],
+        })
+
+        _cache_del('gp:' + linked_id)
+        _cache_del_prefix('groups:')
+        S.save_groups()
+        return jsonify({'ok': True, 'comment': comment})
 
 @app.route('/api/group.update', methods=['POST'])
 def update_group():
@@ -3383,46 +3552,63 @@ def group_by_handle():
 
 @app.route('/api/group.join', methods=['POST'])
 def join_group():
-    """Join a group (or invite to private group)"""
+    """Join a group or subscribe to a channel"""
     seed = request.headers.get('X-Seed', '').strip()
     if not validate_seed(seed):
         return jsonify({'error': 'Unauthorized'}), 401
-    
+
     data = request.get_json() or {}
     gid = data.get('group_id', '').strip()
-    invite_addr = data.get('invite_address', '').strip()  # for inviting others
-    
+    invite_addr = data.get('invite_address', '').strip()
+
     if not gid:
         return jsonify({'error': 'Group ID required'}), 400
-    
+
     from_addr = get_address_from_seed(seed)
-    
+
     with S.lock:
         if gid not in S.groups:
             return jsonify({'error': 'Group not found'}), 404
-        
+
         group = S.groups[gid]
         gtype = group.get('type', 'public')
+        visibility = group.get('visibility', 'public')
         members = group.get('members', [])
-        
+
         if invite_addr:
-            # Inviting someone else (must be creator or member)
+            # Inviting someone else (must be member/creator)
             if from_addr not in members:
                 return jsonify({'error': 'Only members can invite'}), 403
             if invite_addr not in members:
                 group.setdefault('members', []).append(invite_addr)
-                S.save()
+                # Also add to linked comment chat if channel
+                linked = group.get('linked_chat_id')
+                if linked and linked in S.groups:
+                    chat = S.groups[linked]
+                    if invite_addr not in chat.get('members', []):
+                        chat.setdefault('members', []).append(invite_addr)
+            _cache_del_prefix('groups:')
+            S.save_groups()
             return jsonify({'ok': True, 'invited': invite_addr})
-        
-        # Self-join
-        if gtype == 'private':
-            return jsonify({'error': 'Private group — need invite'}), 403
-        
+
+        # Self-join checks
+        if gtype in ('private', 'secret') or visibility == 'secret':
+            if from_addr not in members:
+                return jsonify({'error': 'This group requires an invite link'}), 403
+
         if from_addr not in members:
             group.setdefault('members', []).append(from_addr)
-            S.save()
-        
-        return jsonify({'ok': True, 'joined': gid})
+
+        # CRITICAL: also join linked comment chat so user can see/post comments
+        linked_chat_id = group.get('linked_chat_id')
+        if linked_chat_id and linked_chat_id in S.groups:
+            chat = S.groups[linked_chat_id]
+            if from_addr not in chat.get('members', []):
+                chat.setdefault('members', []).append(from_addr)
+
+        _cache_del_prefix('groups:')
+        S.save_groups()
+        return jsonify({'ok': True, 'joined': gid, 'linked_chat_id': linked_chat_id})
 
 @app.route('/api/chain', methods=['GET'])
 def chain():

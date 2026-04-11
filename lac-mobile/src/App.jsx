@@ -2168,8 +2168,9 @@ const MainApp = ({ onLogout }) => {
     const done = () => { back(); reload(); };
     const screens = {
       chat: <ChatView peer={sub.peer} onBack={back} profile={profile} />,
-      group: <GroupView group={sub.group} onBack={back} onOpenGroup={g => setSub({type:'group',group:g})} onSettings={() => setSub({type:'groupsettings',group:sub.group})} profile={profile} />,
+      group: <GroupView group={sub.group} onBack={back} onOpenGroup={g => setSub({type:'group',group:g})} onSettings={() => setSub({type:'groupsettings',group:sub.group})} onOpenComments={(p) => setSub({type:'comments',channelId:sub.group.id||sub.group.name,chatId:sub.group.linked_chat_id,postKey:p.msg_key,postText:p.text||p.message,postFrom:p.from,postTs:p.timestamp})} profile={profile} />,
       groupsettings: <GroupSettingsView group={sub.group} onBack={back} profile={profile} onRefresh={done} />,
+      comments: <CommentsView channelId={sub.channelId} chatId={sub.chatId} postKey={sub.postKey} postText={sub.postText} postFrom={sub.postFrom} postTs={sub.postTs} onBack={back} profile={profile} />,
       newchat: <NewChat onBack={back} onGo={p => setSub({type:'chat',peer:p})} />,
       newgroup: <NewGroup onBack={back} onDone={done} initKind={sub.initKind} />,
       send: <SendView onBack={back} profile={profile} onDone={done} />,
@@ -3212,7 +3213,7 @@ const ChatView = ({ peer, onBack, profile }) => {
 };
 
 // ━━━ GROUP VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const GroupView = ({ group, onBack, onOpenGroup, onSettings, profile }) => {
+const GroupView = ({ group, onBack, onOpenGroup, onSettings, onOpenComments, profile }) => {
   const [posts, setPosts] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -3392,6 +3393,10 @@ const GroupView = ({ group, onBack, onOpenGroup, onSettings, profile }) => {
               {p.reply_to && <div className={`text-[11px] px-2 py-1 rounded-lg mb-1.5 border-l-2 ${mine?'bg-emerald-800/30 border-emerald-400/40':'bg-gray-800/50 border-purple-400/40'}`}><p className={`font-medium text-[10px] ${mine?'text-emerald-300/70':'text-purple-400/70'}`}>{p.reply_to.from}</p><p className={`truncate ${mine?'text-emerald-200/50':'text-gray-400'}`}>{p.reply_to.text}</p></div>}
               {(() => {
                 const txt = p.text||p.message||'';
+                if (txt.startsWith('[destroyed:')) {
+                  const mtype = txt.includes('voice') ? '🎤 Voice destroyed' : '📷 Photo destroyed';
+                  return <p className="text-[13px] italic opacity-50">{mtype}</p>;
+                }
                 const imgM = txt.match(/\[img:(\/api\/media\/[^\]]+)\]/);
                 const voiceM = txt.match(/\[voice:(\/api\/media\/[^\]]+)\]/);
                 if (imgM) return <MsgImage url={imgM[1]} />;
@@ -3419,6 +3424,14 @@ const GroupView = ({ group, onBack, onOpenGroup, onSettings, profile }) => {
                   Cancel
                 </button>
               </div>
+            )}
+            {/* 💬 Comments button for channel posts */}
+            {isChannel && (
+              <button onClick={() => onOpenComments && onOpenComments(p)}
+                className="flex items-center gap-1.5 mt-1.5 px-3 py-1.5 rounded-full bg-[#0a1a15] border border-emerald-900/30 text-gray-400 text-[12px] active:bg-emerald-900/20 active:text-emerald-400 transition">
+                <span>💬</span>
+                <span>{(p.comment_count > 0) ? `${p.comment_count} comment${p.comment_count===1?'':'s'}` : 'Comment'}</span>
+              </button>
             )}
           </div>
         ); })}
@@ -3485,6 +3498,137 @@ const GroupView = ({ group, onBack, onOpenGroup, onSettings, profile }) => {
     </div>
   );
 };
+
+// ━━━ CHANNEL POST COMMENTS ━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Simple working approach: linked chat filtered/shown per-post
+const CommentsView = ({ channelId, chatId, postKey, postText, postFrom, postTs, onBack, profile }) => {
+  const [allPosts, setAllPosts] = useState([]);
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const end = useRef(null);
+
+  // Load all posts from linked chat
+  const load = async () => {
+    if (!chatId) return;
+    try {
+      const r = await get('/api/group/posts?group_id=' + encodeURIComponent(chatId));
+      setAllPosts(r.posts || []);
+    } catch {}
+    finally { setLoading(false); }
+  };
+
+  useRealtimeSocket((msg) => {
+    if (msg.event === 'new_group_post' && msg.data?.group_id === chatId) load();
+    if (msg.event === 'new_comment' && msg.data?.channel_id === channelId) load();
+  });
+
+  useEffect(() => {
+    load();
+    const i = setInterval(() => { if(!document.hidden) load(); }, 15000);
+    return () => clearInterval(i);
+  }, [chatId]);
+
+  useEffect(() => { end.current?.scrollIntoView({ behavior: 'instant', block: 'end' }); }, [allPosts]);
+
+  // Filter: show only comments for this post (by reply_to_post_key OR all if postKey is null)
+  const comments = postKey
+    ? allPosts.filter(p => p.reply_to_post_key === postKey || !p.reply_to_post_key) // fallback: show all if no key
+    : allPosts;
+
+  const send = async () => {
+    if (!text.trim() || sending) return;
+    const txt = text.trim();
+    setText('');
+    setSending(true);
+    // Optimistic
+    const opt = {
+      from: profile?.username || 'You', from_address: profile?.address,
+      text: txt, timestamp: ~~(Date.now()/1000), _opt: true,
+      reply_to_post_key: postKey,
+    };
+    setAllPosts(prev => [...prev, opt]);
+    try {
+      // Post to linked chat with reply_to_post_key
+      await post('/api/group.post', {
+        group_id: chatId,
+        message: txt,
+        reply_to: postKey ? { text: postText?.slice(0, 80), from: postFrom } : null,
+        reply_to_post_key: postKey,
+      });
+      load();
+    } catch(e) {
+      toast.error(e.message);
+      setAllPosts(prev => prev.filter(p => p !== opt));
+    }
+    finally { setSending(false); }
+  };
+
+  return (
+    <div className="h-full bg-[#060f0c] flex flex-col">
+      <Header title="💬 Comments" onBack={onBack} />
+
+      {/* Original post preview */}
+      {postText && (
+        <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl bg-[#0a1f18] border border-emerald-900/30">
+          <p className="text-purple-400 text-[11px] font-medium mb-0.5">{postFrom || 'Channel post'}</p>
+          {(() => {
+            const imgM = postText.match(/\[img:(\/api\/media\/[^\]]+)\]/);
+            const voiceM = postText.match(/\[voice:(\/api\/media\/[^\]]+)\]/);
+            if (imgM) return <p className="text-gray-400 text-sm">🖼 Image</p>;
+            if (voiceM) return <p className="text-gray-400 text-sm">🎤 Voice message</p>;
+            return <p className="text-gray-300 text-sm line-clamp-3">{postText}</p>;
+          })()}
+          <p className="text-gray-600 text-[10px] mt-1">{ago(postTs)}</p>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 mt-2" style={{WebkitOverflowScrolling:'touch'}}>
+        {loading && <SkeletonList n={3} />}
+        {!loading && comments.length === 0 && (
+          <Empty emoji="💬" text="No comments yet" sub="Be the first to comment" />
+        )}
+        {comments.map((c, i) => {
+          const mine = c.from_address === profile?.address;
+          const txt = c.text || c.message || '';
+          // Handle destroyed media
+          const isDestroyed = txt.startsWith('[destroyed:');
+          const imgM = !isDestroyed && txt.match(/\[img:(\/api\/media\/[^\]]+)\]/);
+          const voiceM = !isDestroyed && txt.match(/\[voice:(\/api\/media\/[^\]]+)\]/);
+          return (
+            <div key={i} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+              <div className={`max-w-[78%] px-3 py-2 rounded-2xl ${mine ? 'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm' : 'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
+                {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{c.from || 'Anon'}</p>}
+                {isDestroyed
+                  ? <p className="text-gray-500 text-sm italic">📷 Photo destroyed</p>
+                  : imgM ? <MsgImage url={imgM[1]} />
+                  : voiceM ? <VoicePlayer url={voiceM[1]} />
+                  : <p className="text-[14px] leading-snug break-words" style={{overflowWrap:'anywhere'}}>{txt}</p>
+                }
+                <p className={`text-[10px] mt-0.5 ${mine ? 'text-emerald-300/50' : 'text-gray-600'}`}>{ago(c.timestamp)}</p>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={end} />
+      </div>
+
+      <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
+        <div className="flex gap-2 items-end">
+          <input value={text} onChange={e => setText(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+            className="flex-1 bg-[#0a1a15] text-white px-4 py-2.5 rounded-2xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600"
+            placeholder="Write a comment…" />
+          <button onClick={send} disabled={sending || !text.trim()}
+            className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shrink-0 disabled:opacity-30">
+            <Send className="w-4 h-4 text-white ml-0.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 // ━━━ GROUP / CHANNEL SETTINGS ━━━━━━━━━━━━━━━━━━━━━━━━
 const GroupSettingsView = ({ group, onBack, profile, onRefresh }) => {
@@ -3694,18 +3838,19 @@ const NewChat = ({ onBack, onGo }) => {
 };
 
 const NewGroup = ({ onBack, onDone, initKind }) => {
-  // Step 1: pick kind (channel or group), Step 2: pick subtype + name
-  const [kind, setKind] = useState(initKind || null); // 'channel' | 'group'
+  // ALL hooks at top — no exceptions (React rules)
+  const [kind, setKind] = useState(initKind || null);
   const [name, setName] = useState('');
   const [type, setType] = useState('public');
+  const [visibility, setVisibility] = useState('public');
   const [ld, setLd] = useState(false);
 
   const groupTypes = [
-    ['public',        '🌍 Public',       'Anyone can see and post.'],
-    ['private',       '🔒 Private',      'Invite-only. Hidden from search.'],
-    ['secret',        '🕵️ Secret',       'Max privacy. Ephemeral, invite-only.'],
+    ['public',        '🌍 Public',        'Anyone can find and post.'],
+    ['private',       '🔒 Private',       'Invite-only. Hidden from search.'],
+    ['secret',        '🕵️ Secret',        'Max privacy. Ephemeral + invite-only.'],
     ['l1_blockchain', '⛓ L1 Blockchain', 'Posts recorded on-chain.'],
-    ['l2_ephemeral',  '⚡ L2 Ephemeral', 'Auto-deleted in 5 minutes.'],
+    ['l2_ephemeral',  '⚡ L2 Ephemeral',  'Auto-deleted in 5 minutes.'],
   ];
 
   const go = async () => {
@@ -3714,59 +3859,62 @@ const NewGroup = ({ onBack, onDone, initKind }) => {
     setLd(true);
     try {
       const r = await post('/api/group.create', { name: name.trim(), type: finalType, visibility });
-      if (r.ok) { toast.success((kind==='channel'?'Channel':'Group') + ' "' + name.trim() + '" created!'); onDone(); }
-      else { toast.error(r.error || 'Failed', { duration: 4000 }); }
+      if (r.ok) {
+        toast.success((kind === 'channel' ? 'Channel' : 'Group') + ' "' + name.trim() + '" created!');
+        onDone();
+      } else { toast.error(r.error || 'Failed', { duration: 4000 }); }
     } catch(e) { toast.error(e.message || 'Error', { duration: 4000 }); }
     finally { setLd(false); }
   };
 
-  // Step 1 — choose Group or Channel
-  if (!kind) return (
-    <div className="h-full bg-[#060f0c] flex flex-col">
-      <Header title="Create" onBack={onBack} />
-      <div className="p-4 space-y-3">
-        <p className="text-gray-500 text-xs mb-4">What do you want to create?</p>
-        <button onClick={() => { setKind('channel'); setType('channel'); }}
-          className="w-full p-4 rounded-2xl border border-cyan-800/50 bg-cyan-900/10 text-left hover:bg-cyan-900/20 transition active:scale-[.98]">
-          <p className="text-cyan-300 text-base font-semibold">📢 Channel</p>
-          <p className="text-gray-400 text-xs mt-1">Broadcast to subscribers. Only you post. Has a comment chat for discussion.</p>
-        </button>
-        <button onClick={() => { setKind('group'); setType('public'); }}
-          className="w-full p-4 rounded-2xl border border-emerald-800/50 bg-emerald-900/10 text-left hover:bg-emerald-900/20 transition active:scale-[.98]">
-          <p className="text-emerald-300 text-base font-semibold">👥 Group</p>
-          <p className="text-gray-400 text-xs mt-1">Everyone can post. Public, private, secret, or on-chain.</p>
-        </button>
+  // Step 1 — pick kind
+  if (!kind) {
+    return (
+      <div className="h-full bg-[#060f0c] flex flex-col">
+        <Header title="Create" onBack={onBack} />
+        <div className="p-4 space-y-3">
+          <p className="text-gray-500 text-sm mb-4">What do you want to create?</p>
+          <button onClick={() => { setKind('channel'); setType('channel'); }}
+            className="w-full p-4 rounded-2xl border border-cyan-800/50 bg-cyan-900/10 text-left active:scale-[.98] transition">
+            <p className="text-cyan-300 text-base font-semibold">📢 Channel</p>
+            <p className="text-gray-400 text-xs mt-1">Broadcast to subscribers. Only you post. Comment chat included.</p>
+          </button>
+          <button onClick={() => { setKind('group'); setType('public'); }}
+            className="w-full p-4 rounded-2xl border border-emerald-800/50 bg-emerald-900/10 text-left active:scale-[.98] transition">
+            <p className="text-emerald-300 text-base font-semibold">👥 Group</p>
+            <p className="text-gray-400 text-xs mt-1">Everyone can post. Public, private, secret, or on-chain.</p>
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  // Step 2 — name + subtype
-  const [visibility, setVisibility] = useState('public');
+  // Step 2 — configure
   return (
     <div className="h-full bg-[#060f0c] flex flex-col">
-      <Header title={kind === 'channel' ? '📢 New Channel' : '👥 New Group'} onBack={() => setKind(null)} />
+      <Header
+        title={kind === 'channel' ? '📢 New Channel' : '👥 New Group'}
+        onBack={initKind ? onBack : () => setKind(null)}
+      />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div>
           <label className="text-gray-500 text-xs mb-1 block">Name</label>
           <Input value={name} onChange={setName} placeholder={kind === 'channel' ? 'Channel name' : 'Group name'} />
         </div>
-        {/* Visibility for both channels and groups */}
+
         <div>
           <label className="text-gray-500 text-xs mb-2 block">Visibility</label>
           <div className="flex gap-2">
-            <button onClick={() => setVisibility('public')}
-              className={`flex-1 p-3 rounded-xl border text-left transition ${visibility==='public'?'border-emerald-500 bg-emerald-600/10':'border-gray-800 bg-[#0a1a15]'}`}>
-              <p className="text-white text-sm font-medium">🌍 Public</p>
-              <p className="text-gray-500 text-[10px] mt-0.5">{kind==='channel'?'Discoverable in search':'Anyone can find and join'}</p>
-            </button>
-            <button onClick={() => setVisibility('secret')}
-              className={`flex-1 p-3 rounded-xl border text-left transition ${visibility==='secret'?'border-red-500 bg-red-600/10':'border-gray-800 bg-[#0a1a15]'}`}>
-              <p className="text-white text-sm font-medium">🔒 Secret</p>
-              <p className="text-gray-500 text-[10px] mt-0.5">Invite link only, not searchable</p>
-            </button>
+            {[['public','🌍 Public','Discoverable in search'],['secret','🔒 Secret','Invite link only']].map(([v,l,d]) => (
+              <button key={v} onClick={() => setVisibility(v)}
+                className={`flex-1 p-3 rounded-xl border text-left transition ${visibility===v ? (v==='secret'?'border-red-500 bg-red-600/10':'border-emerald-500 bg-emerald-600/10') : 'border-gray-800 bg-[#0a1a15]'}`}>
+                <p className="text-white text-sm font-medium">{l}</p>
+                <p className="text-gray-500 text-[10px] mt-0.5">{d}</p>
+              </button>
+            ))}
           </div>
         </div>
-        {/* Group subtype (not for channels) */}
+
         {kind === 'group' && (
           <div>
             <label className="text-gray-500 text-xs mb-2 block">Type</label>
@@ -3781,12 +3929,13 @@ const NewGroup = ({ onBack, onDone, initKind }) => {
             </div>
           </div>
         )}
+
         {kind === 'channel' && (
-          <div className="p-3 rounded-xl bg-cyan-900/10 border border-cyan-800/30 space-y-1">
-            <p className="text-cyan-400 text-xs">📢 Only you can post. Subscribers read and discuss in the linked comment chat.</p>
-            <p className="text-cyan-600 text-[10px]">You can set a @handle after creation in Settings.</p>
+          <div className="p-3 rounded-xl bg-cyan-900/10 border border-cyan-800/30">
+            <p className="text-cyan-400 text-xs">📢 A discussion chat is created automatically. Set a @handle in Settings after creation.</p>
           </div>
         )}
+
         <Btn onClick={go} color="emerald" full disabled={!name.trim()} loading={ld}>
           Create {kind === 'channel' ? 'Channel' : 'Group'}
         </Btn>
