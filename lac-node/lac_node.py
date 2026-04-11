@@ -2824,7 +2824,10 @@ def groups():
                 'created_at': group.get('created_at', 0),
                 'last_post_ts': last_post_ts,
                 'is_creator': current_addr == group.get('creator') if current_addr else False,
-                'is_member': current_addr in members if current_addr else False
+                'is_member': current_addr in members if current_addr else False,
+                'linked_chat_id': group.get('linked_chat_id'),
+                'description': group.get('description', ''),
+                'is_comment_chat': group.get('is_comment_chat', False),
             }
             groups_list.append(group_data)
         
@@ -2889,7 +2892,7 @@ def create_group():
     if not name:
         return jsonify({'error': 'Group name required'}), 400
     
-    valid_types = ['public', 'private', 'l1_blockchain', 'l2_ephemeral']
+    valid_types = ['public', 'private', 'l1_blockchain', 'l2_ephemeral', 'channel', 'secret']
     if group_type not in valid_types:
         group_type = 'public'
     
@@ -2901,23 +2904,43 @@ def create_group():
         
         # Generate group ID
         gid = f"group_{hashlib.sha256(f'{name}{time.time()}'.encode()).hexdigest()[:16]}"
+        description = data.get('description', '').strip()[:200]
         
-        S.groups[gid] = {
+        group_data = {
             'name': name,
             'type': group_type,
             'creator': from_addr,
             'created_at': int(time.time()),
-            'members': [from_addr],  # creator is first member
-            'posts': []
+            'members': [from_addr],
+            'posts': [],
+            'description': description,
         }
         
+        # For channels: auto-create a linked comment chat group
+        linked_chat_id = None
+        if group_type == 'channel':
+            linked_chat_id = f"group_{hashlib.sha256(f'{name}_comments{time.time()}'.encode()).hexdigest()[:16]}"
+            S.groups[linked_chat_id] = {
+                'name': f"{name} 💬 Comments",
+                'type': 'public',
+                'creator': from_addr,
+                'created_at': int(time.time()),
+                'members': [from_addr],
+                'posts': [],
+                'is_comment_chat': True,
+                'parent_channel_id': gid,
+            }
+            group_data['linked_chat_id'] = linked_chat_id
+        
+        S.groups[gid] = group_data
         S.save_groups()  # FAST
         
         return jsonify({
             'ok': True,
             'id': gid,
             'name': name,
-            'type': group_type
+            'type': group_type,
+            'linked_chat_id': linked_chat_id
         })
 
 @app.route('/api/group/posts', methods=['GET'])
@@ -3013,9 +3036,13 @@ def post_to_group():
         gtype = group.get('type', 'public')
         members = group.get('members', [])
         
-        # Private groups: must be member
-        if gtype == 'private' and from_addr not in members:
+        # Private/secret groups: must be member
+        if gtype in ('private', 'secret') and from_addr not in members:
             return jsonify({'error': 'Not a member of this private group'}), 403
+        
+        # Channels: only creator can post (others use comment chat)
+        if gtype == 'channel' and from_addr != group.get('creator'):
+            return jsonify({'error': 'Only channel owner can post. Use the comment chat.'}), 403
         
         # Auto-join public/L1/L2 groups
         if from_addr not in members:
@@ -3085,6 +3112,53 @@ def post_to_group():
             'ok': True,
             'post': post
         })
+
+@app.route('/api/group.post.delete', methods=['POST'])
+def delete_group_post():
+    """Delete own post from group"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json() or {}
+    gid = data.get('group_id', '').strip()
+    msg_key = data.get('msg_key', '').strip()
+    
+    if not gid or not msg_key:
+        return jsonify({'error': 'group_id and msg_key required'}), 400
+    
+    from_addr = get_address_from_seed(seed)
+    
+    with S.lock:
+        if gid not in S.groups:
+            return jsonify({'error': 'Group not found'}), 404
+        
+        group = S.groups[gid]
+        posts = group.get('posts', [])
+        
+        # Find and remove post
+        found = False
+        new_posts = []
+        for p in posts:
+            mk = make_msg_key(p)
+            if mk == msg_key:
+                # Only creator of post or group can delete
+                if p.get('from_address') != from_addr and group.get('creator') != from_addr:
+                    return jsonify({'error': 'Not your post'}), 403
+                found = True
+                # skip (delete)
+            else:
+                new_posts.append(p)
+        
+        if not found:
+            return jsonify({'error': 'Post not found'}), 404
+        
+        group['posts'] = new_posts
+        _cache_del('gp:' + gid)
+        _cache_del_prefix('groups:')
+        S.save_groups()
+        
+        return jsonify({'ok': True, 'deleted': msg_key})
 
 @app.route('/api/group.join', methods=['POST'])
 def join_group():
@@ -4731,6 +4805,54 @@ def username_resolve():
             'address': addr,
             'exists': addr in S.wallets
         })
+
+@app.route('/api/search', methods=['GET'])
+def search_all():
+    """Search groups/channels by name, and posts by text"""
+    seed = request.headers.get('X-Seed', '').strip()
+    q = request.args.get('q', '').strip().lower()
+    search_type = request.args.get('type', 'all')
+    
+    if not q or len(q) < 2:
+        return jsonify({'error': 'Query too short'}), 400
+    
+    current_addr = None
+    if validate_seed(seed):
+        current_addr = get_address_from_seed(seed)
+    
+    results = {'groups': [], 'posts': []}
+    
+    with S.lock:
+        for gid, group in S.groups.items():
+            gtype = group.get('type', 'public')
+            members = group.get('members', [])
+            if gtype in ('private', 'secret') and current_addr not in members:
+                continue
+            if group.get('is_comment_chat'):
+                continue
+            name = group.get('name', '')
+            if search_type in ('all', 'groups', 'channels') and q in name.lower():
+                results['groups'].append({
+                    'id': gid, 'name': name, 'type': gtype,
+                    'member_count': len(members),
+                    'post_count': len(group.get('posts', [])),
+                    'description': group.get('description', ''),
+                    'linked_chat_id': group.get('linked_chat_id'),
+                })
+            if search_type in ('all', 'posts'):
+                for p in group.get('posts', [])[-200:]:
+                    txt = (p.get('text') or p.get('message') or '').lower()
+                    if q in txt:
+                        results['posts'].append({
+                            'group_id': gid, 'group_name': name,
+                            'from': p.get('from', 'Anon'),
+                            'text': (p.get('text') or p.get('message', ''))[:200],
+                            'timestamp': p.get('timestamp', 0),
+                            'msg_key': p.get('msg_key', ''),
+                        })
+    results['posts'] = sorted(results['posts'], key=lambda x: -x['timestamp'])[:30]
+    results['total'] = len(results['groups']) + len(results['posts'])
+    return jsonify({'ok': True, **results})
 
 @app.route('/api/username/search', methods=['POST'])
 def username_search():

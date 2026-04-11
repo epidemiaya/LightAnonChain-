@@ -2061,6 +2061,7 @@ const LoginScreen = ({ onAuth }) => {
 const MainApp = ({ onLogout }) => {
   const { t } = useT();
   const [tab, setTab] = useState('wallet');
+  const [chatSec, setChatSec] = useState('groups'); // persist Messages/Groups tab
   const [profile, setProfile] = useState(null);
   const [sub, setSub] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -2138,7 +2139,7 @@ const MainApp = ({ onLogout }) => {
     const done = () => { back(); reload(); };
     const screens = {
       chat: <ChatView peer={sub.peer} onBack={back} profile={profile} />,
-      group: <GroupView group={sub.group} onBack={back} profile={profile} />,
+      group: <GroupView group={sub.group} onBack={back} onOpenGroup={g => setSub({type:'group',group:g})} profile={profile} />,
       newchat: <NewChat onBack={back} onGo={p => setSub({type:'chat',peer:p})} />,
       newgroup: <NewGroup onBack={back} onDone={done} />,
       send: <SendView onBack={back} profile={profile} onDone={done} />,
@@ -2226,7 +2227,7 @@ const MainApp = ({ onLogout }) => {
 
         {/* Main Content */}
         <div className="flex-1 overflow-hidden">
-          {tab === 'chats' && <ChatsTab profile={profile} onNav={setSub} onMenu={() => setMenuOpen(true)} />}
+          {tab === 'chats' && <ChatsTab profile={profile} onNav={setSub} onMenu={() => setMenuOpen(true)} sec={chatSec} onSecChange={setChatSec} />}
           {tab === 'wallet' && <WalletTab profile={profile} onNav={setSub} onRefresh={reload} onMenu={() => setMenuOpen(true)} setTab={setTab} />}
           {tab === 'explore' && <ExploreTab onNav={setSub} onMenu={() => setMenuOpen(true)} />}
           {tab === 'profile' && <ProfileTab profile={profile} onNav={setSub} onLogout={onLogout} onRefresh={reload} onMenu={() => setMenuOpen(true)} />}
@@ -2260,9 +2261,9 @@ const _cache = {};
 const cacheGet = (k) => _cache[k];
 const cacheSet = (k, v) => { _cache[k] = v; };
 
-const ChatsTab = ({ profile, onNav, onMenu }) => {
+const ChatsTab = ({ profile, onNav, onMenu, sec, onSecChange }) => {
   const { t } = useT();
-  const [sec, setSec] = useState('dm');
+  const setSec = onSecChange || (() => {});
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState('');
   const [msgs, setMsgs] = useState(() => cacheGet('inbox') || []);
@@ -2366,18 +2367,60 @@ const ChatsTab = ({ profile, onNav, onMenu }) => {
         ) : (
           loading ? <div className="space-y-0">{[1,2,3].map(i=><div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-900/50 animate-pulse"><div className="w-11 h-11 rounded-full bg-gray-800/60 shrink-0"/><div className="flex-1 space-y-2"><div className="h-3 bg-gray-800/60 rounded w-1/4"/><div className="h-2.5 bg-gray-800/40 rounded w-1/3"/></div></div>)}</div> :
           groups.length === 0 ? <Empty emoji="👥" text={t('noGroups')} sub={t('createGroup')} /> :
-          [...filteredGroups].sort((a,b) => (b.last_post_ts||b.created_at||0) - (a.last_post_ts||a.created_at||0)).map(g => {
-            const tb = {public:['emerald','🌍 Public'],private:['purple','🔒 Private'],l1_blockchain:['blue','⛓ L1 Chain'],l2_ephemeral:['amber','⚡ L2 Ephemeral']}[g.type]||['gray', g.type||'Group'];
-            return (
-            <ListItem key={g.id||g.name}
-              icon={<Users className="w-5 h-5 text-purple-400" />}
-              title={g.name}
-              badge={<Badge color={tb[0]}>{tb[1]}</Badge>}
-              sub={`${g.member_count||0} members · ${g.post_count||0} posts`}
-              onClick={() => onNav({type:'group',group:g})} />
-          );})
+          <GroupsSection groups={filteredGroups} onNav={onNav} profile={profile} />
         )}
       </div>
+    </div>
+  );
+};
+
+const GROUP_TYPE_META = {
+  public:       ['emerald', '🌍 Public'],
+  private:      ['purple',  '🔒 Private'],
+  l1_blockchain:['blue',    '⛓ L1 Chain'],
+  l2_ephemeral: ['amber',   '⚡ L2 Ephemeral'],
+  channel:      ['cyan',    '📢 Channel'],
+  secret:       ['red',     '🕵️ Secret'],
+};
+
+const GroupsSection = ({ groups, onNav, profile }) => {
+  const [filter, setFilter] = useState('all');
+  const filters = [
+    ['all', 'All'],
+    ['channel', '📢 Channels'],
+    ['public', '👥 Groups'],
+    ['secret', '🕵️ Secret'],
+    ['l2_ephemeral', '⚡ L2'],
+  ];
+  const visible = [...groups]
+    .filter(g => !g.is_comment_chat)
+    .filter(g => filter === 'all' || g.type === filter)
+    .sort((a,b) => (b.last_post_ts||b.created_at||0) - (a.last_post_ts||a.created_at||0));
+  return (
+    <div>
+      <div className="flex gap-1.5 px-3 py-2 overflow-x-auto scrollbar-none">
+        {filters.map(([id,label]) => (
+          <button key={id} onClick={() => setFilter(id)}
+            className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-medium border transition-all ${filter===id ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#0a1a15] border-emerald-900/30 text-gray-400'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {visible.length === 0
+        ? <Empty emoji="👥" text="Nothing here" sub="Try a different filter" />
+        : visible.map(g => {
+            const [color, label] = GROUP_TYPE_META[g.type] || ['gray', g.type || 'Group'];
+            const icon = g.type === 'channel' ? '📢' : g.type === 'secret' ? '🕵️' : '👥';
+            return (
+              <ListItem key={g.id||g.name}
+                icon={<span className="text-xl">{icon}</span>}
+                title={g.name}
+                badge={<Badge color={color}>{label}</Badge>}
+                sub={g.description || `${g.member_count||0} members · ${g.post_count||0} posts`}
+                onClick={() => onNav({type:'group', group:g})} />
+            );
+          })
+      }
     </div>
   );
 };
@@ -2998,18 +3041,22 @@ const ChatView = ({ peer, onBack, profile }) => {
 };
 
 // ━━━ GROUP VIEW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const GroupView = ({ group, onBack, profile }) => {
+const GroupView = ({ group, onBack, onOpenGroup, profile }) => {
   const [posts, setPosts] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState(null);
   const [reactTo, setReactTo] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const { t } = useT();
   const end = useRef(null);
   const isEph = group.type==='l2_ephemeral' || group.type==='ephemeral';
   const isL1 = group.type==='l1_blockchain';
   const isPrivate = group.type==='private';
-  const typeBadge = isEph ? ['amber','⚡ L2 Ephemeral'] : isL1 ? ['blue','⛓ L1 Chain'] : isPrivate ? ['purple','🔒 Private'] : ['emerald','🌍 Public'];
+  const isChannel = group.type==='channel';
+  const isSecret = group.type==='secret';
+  const typeBadge = isChannel ? ['cyan','📢 Channel'] : isSecret ? ['red','🕵️ Secret'] : isEph ? ['amber','⚡ L2 Ephemeral'] : isL1 ? ['blue','⛓ L1 Chain'] : isPrivate ? ['purple','🔒 Private'] : ['emerald','🌍 Public'];
+  const canPost = !isChannel || group.is_creator;
   const gid = group.id || group.name;
   const localPosts = useRef([]);
   const lastJson = useRef('');
@@ -3112,6 +3159,18 @@ const GroupView = ({ group, onBack, profile }) => {
     }
   };
 
+  const deletePost = async (p) => {
+    const mk = postKey(p);
+    if (!window.confirm('Delete this message?')) return;
+    try {
+      await post('/api/group.post.delete', { group_id: gid, msg_key: mk });
+      localPosts.current = localPosts.current.filter(x => postKey(x) !== mk);
+      setPosts([...localPosts.current]);
+      lastJson.current = '';
+      toast.success('Deleted');
+    } catch(e) { toast.error(e.message); }
+  };
+
   const doReact = async (p, emoji) => {
     setReactTo(null);
     const mk = postKey(p);
@@ -3134,6 +3193,10 @@ const GroupView = ({ group, onBack, profile }) => {
     <div className="h-full bg-[#060f0c] flex flex-col">
       <Header title={group.name} onBack={onBack} right={
         <div className="flex items-center gap-2">
+          {isChannel && group.linked_chat_id && (
+            <button onClick={() => { if(onOpenGroup) onOpenGroup({ id: group.linked_chat_id, name: group.name + ' 💬 Comments', type: 'public', linked_to_channel: gid }); }}
+              className="px-2 py-1 rounded-lg bg-cyan-900/40 border border-cyan-700/40 text-cyan-400 text-[11px] font-medium">💬 Comments</button>
+          )}
           <button onClick={() => { cp(gid); toast.success(t('groupCopied')); }} className="p-1.5 rounded-lg bg-gray-800 text-gray-400 active:bg-gray-700"><Copy className="w-3.5 h-3.5" /></button>
           <Badge color={typeBadge[0]}>{typeBadge[1]}</Badge>
         </div>} />
@@ -3141,6 +3204,8 @@ const GroupView = ({ group, onBack, profile }) => {
         {isEph && <div className="text-center py-1"><span className="text-amber-400/60 text-[10px] bg-amber-600/10 px-3 py-1 rounded-full">⚡ {t('ephAutoDelete')}</span></div>}
         {isL1 && <div className="text-center py-1"><span className="text-blue-400/60 text-[10px] bg-blue-600/10 px-3 py-1 rounded-full">⛓ {t('onChainZH')}</span></div>}
         {isPrivate && <div className="text-center py-1"><span className="text-purple-400/60 text-[10px] bg-purple-600/10 px-3 py-1 rounded-full">🔒 {t('privateGroup')}</span></div>}
+        {isChannel && <div className="text-center py-1"><span className="text-cyan-400/60 text-[10px] bg-cyan-600/10 px-3 py-1 rounded-full">📢 Channel · {canPost ? 'You are the owner' : 'Read-only · use 💬 Comments to discuss'}</span></div>}
+        {isSecret && <div className="text-center py-1"><span className="text-red-400/60 text-[10px] bg-red-600/10 px-3 py-1 rounded-full">🕵️ Secret group · invite only</span></div>}
         {posts.length===0 && <Empty emoji="💬" text={t('noMsgYet')} sub={t('writeFirst')} />}
         {posts.map((p,i) => { const mine=p.from_address===profile?.address;
           const rxn = p.reactions || {};
@@ -3148,8 +3213,9 @@ const GroupView = ({ group, onBack, profile }) => {
           const stableKey = postKey(p) + (p._opt?'_o':'');
           return (
           <div key={stableKey} className={`flex flex-col ${mine?'items-end':'items-start'}`}>
-            <div onClick={() => setReplyTo({text:p.text||p.message, from:p.from||'Anon'})}
-              onContextMenu={(e) => { e.preventDefault(); setReactTo(reactTo===i?null:i); }}
+            <div
+              onClick={() => { setDeleteTarget(null); setReplyTo({text:p.text||p.message, from:p.from||'Anon'}); }}
+              onContextMenu={(e) => { e.preventDefault(); setReactTo(reactTo===i?null:i); if(mine) setDeleteTarget(deleteTarget===i?null:i); }}
               className={`max-w-[78%] px-3.5 py-2 rounded-2xl cursor-pointer active:opacity-80 ${mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
               {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{p.from||'Anon'}</p>}
               {p.reply_to && <div className={`text-[11px] px-2 py-1 rounded-lg mb-1.5 border-l-2 ${mine?'bg-emerald-800/30 border-emerald-400/40':'bg-gray-800/50 border-purple-400/40'}`}><p className={`font-medium text-[10px] ${mine?'text-emerald-300/70':'text-purple-400/70'}`}>{p.reply_to.from}</p><p className={`truncate ${mine?'text-emerald-200/50':'text-gray-400'}`}>{p.reply_to.text}</p></div>}
@@ -3171,6 +3237,18 @@ const GroupView = ({ group, onBack, profile }) => {
             {reactTo === i && <div className="flex gap-1 mt-1 px-1 py-1 rounded-xl bg-gray-800/90 border border-gray-700/40 shadow-lg">
               {['👍','❤️','🔥','😂','😮','👎'].map(em => <button key={em} onClick={() => doReact(p,em)} className="text-lg px-1 hover:scale-125 transition-transform active:scale-90">{em}</button>)}
             </div>}
+            {deleteTarget === i && mine && (
+              <div className="flex gap-1 mt-1">
+                <button onClick={() => { setDeleteTarget(null); deletePost(p); }}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-red-900/80 border border-red-700/40 text-red-300 text-[11px] active:bg-red-800">
+                  🗑 Delete
+                </button>
+                <button onClick={() => setDeleteTarget(null)}
+                  className="px-2 py-1 rounded-lg bg-gray-800/80 border border-gray-700/40 text-gray-400 text-[11px]">
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
         ); })}
         <div ref={end} />
@@ -3203,6 +3281,7 @@ const GroupView = ({ group, onBack, profile }) => {
           }} className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg">⏹ Send</button>
         </div>
       )}
+      {canPost ? (
       <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
         <div className="flex gap-2 items-end">
           <label className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-gray-300 cursor-pointer shrink-0">
@@ -3227,6 +3306,11 @@ const GroupView = ({ group, onBack, profile }) => {
           <button onClick={send} disabled={sending||!text.trim()} className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shrink-0 disabled:opacity-30"><Send className="w-4 h-4 text-white ml-0.5" /></button>
         </div>
       </div>
+      ) : (
+        <div className="p-3 bg-[#0a1510] border-t border-emerald-900/20 text-center">
+          <span className="text-gray-600 text-xs">📢 This is a channel — use 💬 Comments to reply</span>
+        </div>
+      )}
     </div>
   );
 };
@@ -3255,9 +3339,11 @@ const NewGroup = ({ onBack, onDone }) => {
     finally { setLd(false); }
   };
   const types = [
-    ['public','🌍 Public','Anyone can see and write. Data on server.'],
+    ['public','🌍 Public','Anyone can see and write.'],
+    ['channel','📢 Channel','Broadcast only. Owner posts, everyone reads. Has a comment chat.'],
     ['private','🔒 Private','By invite only. Encrypted.'],
-    ['l1_blockchain','⛓ L1 Blockchain','Messages in blocks. Zero-History cleans by tiers.'],
+    ['secret','🕵️ Secret','Invite-only, ephemeral, max privacy.'],
+    ['l1_blockchain','⛓ L1 Blockchain','Messages recorded in blockchain.'],
     ['l2_ephemeral','⚡ L2 Ephemeral','5 minutes and gone.'],
   ];
   return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="Create Group" onBack={onBack} />
