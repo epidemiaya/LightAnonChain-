@@ -2901,6 +2901,7 @@ const ChatView = ({ peer, onBack, profile }) => {
   const [mode, setMode] = useState('regular'); // regular | ephemeral | burn
   const [replyTo, setReplyTo] = useState(null); // {text, from} for reply
   const [reactTo, setReactTo] = useState(null); // msg index for emoji picker
+  const [deleteTarget, setDeleteTarget] = useState(null); // msg index for delete
   const [peerOnline, setPeerOnline] = useState(false);
   const [imgPreview, setImgPreview] = useState(null); // {file, url} for image preview
   const [uploading, setUploading] = useState(false);
@@ -3095,6 +3096,17 @@ const ChatView = ({ peer, onBack, profile }) => {
           const burned = m.burned;
           const rxn = m.reactions || {};
           const hasRxn = Object.keys(rxn).length > 0;
+          const deleteMsg = async () => {
+              if (!window.confirm('Delete this message?')) return;
+              const mk = m.msg_key || m.id || '';
+              if (!mk) return;
+              try {
+                await post('/api/message.delete', {msg_key: mk, peer: resolvedAddr.current});
+                setMsgs(prev => prev.filter(x => (x.msg_key||x.id) !== mk));
+                setDeleteTarget(null);
+                toast.success('Deleted');
+              } catch(e) { toast.error(e.message); }
+            };
           const doReact = async (emoji) => {
             setReactTo(null);
             // Optimistic update
@@ -3112,8 +3124,9 @@ const ChatView = ({ peer, onBack, profile }) => {
           };
           return (
             <div key={i} className={`flex flex-col ${mine?'items-end':'items-start'}`}>
-              <div onClick={() => { if(!burned) setReplyTo({text:m.text||m.message,from:m.from||sAddr(m.from_address)}); }}
-                onContextMenu={(e) => { e.preventDefault(); if(!burned) setReactTo(reactTo===i?null:i); }}
+              <div
+                onClick={() => { setDeleteTarget(null); if(!burned) setReplyTo({text:m.text||m.message,from:m.from||sAddr(m.from_address)}); }}
+                onContextMenu={(e) => { e.preventDefault(); if(!burned) { setReactTo(reactTo===i?null:i); if(mine) setDeleteTarget(deleteTarget===i?null:i); } }}
                 className={`max-w-[78%] px-3.5 py-2 rounded-2xl cursor-pointer active:opacity-80 ${burned?'bg-gray-900/50 border border-gray-800':mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
                 {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{m.from||sAddr(m.from_address)}</p>}
                 {m.reply_to && <div className={`text-[11px] px-2 py-1 rounded-lg mb-1.5 border-l-2 ${mine?'bg-emerald-800/30 border-emerald-400/40':'bg-gray-800/50 border-purple-400/40'}`}><p className={`font-medium text-[10px] ${mine?'text-emerald-300/70':'text-purple-400/70'}`}>{m.reply_to.from}</p><p className={`truncate ${mine?'text-emerald-200/50':'text-gray-400'}`}>{m.reply_to.text}</p></div>}
@@ -3144,6 +3157,19 @@ const ChatView = ({ peer, onBack, profile }) => {
               {reactTo === i && <div className="flex gap-1 mt-1 px-1 py-1 rounded-xl bg-gray-800/90 border border-gray-700/40 shadow-lg">
                 {['👍','❤️','🔥','😂','😮','👎'].map(em => <button key={em} onClick={() => doReact(em)} className="text-lg px-1 hover:scale-125 transition-transform active:scale-90">{em}</button>)}
               </div>}
+              {/* Delete popup */}
+              {deleteTarget === i && mine && !burned && (
+                <div className="flex gap-1 mt-1">
+                  <button onClick={e => { e.stopPropagation(); deleteMsg(); }}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-red-900/80 border border-red-700/40 text-red-300 text-[11px] active:bg-red-800">
+                    🗑 Delete
+                  </button>
+                  <button onClick={e => { e.stopPropagation(); setDeleteTarget(null); }}
+                    className="px-2 py-1 rounded-lg bg-gray-800/80 border border-gray-700/40 text-gray-400 text-[11px]">
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
@@ -3502,25 +3528,53 @@ const GroupView = ({ group, onBack, onOpenGroup, onSettings, onOpenComments, pro
 // ━━━ CHANNEL POST COMMENTS ━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Simple working approach: linked chat filtered/shown per-post
 const CommentsView = ({ channelId, chatId, postKey, postText, postFrom, postTs, onBack, profile }) => {
-  const [allPosts, setAllPosts] = useState([]);
-  const [text, setText] = useState('');
+  const localPosts = useRef([]);
+  const lastJson   = useRef('');
+  const sentKeys   = useRef(new Set());
+  const [posts, setPosts]     = useState([]);
+  const [text, setText]       = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const end = useRef(null);
 
-  // Load all posts from linked chat
+  // same stable key as GroupView
+  const postKey_ = p => {
+    const addr = p.from_address || '';
+    const txt  = (p.text||p.message||'').slice(0,40);
+    const ts   = Math.floor((p.timestamp||0)/3)*3;
+    return p.msg_key || `${addr}|${txt}|${ts}`;
+  };
+
+  const mergeServer = (serverPosts) => {
+    const local = localPosts.current;
+    const serverKeys = new Set(serverPosts.map(postKey_));
+    const surviving  = local.filter(p => p._opt && !serverKeys.has(postKey_(p)));
+    const seen = new Set();
+    const deduped = serverPosts.filter(p => {
+      const k = postKey_(p); if (seen.has(k)) return false; seen.add(k); return true;
+    });
+    const merged = [...deduped, ...surviving].sort((a,b) => (a.timestamp||0)-(b.timestamp||0));
+    const json = JSON.stringify(merged.map(p => postKey_(p)+(p._opt?'_o':'')));
+    if (json !== lastJson.current) {
+      lastJson.current = json;
+      localPosts.current = merged;
+      setPosts(merged);
+    }
+  };
+
   const load = async () => {
-    if (!chatId) return;
+    if (!chatId) { setLoading(false); return; }
     try {
-      const r = await get('/api/group/posts?group_id=' + encodeURIComponent(chatId));
-      setAllPosts(r.posts || []);
+      const r = await get('/api/group/posts?group_id='+encodeURIComponent(chatId));
+      mergeServer(r.posts||[]);
     } catch {}
     finally { setLoading(false); }
   };
 
-  useRealtimeSocket((msg) => {
+  useRealtimeSocket(msg => {
     if (msg.event === 'new_group_post' && msg.data?.group_id === chatId) load();
-    if (msg.event === 'new_comment' && msg.data?.channel_id === channelId) load();
+    if (msg.event === 'new_comment'    && msg.data?.channel_id === channelId) load();
   });
 
   useEffect(() => {
@@ -3529,53 +3583,66 @@ const CommentsView = ({ channelId, chatId, postKey, postText, postFrom, postTs, 
     return () => clearInterval(i);
   }, [chatId]);
 
-  useEffect(() => { end.current?.scrollIntoView({ behavior: 'instant', block: 'end' }); }, [allPosts]);
-
-  // Filter: show only comments for this post (by reply_to_post_key OR all if postKey is null)
-  const comments = postKey
-    ? allPosts.filter(p => p.reply_to_post_key === postKey || !p.reply_to_post_key) // fallback: show all if no key
-    : allPosts;
+  useEffect(() => { end.current?.scrollIntoView({behavior:'instant',block:'end'}); }, [posts]);
 
   const send = async () => {
     if (!text.trim() || sending) return;
     const txt = text.trim();
-    setText('');
-    setSending(true);
-    // Optimistic
+    // dedup key
+    const sendKey = txt + '|' + ~~(Date.now()/5000);
+    if (sentKeys.current.has(sendKey)) return;
+    sentKeys.current.add(sendKey);
+    setTimeout(() => sentKeys.current.delete(sendKey), 10000);
+
+    setText(''); setSending(true);
+    const ts  = ~~(Date.now()/1000);
     const opt = {
-      from: profile?.username || 'You', from_address: profile?.address,
-      text: txt, timestamp: ~~(Date.now()/1000), _opt: true,
+      from: profile?.username||'You', from_address: profile?.address,
+      text: txt, message: txt, timestamp: ts, _opt: true,
+      reply_to: postKey ? {text: postText?.slice(0,80), from: postFrom} : null,
       reply_to_post_key: postKey,
     };
-    setAllPosts(prev => [...prev, opt]);
+    localPosts.current = [...localPosts.current, opt];
+    setPosts([...localPosts.current]);
+    lastJson.current = '';
     try {
-      // Post to linked chat with reply_to_post_key
       await post('/api/group.post', {
-        group_id: chatId,
-        message: txt,
-        reply_to: postKey ? { text: postText?.slice(0, 80), from: postFrom } : null,
+        group_id: chatId, message: txt,
+        reply_to: postKey ? {text: postText?.slice(0,80), from: postFrom} : null,
         reply_to_post_key: postKey,
       });
-      load();
     } catch(e) {
       toast.error(e.message);
-      setAllPosts(prev => prev.filter(p => p !== opt));
+      localPosts.current = localPosts.current.filter(p => p !== opt);
+      setPosts([...localPosts.current]);
     }
     finally { setSending(false); }
+  };
+
+  const deletePost = async (p) => {
+    const mk = postKey_(p);
+    if (!window.confirm('Delete this comment?')) return;
+    try {
+      await post('/api/group.post.delete', {group_id: chatId, msg_key: mk});
+      localPosts.current = localPosts.current.filter(x => postKey_(x) !== mk);
+      setPosts([...localPosts.current]);
+      lastJson.current = '';
+      toast.success('Deleted');
+    } catch(e) { toast.error(e.message); }
   };
 
   return (
     <div className="h-full bg-[#060f0c] flex flex-col">
       <Header title="💬 Comments" onBack={onBack} />
 
-      {/* Original post preview */}
       {postText && (
         <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl bg-[#0a1f18] border border-emerald-900/30">
-          <p className="text-purple-400 text-[11px] font-medium mb-0.5">{postFrom || 'Channel post'}</p>
+          <p className="text-purple-400 text-[11px] font-medium mb-0.5">{postFrom||'Channel post'}</p>
           {(() => {
-            const imgM = postText.match(/\[img:(\/api\/media\/[^\]]+)\]/);
+            if (!postText) return null;
+            const imgM   = postText.match(/\[img:(\/api\/media\/[^\]]+)\]/);
             const voiceM = postText.match(/\[voice:(\/api\/media\/[^\]]+)\]/);
-            if (imgM) return <p className="text-gray-400 text-sm">🖼 Image</p>;
+            if (imgM)   return <p className="text-gray-400 text-sm">🖼 Image</p>;
             if (voiceM) return <p className="text-gray-400 text-sm">🎤 Voice message</p>;
             return <p className="text-gray-300 text-sm line-clamp-3">{postText}</p>;
           })()}
@@ -3583,30 +3650,42 @@ const CommentsView = ({ channelId, chatId, postKey, postText, postFrom, postTs, 
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 mt-2" style={{WebkitOverflowScrolling:'touch'}}>
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 mt-2" style={{WebkitOverflowScrolling:'touch'}} onClick={() => setDeleteTarget(null)}>
         {loading && <SkeletonList n={3} />}
-        {!loading && comments.length === 0 && (
-          <Empty emoji="💬" text="No comments yet" sub="Be the first to comment" />
-        )}
-        {comments.map((c, i) => {
-          const mine = c.from_address === profile?.address;
-          const txt = c.text || c.message || '';
-          // Handle destroyed media
+        {!loading && posts.length === 0 && <Empty emoji="💬" text="No comments yet" sub="Be the first to comment" />}
+        {posts.map((c, i) => {
+          const mine        = c.from_address === profile?.address;
+          const txt         = c.text||c.message||'';
           const isDestroyed = txt.startsWith('[destroyed:');
-          const imgM = !isDestroyed && txt.match(/\[img:(\/api\/media\/[^\]]+)\]/);
-          const voiceM = !isDestroyed && txt.match(/\[voice:(\/api\/media\/[^\]]+)\]/);
+          const imgM        = !isDestroyed && txt.match(/\[img:(\/api\/media\/[^\]]+)\]/);
+          const voiceM      = !isDestroyed && txt.match(/\[voice:(\/api\/media\/[^\]]+)\]/);
+          const stableKey   = postKey_(c) + (c._opt?'_o':'');
           return (
-            <div key={i} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
-              <div className={`max-w-[78%] px-3 py-2 rounded-2xl ${mine ? 'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm' : 'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
-                {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{c.from || 'Anon'}</p>}
+            <div key={stableKey} className={`flex flex-col ${mine?'items-end':'items-start'}`}>
+              <div
+                onContextMenu={e => { e.preventDefault(); if(mine && !c._opt) setDeleteTarget(deleteTarget===i?null:i); }}
+                className={`max-w-[78%] px-3 py-2 rounded-2xl cursor-pointer active:opacity-80 ${mine?'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-br-sm':'bg-[#0f2a22] text-gray-100 rounded-bl-sm border border-emerald-900/20'}`}>
+                {!mine && <p className="text-purple-400 text-[11px] font-medium mb-0.5">{c.from||'Anon'}</p>}
                 {isDestroyed
                   ? <p className="text-gray-500 text-sm italic">📷 Photo destroyed</p>
-                  : imgM ? <MsgImage url={imgM[1]} />
+                  : imgM   ? <MsgImage url={imgM[1]} />
                   : voiceM ? <VoicePlayer url={voiceM[1]} />
                   : <p className="text-[14px] leading-snug break-words" style={{overflowWrap:'anywhere'}}>{txt}</p>
                 }
-                <p className={`text-[10px] mt-0.5 ${mine ? 'text-emerald-300/50' : 'text-gray-600'}`}>{ago(c.timestamp)}</p>
+                <p className={`text-[10px] mt-0.5 ${mine?'text-emerald-300/50':'text-gray-600'}`}>{ago(c.timestamp)}{c._opt?' ⏳':''}</p>
               </div>
+              {deleteTarget === i && mine && (
+                <div className="flex gap-1 mt-1">
+                  <button onClick={e => { e.stopPropagation(); deletePost(c); setDeleteTarget(null); }}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-red-900/80 border border-red-700/40 text-red-300 text-[11px]">
+                    🗑 Delete
+                  </button>
+                  <button onClick={e => { e.stopPropagation(); setDeleteTarget(null); }}
+                    className="px-2 py-1 rounded-lg bg-gray-800/80 border border-gray-700/40 text-gray-400 text-[11px]">
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
@@ -3616,10 +3695,10 @@ const CommentsView = ({ channelId, chatId, postKey, postText, postFrom, postTs, 
       <div className="p-2.5 bg-[#0a1510] border-t border-emerald-900/20">
         <div className="flex gap-2 items-end">
           <input value={text} onChange={e => setText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+            onKeyDown={e => e.key==='Enter' && !e.shiftKey && send()}
             className="flex-1 bg-[#0a1a15] text-white px-4 py-2.5 rounded-2xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600"
             placeholder="Write a comment…" />
-          <button onClick={send} disabled={sending || !text.trim()}
+          <button onClick={send} disabled={sending||!text.trim()}
             className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center shrink-0 disabled:opacity-30">
             <Send className="w-4 h-4 text-white ml-0.5" />
           </button>
@@ -3628,7 +3707,6 @@ const CommentsView = ({ channelId, chatId, postKey, postText, postFrom, postTs, 
     </div>
   );
 };
-
 
 // ━━━ GROUP / CHANNEL SETTINGS ━━━━━━━━━━━━━━━━━━━━━━━━
 const GroupSettingsView = ({ group, onBack, profile, onRefresh }) => {

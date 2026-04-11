@@ -3085,7 +3085,6 @@ def post_to_group():
     gid = data.get('group_id', '').strip() or data.get('gid', '').strip()
     text = data.get('message', '').strip() or data.get('text', '').strip()
     reply_to = data.get('reply_to', None)  # {text, from}
-    reply_to_post_key = data.get('reply_to_post_key', None)  # for channel comments
     
     media_url = data.get('media_url', '').strip()  # optional media
     if not gid or (not text and not media_url):
@@ -3199,6 +3198,45 @@ def post_to_group():
             'ok': True,
             'post': post
         })
+
+@app.route('/api/message.delete', methods=['POST'])
+def delete_message():
+    """Delete own DM message"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    msg_key = data.get('msg_key', '').strip()
+    if not msg_key:
+        return jsonify({'error': 'msg_key required'}), 400
+
+    from_addr = get_address_from_seed(seed)
+
+    with S.lock:
+        deleted = False
+        for store in (S.ephemeral_msgs, S.persistent_msgs):
+            new_store = []
+            for m in store:
+                mk = m.get('msg_key') or m.get('id') or ''
+                if mk == msg_key:
+                    if m.get('from_address') != from_addr:
+                        return jsonify({'error': 'Not your message'}), 403
+                    deleted = True  # skip = delete
+                else:
+                    new_store.append(m)
+            if deleted:
+                if store is S.ephemeral_msgs:
+                    S.ephemeral_msgs = new_store
+                else:
+                    S.persistent_msgs = new_store
+                break
+
+        if not deleted:
+            return jsonify({'error': 'Message not found'}), 404
+
+        S.save()
+        return jsonify({'ok': True})
 
 @app.route('/api/group.post.delete', methods=['POST'])
 def delete_group_post():
