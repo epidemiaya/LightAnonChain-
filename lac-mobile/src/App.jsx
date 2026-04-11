@@ -3347,7 +3347,14 @@ const GroupView = ({ group, onBack, onOpenGroup, onSettings, onOpenComments, pro
     lastJson.current = '';
 
     try {
-      await post('/api/group.post',{group_id:gid,message:txt,reply_to:reply});
+      const res = await post('/api/group.post',{group_id:gid,message:txt,reply_to:reply});
+      if (res?.post?.msg_key) {
+        localPosts.current = localPosts.current.map(p =>
+          p === opt ? {...opt, msg_key: res.post.msg_key, _opt: false} : p
+        );
+        setPosts([...localPosts.current]);
+        lastJson.current = '';
+      }
     } catch(e) {
       toast.error(e.message);
       localPosts.current = localPosts.current.filter(p => p !== opt);
@@ -3606,11 +3613,19 @@ const CommentsView = ({ channelId, chatId, postKey, postText, postFrom, postTs, 
     setPosts([...localPosts.current]);
     lastJson.current = '';
     try {
-      await post('/api/group.post', {
+      const res = await post('/api/group.post', {
         group_id: chatId, message: txt,
         reply_to: postKey ? {text: postText?.slice(0,80), from: postFrom} : null,
         reply_to_post_key: postKey,
       });
+      // Update optimistic msg with real msg_key from server — prevents duplicate on next load
+      if (res?.post?.msg_key) {
+        localPosts.current = localPosts.current.map(p =>
+          p === opt ? {...opt, msg_key: res.post.msg_key, _opt: false} : p
+        );
+        setPosts([...localPosts.current]);
+        lastJson.current = '';
+      }
     } catch(e) {
       toast.error(e.message);
       localPosts.current = localPosts.current.filter(p => p !== opt);
