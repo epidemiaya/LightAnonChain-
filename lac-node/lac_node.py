@@ -4183,7 +4183,11 @@ def upgrade_level():
         wallet['balance'] -= cost
         wallet['level'] = current_level + 1
         S.counters['burned_levels'] += cost
-        
+
+        # Check referral quests after level-up (non-blocking)
+        try: check_and_claim_quests(addr)
+        except Exception: pass
+
         S.save()
         
         return jsonify({
@@ -6783,29 +6787,97 @@ def stash_info():
 
 
 # ==================== REFERRAL SYSTEM ====================
-def get_referral_tier(addr):
-    """Determine referral tier"""
-    ref = S.referral_map.get(addr, {})
-    code = ref.get('invite_code')
-    if not code:
-        return 'none', 0
-    used = len(S.referrals.get(code, {}).get('used_by', []))
-    boost = ref.get('boost_burned', 0)
-    
-    # Tier calculation
-    wallet = S.wallets.get(addr, {})
-    wallet_index = list(S.wallets.keys()).index(addr) if addr in S.wallets else 9999
-    
-    if wallet_index < 100:
-        tier = 'genesis'
-    elif wallet_index < 1000:
-        tier = 'early'
-    elif used >= 10 or boost >= 10000:
-        tier = 'vip'
+def get_referral_phase():
+    """Phase based on total wallet count"""
+    total = len(S.wallets)
+    if total < 200_000:
+        return 1  # quest system
+    elif total < 500_000:
+        return 2  # flat 30+30
     else:
-        tier = 'growth'
-    
-    return tier, used
+        return 3  # only referral gets 30
+
+# Quest definitions: (id, threshold_l1, threshold_l2, threshold_l3, reward, label)
+REFERRAL_QUESTS = [
+    {'id': 'q1', 'need_l1': 3,    'need_l2': 0, 'need_l3': 0, 'reward': 200,    'label': '3 refs → Level 1'},
+    {'id': 'q2', 'need_l1': 13,   'need_l2': 0, 'need_l3': 0, 'reward': 500,    'label': '13 refs → Level 1'},
+    {'id': 'q3', 'need_l1': 63,   'need_l2': 0, 'need_l3': 0, 'reward': 5000,   'label': '63 refs → Level 1'},
+    {'id': 'q4', 'need_l1': 0,    'need_l2': 10,'need_l3': 0, 'reward': 10000,  'label': '10 refs → Level 2'},
+    {'id': 'q5', 'need_l1': 263,  'need_l2': 0, 'need_l3': 0, 'reward': 20000,  'label': '263 refs → Level 1'},
+    {'id': 'q6', 'need_l1': 1263, 'need_l2': 0, 'need_l3': 0, 'reward': 100000, 'label': '1263 refs → Level 1'},
+    {'id': 'q7', 'need_l1': 0,    'need_l2': 0, 'need_l3': 500,'reward': 500000,'label': '500 refs → Level 3'},
+]
+
+def _ref_anon_id(addr):
+    """Anonymous ID for on-chain records"""
+    return hashlib.sha256(addr.encode()).hexdigest()[:16]
+
+def _get_ref_counts(code):
+    """Count referrals by level for a given invite code"""
+    referral = S.referrals.get(code, {})
+    used_by = referral.get('used_by', [])
+    l1 = l2 = l3 = 0
+    for addr in used_by:
+        lvl = S.wallets.get(addr, {}).get('level', 0)
+        if lvl >= 1: l1 += 1
+        if lvl >= 2: l2 += 1
+        if lvl >= 3: l3 += 1
+    return l1, l2, l3
+
+def check_and_claim_quests(addr):
+    """Check quest completion and pay out. Called after level-up. Returns list of newly claimed quests."""
+    phase = get_referral_phase()
+    if phase != 1:
+        return []
+
+    ref_data = S.referral_map.get(addr, {})
+    code = ref_data.get('invite_code')
+    if not code or code not in S.referrals:
+        return []
+
+    wallet = S.wallets.get(addr)
+    if not wallet:
+        return []
+
+    referral = S.referrals[code]
+    claimed = set(referral.get('quests_claimed', []))
+    l1, l2, l3 = _get_ref_counts(code)
+
+    newly_claimed = []
+    for q in REFERRAL_QUESTS:
+        qid = q['id']
+        if qid in claimed:
+            continue
+        meets = True
+        if q['need_l1'] > 0 and l1 < q['need_l1']:
+            meets = False
+        if q['need_l2'] > 0 and l2 < q['need_l2']:
+            meets = False
+        if q['need_l3'] > 0 and l3 < q['need_l3']:
+            meets = False
+        if meets:
+            # Claim reward
+            wallet['balance'] = wallet.get('balance', 0) + q['reward']
+            claimed.add(qid)
+            newly_claimed.append(q)
+            # On-chain record — fully anonymous
+            anon_id = _ref_anon_id(addr)
+            S.mempool.append({
+                'type': 'referral_quest',
+                'from': 'referral_system',
+                'to': anon_id,           # anonymous hash, not real addr
+                'amount': q['reward'],
+                'quest_id': qid,
+                'quest_label': q['label'],
+                'timestamp': int(time.time()),
+            })
+            print(f"🎯 Quest {qid} claimed by {addr[:8]}… +{q['reward']} LAC")
+
+    if newly_claimed:
+        referral['quests_claimed'] = list(claimed)
+        S.save_fast() if hasattr(S, 'save_fast') else S.save()
+
+    return newly_claimed
 
 @app.route('/api/referral/code', methods=['GET'])
 def referral_get_code():
@@ -6813,235 +6885,242 @@ def referral_get_code():
     seed = request.headers.get('X-Seed', '').strip()
     if not validate_seed(seed):
         return jsonify({'error': 'Unauthorized'}), 401
-    
+
     addr = get_address_from_seed(seed)
-    
+
     with S.lock:
         if addr not in S.wallets:
             return jsonify({'error': 'Wallet not found'}), 404
-        
+
         ref = S.referral_map.get(addr, {})
         code = ref.get('invite_code')
-        
+
         if not code:
-            # Generate unique code: REF-xxxx
+            # Generate unique code
             code = 'REF-' + secrets.token_hex(4).upper()
             while code in S.referrals:
                 code = 'REF-' + secrets.token_hex(4).upper()
-            
             S.referrals[code] = {
-                'creator': addr,
+                'creator_hash': _ref_anon_id(addr),  # anonymous
                 'used_by': [],
-                'created_at': int(time.time())
+                'created_at': int(time.time()),
+                'quests_claimed': [],
             }
             if addr not in S.referral_map:
                 S.referral_map[addr] = {}
             S.referral_map[addr]['invite_code'] = code
             S.save()
-        
+
         used_count = len(S.referrals.get(code, {}).get('used_by', []))
-        tier, _ = get_referral_tier(addr)
-        
+        l1, l2, l3 = _get_ref_counts(code)
+        claimed = S.referrals.get(code, {}).get('quests_claimed', [])
+        phase = get_referral_phase()
+        vanity = ref.get('vanity_code')
+
+        # Build quest status (no personal data exposed)
+        quests = []
+        for q in REFERRAL_QUESTS:
+            done = q['id'] in claimed
+            # Progress
+            if q['need_l3'] > 0:
+                prog = l3; need = q['need_l3']
+            elif q['need_l2'] > 0:
+                prog = l2; need = q['need_l2']
+            else:
+                prog = l1; need = q['need_l1']
+            quests.append({
+                'id': q['id'],
+                'label': q['label'],
+                'reward': q['reward'],
+                'progress': min(prog, need),
+                'needed': need,
+                'done': done,
+            })
+
         return jsonify({
             'ok': True,
             'code': code,
-            'referrals': used_count,
-            'tier': tier,
-            'invited_by': S.referral_map.get(addr, {}).get('invited_by', None),
-            'boost_burned': S.referral_map.get(addr, {}).get('boost_burned', 0)
+            'vanity': vanity,
+            'total_refs': used_count,
+            'refs_l1': l1,
+            'refs_l2': l2,
+            'refs_l3': l3,
+            'phase': phase,
+            'total_wallets': len(S.wallets),
+            'invited_by': bool(S.referral_map.get(addr, {}).get('invited_by_code')),
+            'quests': quests,
         })
 
 @app.route('/api/referral/use', methods=['POST'])
 def referral_use():
-    """Use an invite code — links you to referrer anonymously"""
+    """Use an invite code — anonymous, no link between referrer identity and referral"""
     seed = request.headers.get('X-Seed', '').strip()
     if not validate_seed(seed):
         return jsonify({'error': 'Unauthorized'}), 401
-    
+
     addr = get_address_from_seed(seed)
     data = request.get_json() or {}
-    code = data.get('code', '').strip().upper()
-    
-    if not code:
+    raw_code = data.get('code', '').strip().upper()
+
+    if not raw_code:
         return jsonify({'error': 'Code required'}), 400
-    
+
     with S.lock:
         if addr not in S.wallets:
             return jsonify({'error': 'Wallet not found'}), 404
-        
-        # Check if already used a code
+
         ref = S.referral_map.get(addr, {})
-        if ref.get('invited_by'):
-            return jsonify({'error': 'You already used a referral code', 'ok': False}), 400
-        
+        if ref.get('invited_by_code'):
+            return jsonify({'error': 'Already used a referral code', 'ok': False}), 400
+
+        # Support both REF-XXXX and vanity codes
+        code = raw_code
         if code not in S.referrals:
-            return jsonify({'error': 'Invalid referral code', 'ok': False}), 400
-        
+            # Try vanity lookup
+            found_code = None
+            for c, cd in S.referrals.items():
+                if cd.get('vanity', '').upper() == raw_code:
+                    found_code = c
+                    break
+            if not found_code:
+                return jsonify({'error': 'Invalid referral code', 'ok': False}), 400
+            code = found_code
+
         referral = S.referrals[code]
-        
-        # Can't refer yourself
-        if referral['creator'] == addr:
+
+        # Self-referral check via hash
+        if referral.get('creator_hash') == _ref_anon_id(addr):
             return jsonify({'error': 'Cannot use your own code', 'ok': False}), 400
-        
-        # Can't use if already referred
-        if addr in referral['used_by']:
+
+        if addr in referral.get('used_by', []):
             return jsonify({'error': 'Already used this code', 'ok': False}), 400
-        
-        # Apply referral
-        referral['used_by'].append(addr)
+
+        # Link — store code, NOT referrer address (anonymous)
+        referral.setdefault('used_by', []).append(addr)
         if addr not in S.referral_map:
             S.referral_map[addr] = {}
-        S.referral_map[addr]['invited_by'] = code
-        
-        # Bonus: referrer gets 25 LAC, new user gets 50 LAC
-        referrer_addr = referral['creator']
-        if referrer_addr in S.wallets:
-            S.wallets[referrer_addr]['balance'] += 25
-        S.wallets[addr]['balance'] += 50
-        S.counters['emitted_referral'] += 75
-        
-        # Create on-chain record
-        S.mempool.append({
-            'type': 'referral_bonus',
-            'from': 'referral_system',
-            'to': 'anonymous',
-            'amount': 75,
-            'timestamp': int(time.time()),
-            'referral_code': code[:4] + '****'  # partially hidden
-        })
-        
+        S.referral_map[addr]['invited_by_code'] = code
+        S.referral_map[addr]['joined_at'] = int(time.time())
+
+        # Registration bonus based on phase
+        phase = get_referral_phase()
+        bonus_referral = 0
+        bonus_referrer = 0
+
+        if phase == 1:
+            bonus_referral = 30  # new user gets 30
+            # referrer bonus comes from quests only
+        elif phase == 2:
+            bonus_referral = 30
+            # Find referrer and give them 30 too
+            # We know the code but keep it anonymous on-chain
+            for a, rm in S.referral_map.items():
+                if rm.get('invite_code') == code:
+                    S.wallets[a]['balance'] = S.wallets[a].get('balance', 0) + 30
+                    bonus_referrer = 30
+                    S.mempool.append({
+                        'type': 'referral_bonus', 'from': 'referral_system',
+                        'to': _ref_anon_id(a), 'amount': 30,
+                        'timestamp': int(time.time()), 'phase': 2
+                    })
+                    break
+        elif phase == 3:
+            bonus_referral = 30  # only new user
+
+        if bonus_referral > 0:
+            S.wallets[addr]['balance'] = S.wallets[addr].get('balance', 0) + bonus_referral
+            # On-chain: anonymous
+            S.mempool.append({
+                'type': 'referral_join_bonus', 'from': 'referral_system',
+                'to': _ref_anon_id(addr), 'amount': bonus_referral,
+                'timestamp': int(time.time()), 'phase': phase
+            })
+
         S.save()
-        
+
         return jsonify({
             'ok': True,
-            'bonus': 50,
-            'message': '🎉 Referral activated! +50 LAC bonus'
+            'bonus': bonus_referral,
+            'phase': phase,
+            'message': f'✅ Code applied! +{bonus_referral} LAC bonus.' if bonus_referral else '✅ Code applied!'
         })
 
-@app.route('/api/referral/burn-boost', methods=['POST'])
-def referral_burn_boost():
-    """Burn LAC to boost your referral tier"""
+@app.route('/api/referral/vanity', methods=['POST'])
+def referral_vanity():
+    """Set a custom vanity code for 100 LAC — e.g. REF-MYCOOLNAME"""
     seed = request.headers.get('X-Seed', '').strip()
     if not validate_seed(seed):
         return jsonify({'error': 'Unauthorized'}), 401
-    
+
     addr = get_address_from_seed(seed)
     data = request.get_json() or {}
-    amount = data.get('amount', 0)
-    
-    if not isinstance(amount, (int, float)) or amount < 100:
-        return jsonify({'error': 'Minimum burn: 100 LAC'}), 400
-    
+    vanity = data.get('vanity', '').strip().upper()
+
+    import re as _re
+    if not vanity or not _re.match(r'^[A-Z0-9_]{3,20}$', vanity):
+        return jsonify({'error': 'Vanity must be 3-20 chars, letters/numbers/underscore'}), 400
+
     with S.lock:
         if addr not in S.wallets:
             return jsonify({'error': 'Wallet not found'}), 404
-        
-        if S.wallets[addr].get('balance', 0) < amount:
-            return jsonify({'error': 'Insufficient balance'}), 400
-        
-        S.wallets[addr]['balance'] -= amount
-        
-        if addr not in S.referral_map:
-            S.referral_map[addr] = {}
-        S.referral_map[addr]['boost_burned'] = S.referral_map[addr].get('boost_burned', 0) + amount
-        
-        # On-chain record
+
+        wallet = S.wallets[addr]
+        if wallet.get('balance', 0) < 100:
+            return jsonify({'error': 'Need 100 LAC'}), 400
+
+        ref = S.referral_map.get(addr, {})
+        code = ref.get('invite_code')
+        if not code:
+            return jsonify({'error': 'Generate your ref code first'}), 400
+
+        # Check uniqueness
+        for c, cd in S.referrals.items():
+            if cd.get('vanity', '').upper() == vanity and c != code:
+                return jsonify({'error': f'"{vanity}" already taken'}), 409
+
+        # Charge and set
+        wallet['balance'] -= 100
+        S.referrals[code]['vanity'] = vanity
+        S.referral_map[addr]['vanity_code'] = vanity
+
         S.mempool.append({
-            'type': 'referral_boost',
-            'from': 'anonymous',
-            'to': BURN_ADDRESS,
-            'amount': amount,
-            'timestamp': int(time.time())
+            'type': 'referral_vanity', 'from': _ref_anon_id(addr),
+            'to': 'burn', 'amount': 100, 'vanity': vanity,
+            'timestamp': int(time.time()),
         })
-        
-        tier, refs = get_referral_tier(addr)
         S.save()
-        
-        return jsonify({
-            'ok': True,
-            'burned': amount,
-            'total_boost': S.referral_map[addr].get('boost_burned', 0),
-            'new_tier': tier,
-            'balance': S.wallets[addr].get('balance', 0)
-        })
+
+        return jsonify({'ok': True, 'vanity': vanity, 'price_paid': 100})
 
 @app.route('/api/referral/leaderboard', methods=['GET'])
 def referral_leaderboard():
     """Anonymous referral leaderboard"""
     with S.lock:
+        phase = get_referral_phase()
         board = []
         for code, data in S.referrals.items():
             count = len(data.get('used_by', []))
-            if count > 0:
-                creator = data.get('creator', '')
-                tier, _ = get_referral_tier(creator)
-                boost = S.referral_map.get(creator, {}).get('boost_burned', 0)
-                # Anonymous: show partial code + tier
-                board.append({
-                    'code': code[:6] + '**',
-                    'referrals': count,
-                    'tier': tier,
-                    'boost': round(boost, 2)
-                })
-        
-        board.sort(key=lambda x: x['referrals'], reverse=True)
-        
+            if count == 0:
+                continue
+            l1, l2, l3 = _get_ref_counts(code)
+            quests_done = len(data.get('quests_claimed', []))
+            board.append({
+                'code': (data.get('vanity') or code[:6] + '**'),
+                'total': count,
+                'l1': l1, 'l2': l2, 'l3': l3,
+                'quests': quests_done,
+            })
+
+        board.sort(key=lambda x: -x['total'])
         return jsonify({
             'ok': True,
-            'leaderboard': board[:20],
-            'total_referrals': sum(b['referrals'] for b in board),
-            'total_referrers': len(board)
+            'phase': phase,
+            'total_wallets': len(S.wallets),
+            'total_referrers': len(board),
+            'total_referrals': sum(b['total'] for b in board),
+            'top': board[:50],
         })
 
-# ══════════════════════════════════════════════════════
-# Background save queue — S.save() never blocks a request
-# ══════════════════════════════════════════════════════
-import queue as _queue_module
-_save_queue = _queue_module.Queue()
-_save_dirty = False
-
-def _schedule_save():
-    global _save_dirty
-    _save_dirty = True
-    try:
-        _save_queue.put_nowait(True)
-    except Exception:
-        pass  # Already queued
-
-def _bg_save_worker():
-    """Background thread: coalesces rapid saves into one disk write"""
-    import time as _t
-    _last_chain_len = [0]
-    while True:
-        try:
-            _save_queue.get(timeout=2)
-            # Drain all queued saves (coalesce)
-            while True:
-                try: _save_queue.get_nowait()
-                except: break
-            # Small delay to catch any more queued saves
-            _t.sleep(0.05)
-            while True:
-                try: _save_queue.get_nowait()
-                except: break
-            # Actually write
-            try:
-                S.save_sync()
-                _last_chain_len[0] = len(S.chain) if S else 0
-            except Exception as e:
-                print(f'⚠️ BG save error: {e}')
-        except Exception:
-            pass  # Timeout — no pending save
-
-def _start_bg_save():
-    import threading
-    t = threading.Thread(target=_bg_save_worker, daemon=True, name='bg-save')
-    t.start()
-
-
-# ═══════════════════════════════════════════════════════
-# PROOF-OF-LOCATION API
-# ═══════════════════════════════════════════════════════
 
 @app.route('/api/pol/zones', methods=['GET'])
 def pol_zones():

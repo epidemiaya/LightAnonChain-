@@ -1945,7 +1945,7 @@ const LoginScreen = ({ onAuth }) => {
     try { return new URLSearchParams(window.location.search).get('ref') || ''; } catch { return ''; }
   }, []);
 
-  const mkSeed = () => { const c='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; let s=''; for(let i=0;i<64;i++) s+=c[~~(Math.random()*c.length)]; return s; };
+  const mkSeed = () => { const c='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; const a=crypto.getRandomValues(new Uint8Array(64)); return Array.from(a).map(b=>c[b%c.length]).join(''); };
 
   const create = async () => {
     setLoading(true);
@@ -4077,113 +4077,280 @@ const NewGroup = ({ onBack, onDone, initKind }) => {
 // ━━━ REFERRAL SYSTEM ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const tierInfo = { genesis:['🏆','Genesis','amber'], early:['⚡','Early','purple'], growth:['🌱','Growth','emerald'], vip:['💎','VIP','blue'], none:['—','—','gray'] };
 const ReferralView = ({ onBack }) => {
-  const [data, setData] = useState(null);
-  const [board, setBoard] = useState(null);
-  const [code, setCode] = useState('');
-  const [boost, setBoost] = useState('');
-  const [ld, setLd] = useState(false);
-  const { t } = useT();
+  const [data, setData]     = useState(null);
+  const [board, setBoard]   = useState(null);
+  const [code, setCode]     = useState('');
+  const [vanity, setVanity] = useState('');
+  const [tab, setTab]       = useState('quests');
+  const [ld, setLd]         = useState(false);
+  const [vanityStatus, setVanityStatus] = useState(null); // null | 'checking' | 'ok' | 'taken'
 
-  useEffect(() => {
-    get('/api/referral/code').then(setData).catch(()=>{});
-    get('/api/referral/leaderboard').then(setBoard).catch(()=>{});
-  }, []);
+  const load = () => {
+    get('/api/referral/code').then(setData).catch(() => {});
+    get('/api/referral/leaderboard').then(setBoard).catch(() => {});
+  };
+  useEffect(load, []);
 
   const useCode = async () => {
-    if (!code.trim()) return;
+    if (!code.trim() || ld) return;
     setLd(true);
-    try { const r = await post('/api/referral/use',{code:code.trim()}); toast.success(r.message||'Done!'); setCode(''); get('/api/referral/code').then(setData); }
-    catch(e) { toast.error(e.message); }
-    finally { setLd(false); }
-  };
-  const burnBoost = async () => {
-    const amt = parseInt(boost);
-    if (!amt || amt < 100) { toast.error('Min 100 LAC'); return; }
-    setLd(true);
-    try { const r = await post('/api/referral/burn-boost',{amount:amt}); toast.success(`🔥 ${amt} LAC burned! Tier: ${r.new_tier}`); setBoost(''); get('/api/referral/code').then(setData); }
-    catch(e) { toast.error(e.message); }
+    try {
+      const r = await post('/api/referral/use', { code: code.trim() });
+      toast.success(r.message || '✅ Done!');
+      setCode('');
+      load();
+    } catch(e) { toast.error(e.message); }
     finally { setLd(false); }
   };
 
-  const ti = tierInfo[data?.tier||'none'];
+  const setVanityCode = async () => {
+    if (!vanity.trim() || ld) return;
+    setLd(true);
+    try {
+      const r = await post('/api/referral/vanity', { vanity: vanity.trim() });
+      toast.success(`✅ @${r.vanity} set!`);
+      setVanity('');
+      setVanityStatus(null);
+      load();
+    } catch(e) { toast.error(e.message); }
+    finally { setLd(false); }
+  };
 
-  return (<div className="h-full bg-[#060f0c] flex flex-col"><Header title="🤝 Referral" onBack={onBack} />
-    <div className="flex-1 overflow-y-auto p-4">
-      {!data ? <p className="text-gray-600 text-center py-8">{t('loading')}</p> : <>
-        {/* Your code */}
-        <Card gradient="bg-gradient-to-br from-purple-900/20 to-[#0f1f18] border-purple-800/20" className="mb-3">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-purple-400 font-semibold text-sm">Your Invite Code</p>
-            <Badge color={ti[2]}>{ti[0]} {ti[1]}</Badge>
-          </div>
-          <div className="bg-[#060f0c] p-3 rounded-xl border border-purple-900/20 text-center">
-            <p onClick={() => cp(data.code)} className="text-purple-300 font-mono text-xl font-bold cursor-pointer select-all">{data.code}</p>
-            <p className="text-gray-600 text-[10px] mt-1">{t('tapCopy')}</p>
-          </div>
-          <div className="flex gap-2 mt-2">
-            <button onClick={() => cp(data.code)} className="flex-1 text-purple-400 text-xs flex items-center justify-center gap-1 bg-purple-900/20 px-3 py-2 rounded-lg active:bg-purple-900/40"><Copy className="w-3 h-3"/> {t('copy')}</button>
-            <button onClick={() => { if(navigator.share) navigator.share({text:`Join LAC! Use my invite:\n${window.location.origin}/?ref=${data.code}`}).catch(()=>{}); else cp(`${window.location.origin}/?ref=${data.code}`); }} className="flex-1 text-blue-400 text-xs flex items-center justify-center gap-1 bg-blue-900/20 px-3 py-2 rounded-lg active:bg-blue-900/40">↗ {t('share')}</button>
-          </div>
-          <div className="mt-2 bg-[#060f0c] p-2 rounded-lg border border-gray-800/30">
-            <p className="text-[9px] text-gray-600 mb-1">Referral link:</p>
-            <p onClick={() => cp(`${window.location.origin}/?ref=${data.code}`)} className="text-purple-300 font-mono text-[10px] break-all cursor-pointer select-all">{window.location.origin}/?ref={data.code}</p>
-          </div>
-          <div className="grid grid-cols-3 gap-2 mt-3">
-            <div className="text-center"><p className="text-purple-400 font-bold text-lg">{data.referrals||0}</p><p className="text-gray-600 text-[9px]">Invited</p></div>
-            <div className="text-center"><p className="text-amber-400 font-bold text-lg">{(data.referrals||0)*25}</p><p className="text-gray-600 text-[9px]">LAC earned</p></div>
-            <div className="text-center"><p className="text-red-400 font-bold text-lg">{fmt(data.boost_burned||0)}</p><p className="text-gray-600 text-[9px]">Boosted</p></div>
-          </div>
-        </Card>
+  const copyLink = () => {
+    if (!data) return;
+    const slug = data.vanity || data.code;
+    const url = `https://lac-beta.uk/?ref=${slug}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Link copied!');
+  };
 
-        {/* Use code */}
-        {!data.invited_by && <Card className="mb-3">
-          <p className="text-white text-sm font-semibold mb-2">🎫 Use Invite Code</p>
-          <p className="text-gray-600 text-[10px] mb-2">Got a code? Enter it for +50 LAC bonus!</p>
-          <div className="flex gap-2">
-            <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="REF-XXXXXXXX"
-              className="flex-1 bg-[#0a1a15] text-purple-400 font-mono text-sm px-3 py-2 rounded-xl border border-purple-900/30 outline-none" />
-            <Btn onClick={useCode} color="purple" small loading={ld}>OK</Btn>
-          </div>
-        </Card>}
-        {data.invited_by && <Card className="mb-3"><p className="text-emerald-400 text-xs">✅ Invited with code {data.invited_by.slice(0,6)}**</p></Card>}
+  const shareLink = () => {
+    if (!data) return;
+    const slug = data.vanity || data.code;
+    const url = `https://lac-beta.uk/?ref=${slug}`;
+    if (navigator.share) navigator.share({ title: 'Join LAC', text: 'Anonymous blockchain messenger', url });
+    else { navigator.clipboard.writeText(url); toast.success('Link copied!'); }
+  };
 
-        {/* Burn boost */}
-        <Card className="mb-3">
-          <p className="text-white text-sm font-semibold mb-1">🔥 Burn-to-Boost</p>
-          <p className="text-gray-600 text-[10px] mb-2">Burn LAC to boost your tier. 10,000+ = VIP</p>
-          <div className="flex gap-2">
-            <input value={boost} onChange={e => setBoost(e.target.value)} placeholder="Amount (min 100)" type="number"
-              className="flex-1 bg-[#0a1a15] text-red-400 font-mono text-sm px-3 py-2 rounded-xl border border-red-900/30 outline-none" />
-            <Btn onClick={burnBoost} color="red" small loading={ld}>🔥</Btn>
-          </div>
-        </Card>
+  // Phase label
+  const phaseLabel = data ? (
+    data.phase === 1 ? `Phase 1 · Quest System Active` :
+    data.phase === 2 ? `Phase 2 · Flat Bonus (${(data.total_wallets||0).toLocaleString()} wallets)` :
+    `Phase 3 · Join Bonus Only (${(data.total_wallets||0).toLocaleString()} wallets)`
+  ) : '';
 
-        {/* Tier info */}
-        <Card className="mb-3">
-          <p className="text-white text-sm font-semibold mb-2">📊 Tiers</p>
-          {[['genesis','🏆','First 100 wallets','amber'],['early','⚡','First 1,000 wallets','purple'],['growth','🌱','Standard referrers','emerald'],['vip','💎','10+ referrals or 10K burned','blue']].map(([id,ic,desc,c]) =>
-            <div key={id} className={`flex items-center gap-3 py-2 border-b border-gray-800/20 ${data.tier===id?'opacity-100':'opacity-50'}`}>
-              <span className="text-lg">{ic}</span>
-              <div className="flex-1"><p className={`text-${c}-400 text-xs font-semibold capitalize`}>{id}</p><p className="text-gray-600 text-[10px]">{desc}</p></div>
-              {data.tier===id && <span className="text-emerald-400 text-xs">← You</span>}
+  const QUEST_ICONS = { q1:'🥉', q2:'🥈', q3:'🥇', q4:'💎', q5:'🔥', q6:'⚡', q7:'👑' };
+
+  return (
+    <div className="h-full bg-[#060f0c] flex flex-col">
+      <Header title="🤝 Referral" onBack={onBack} />
+      <TabBar tabs={[['quests','Quests'],['link','My Link'],['top','Top']]} active={tab} onChange={setTab} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+        {/* ── QUESTS ── */}
+        {tab === 'quests' && <>
+          {!data ? <SkeletonList n={4} /> : <>
+            {/* Phase banner */}
+            <div className="px-3 py-2 rounded-xl bg-emerald-900/10 border border-emerald-800/30 text-center">
+              <p className="text-emerald-400 text-[11px] font-medium">{phaseLabel}</p>
             </div>
-          )}
-        </Card>
 
-        {/* Leaderboard */}
-        {board && board.leaderboard?.length > 0 && <Card>
-          <p className="text-white text-sm font-semibold mb-2">🏆 Leaderboard</p>
-          <p className="text-gray-600 text-[10px] mb-2">{board.total_referrers} referrers · {board.total_referrals} total invites</p>
-          {board.leaderboard.slice(0,10).map((b,i) => {
-            const bt = tierInfo[b.tier||'growth'];
-            return <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-800/20">
-              <div className="flex items-center gap-2"><span className="text-gray-600 text-xs w-5">#{i+1}</span><span className="text-gray-500 font-mono text-[10px]">{b.code}</span></div>
-              <div className="flex items-center gap-2"><Badge color={bt[2]}>{bt[0]}</Badge><span className="text-emerald-400 text-xs font-bold">{b.referrals}</span></div>
-            </div>;
-          })}
-        </Card>}
-      </>}
-    </div></div>);
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                ['Total', data.total_refs, 'gray'],
+                ['→ L1', data.refs_l1, 'emerald'],
+                ['→ L2', data.refs_l2, 'blue'],
+              ].map(([lbl, val, c]) => (
+                <div key={lbl} className={`p-3 rounded-xl bg-[#0a1a15] border border-${c}-900/30 text-center`}>
+                  <p className={`text-${c === 'gray' ? 'white' : c+'-400'} font-bold text-xl`}>{val || 0}</p>
+                  <p className="text-gray-600 text-[10px]">{lbl}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Quest list */}
+            {data.phase === 1 ? (
+              <div className="space-y-2">
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">Quest milestones</p>
+                {(data.quests || []).map(q => {
+                  const pct = Math.min(100, Math.round((q.progress / q.needed) * 100));
+                  const icon = QUEST_ICONS[q.id] || '🎯';
+                  return (
+                    <div key={q.id}
+                      className={`p-3.5 rounded-2xl border transition ${q.done ? 'border-emerald-600/50 bg-emerald-900/15' : 'border-gray-800/60 bg-[#0a1a15]'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{q.done ? '✅' : icon}</span>
+                          <div>
+                            <p className={`text-sm font-semibold ${q.done ? 'text-emerald-300' : 'text-white'}`}>{q.label}</p>
+                            <p className="text-emerald-400 text-xs font-bold">+{q.reward.toLocaleString()} LAC</p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className={`text-sm font-bold ${q.done ? 'text-emerald-400' : 'text-gray-300'}`}>
+                            {q.done ? 'Claimed' : `${q.progress}/${q.needed}`}
+                          </p>
+                        </div>
+                      </div>
+                      {!q.done && (
+                        <div className="w-full bg-gray-800/60 rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-gradient-to-r from-emerald-600 to-emerald-400 h-1.5 rounded-full transition-all"
+                            style={{ width: `${pct}%` }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <div className="p-3 rounded-xl bg-amber-900/10 border border-amber-800/20">
+                  <p className="text-amber-400/80 text-[11px]">
+                    🛡️ Anti-fraud: quests only complete when real people upgrade their level. Farming fake accounts requires real time and LAC burns.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-[#0a1a15] border border-emerald-900/30 text-center space-y-2">
+                {data.phase === 2
+                  ? <><p className="text-white font-medium">Phase 2 Bonus</p><p className="text-emerald-400 text-sm">You and your referral each get <span className="font-bold">30 LAC</span> per join</p></>
+                  : <><p className="text-white font-medium">Phase 3 Bonus</p><p className="text-emerald-400 text-sm">Each referral gets <span className="font-bold">30 LAC</span> when they join</p></>
+                }
+              </div>
+            )}
+
+            {/* Use invite code */}
+            {!data.invited_by && (
+              <div className="space-y-2">
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">Have a referral code?</p>
+                <p className="text-gray-600 text-[11px]">Enter it to get +30 LAC bonus on join</p>
+                <div className="flex gap-2">
+                  <input value={code} onChange={e => setCode(e.target.value.toUpperCase())}
+                    placeholder="REF-XXXXXXXX or vanity" maxLength={24}
+                    className="flex-1 bg-[#0a1a15] text-white px-3 py-2.5 rounded-xl text-sm outline-none border border-emerald-900/30 placeholder-gray-600 font-mono" />
+                  <button onClick={useCode} disabled={ld || code.length < 4}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium disabled:opacity-40 active:bg-emerald-700">
+                    {ld ? '…' : 'Apply'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {data.invited_by && (
+              <div className="p-3 rounded-xl bg-emerald-900/10 border border-emerald-800/30 text-center">
+                <p className="text-emerald-400 text-sm">✅ Joined via referral</p>
+                <p className="text-gray-600 text-[10px] mt-0.5">Your referrer is anonymous</p>
+              </div>
+            )}
+          </>}
+        </>}
+
+        {/* ── MY LINK ── */}
+        {tab === 'link' && <>
+          {!data ? <SkeletonList n={3} /> : <>
+            <div className="p-4 rounded-2xl bg-[#0a1a15] border border-emerald-900/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-gray-400 text-xs font-medium">Your invite link</p>
+                {data.vanity && <Badge color="amber">✨ Vanity</Badge>}
+              </div>
+              <div className="bg-[#061510] rounded-xl px-3 py-2.5 font-mono text-emerald-400 text-xs break-all select-all">
+                lac-beta.uk/?ref={data.vanity || data.code}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={copyLink}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-700/30 border border-emerald-700/40 text-emerald-300 text-sm font-medium active:bg-emerald-700/50">
+                  📋 Copy
+                </button>
+                <button onClick={shareLink}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-900/20 border border-emerald-900/40 text-gray-300 text-sm active:bg-emerald-900/40">
+                  ↗ Share
+                </button>
+              </div>
+            </div>
+
+            {/* Anonymity note */}
+            <div className="p-3 rounded-xl bg-[#0a1015] border border-gray-800/40 space-y-1">
+              <p className="text-gray-300 text-xs font-medium">🔒 Fully anonymous</p>
+              <p className="text-gray-600 text-[11px]">Your referrals don't know who invited them. You don't know who joined. Only cryptographic proofs and on-chain records exist.</p>
+            </div>
+
+            {/* Vanity code */}
+            {!data.vanity ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">Custom link</p>
+                  <Badge color="amber">100 LAC</Badge>
+                </div>
+                <p className="text-gray-600 text-[11px]">Set a memorable vanity name instead of REF-XXXXXXXX</p>
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1 flex items-center bg-[#0a1a15] border border-emerald-900/30 rounded-xl px-3">
+                    <span className="text-gray-500 text-sm shrink-0">lac-beta.uk/?ref=</span>
+                    <input value={vanity}
+                      onChange={e => { const v = e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g,''); setVanity(v); }}
+                      placeholder="MYNAME" maxLength={20}
+                      className="flex-1 bg-transparent text-white py-2.5 text-sm outline-none placeholder-gray-700 min-w-0" />
+                  </div>
+                  <button onClick={setVanityCode} disabled={ld || vanity.length < 3}
+                    className="px-3 py-2.5 rounded-xl bg-amber-700/40 border border-amber-700/40 text-amber-300 text-sm font-medium disabled:opacity-40 shrink-0">
+                    Set
+                  </button>
+                </div>
+                <p className="text-gray-700 text-[10px]">3–20 chars, letters/numbers/underscore. One-time, permanent.</p>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-amber-900/10 border border-amber-800/30 text-center">
+                <p className="text-amber-300 text-sm font-medium">✨ Vanity: {data.vanity}</p>
+                <p className="text-gray-600 text-[10px] mt-0.5">Permanent · on-chain record</p>
+              </div>
+            )}
+
+            {/* Raw code */}
+            <div className="p-3 rounded-xl bg-[#0a1a15] border border-gray-800/40">
+              <p className="text-gray-500 text-[10px] mb-1">Raw code (always works)</p>
+              <p className="text-gray-400 text-sm font-mono">{data.code}</p>
+            </div>
+          </>}
+        </>}
+
+        {/* ── TOP ── */}
+        {tab === 'top' && <>
+          {!board ? <SkeletonList n={5} /> : <>
+            <div className="p-3 rounded-xl bg-[#0a1a15] border border-emerald-900/30 flex gap-4 text-center">
+              <div className="flex-1">
+                <p className="text-white font-bold text-lg">{(board.total_wallets||0).toLocaleString()}</p>
+                <p className="text-gray-600 text-[10px]">Total wallets</p>
+              </div>
+              <div className="flex-1">
+                <p className="text-emerald-400 font-bold text-lg">{board.total_referrers||0}</p>
+                <p className="text-gray-600 text-[10px]">Referrers</p>
+              </div>
+              <div className="flex-1">
+                <p className="text-amber-400 font-bold text-lg">{board.total_referrals||0}</p>
+                <p className="text-gray-600 text-[10px]">Total refs</p>
+              </div>
+            </div>
+            {(board.top || []).length === 0
+              ? <Empty emoji="📊" text="No data yet" sub="Be the first to refer someone" />
+              : (board.top || []).map((b, i) => (
+                <div key={i} className="flex items-center gap-3 py-2.5 border-b border-gray-900/40">
+                  <span className="text-gray-500 text-sm w-6 text-center font-mono">{i+1}</span>
+                  <div className="w-9 h-9 rounded-full bg-emerald-900/30 border border-emerald-900/40 flex items-center justify-center text-sm font-bold text-emerald-400 shrink-0">
+                    {i === 0 ? '👑' : i === 1 ? '🥈' : i === 2 ? '🥉' : '🌱'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-mono truncate">{b.code}</p>
+                    <p className="text-gray-600 text-[10px]">L1: {b.l1} · L2: {b.l2} · L3: {b.l3}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-white text-sm font-bold">{b.total}</p>
+                    <p className="text-gray-600 text-[10px]">{b.quests}q done</p>
+                  </div>
+                </div>
+              ))
+            }
+          </>}
+        </>}
+
+      </div>
+    </div>
+  );
 };
 
 // ━━━ WALLET TAB ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
