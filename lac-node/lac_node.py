@@ -1619,7 +1619,8 @@ def register():
         
         # === REFERRAL (new anonymous system) ===
         ref_bonus = 0
-        if ref:
+        try:
+          if ref:
             ref_raw = ref.strip().upper()
             # Resolve code: direct or vanity
             ref_code = None
@@ -1662,6 +1663,11 @@ def register():
                         S.mempool.append({'type': 'referral_join_bonus', 'from': 'referral_system',
                             'to': _ref_anon_id(addr), 'amount': ref_bonus,
                             'timestamp': int(time.time()), 'phase': phase})
+        except Exception as _ref_err:
+            import traceback as _tb
+            print(f"❌ REFERRAL ERROR in register: {_ref_err}")
+            _tb.print_exc()
+            ref_bonus = 0  # skip referral, don't block registration
         
     S.counters['emitted_faucet'] = S.counters.get('emitted_faucet', 0) + 30  # welcome bonus
     _schedule_save()
