@@ -1550,6 +1550,21 @@ def ping():
     })
 
 @app.route('/api/register', methods=['POST'])
+def _ref_anon_id(addr):
+    """Anonymous ID for on-chain records — sha256 hash of address"""
+    return hashlib.sha256(addr.encode()).hexdigest()[:16]
+
+def get_referral_phase():
+    """Phase based on total wallet count"""
+    total = len(S.wallets)
+    if total < 200_000:
+        return 1  # quest system
+    elif total < 500_000:
+        return 2  # flat 30+30
+    else:
+        return 3  # only referral gets 30
+
+
 def register():
     """Register new wallet"""
     ip = get_client_ip()
@@ -1602,34 +1617,51 @@ def register():
         # Track active session for mining
         S.active_sessions.add(addr)
         
-        # === REFERRAL ===
+        # === REFERRAL (new anonymous system) ===
         ref_bonus = 0
         if ref:
-            ref = ref.strip().upper()
-            if ref in S.referrals:
-                referral_data = S.referrals[ref]
-                referrer = referral_data.get('creator', '')
-                if referrer != addr and addr not in referral_data.get('used_by', []):
-                    # Give bonus to new user
-                    S.wallets[addr]['balance'] += 50
-                    ref_bonus = 50
-                    # Give bonus to referrer
-                    if referrer in S.wallets:
-                        S.wallets[referrer]['balance'] += 25
-                    S.counters['emitted_referral'] += 75
-                    # Track
-                    referral_data['used_by'].append(addr)
+            ref_raw = ref.strip().upper()
+            # Resolve code: direct or vanity
+            ref_code = None
+            if ref_raw in S.referrals:
+                ref_code = ref_raw
+            else:
+                for c, cd in S.referrals.items():
+                    if cd.get('vanity', '').upper() == ref_raw:
+                        ref_code = c
+                        break
+
+            if ref_code:
+                referral_data = S.referrals[ref_code]
+                # Self-referral check via anonymous hash
+                if referral_data.get('creator_hash') != _ref_anon_id(addr) and addr not in referral_data.get('used_by', []):
+                    # Phase-based bonus
+                    phase = get_referral_phase()
+                    if phase in (1, 2, 3):
+                        ref_bonus = 30
+                        S.wallets[addr]['balance'] += 30
+                    # Phase 2: referrer also gets 30
+                    if phase == 2:
+                        # Find referrer by code (server-side only, not exposed)
+                        for a, rm in S.referral_map.items():
+                            if rm.get('invite_code') == ref_code and a in S.wallets:
+                                S.wallets[a]['balance'] += 30
+                                S.mempool.append({'type': 'referral_bonus', 'from': 'referral_system',
+                                    'to': _ref_anon_id(a), 'amount': 30, 'timestamp': int(time.time()), 'phase': 2})
+                                break
+                    # Track anonymously
+                    referral_data.setdefault('used_by', []).append(addr)
+                    referral_data.setdefault('quests_claimed', [])
                     if addr not in S.referral_map:
                         S.referral_map[addr] = {}
-                    S.referral_map[addr]['invited_by'] = ref
-                    # On-chain record
-                    S.mempool.append({
-                        'type': 'referral_bonus',
-                        'from': 'referral_system',
-                        'to': 'anonymous',
-                        'amount': 75,
-                        'timestamp': int(time.time()),
-                    })
+                    S.referral_map[addr]['invited_by_code'] = ref_code
+                    S.referral_map[addr]['joined_at'] = int(time.time())
+                    # On-chain anonymous record
+                    if ref_bonus > 0:
+                        S.counters['emitted_referral'] = S.counters.get('emitted_referral', 0) + ref_bonus
+                        S.mempool.append({'type': 'referral_join_bonus', 'from': 'referral_system',
+                            'to': _ref_anon_id(addr), 'amount': ref_bonus,
+                            'timestamp': int(time.time()), 'phase': phase})
         
     S.counters['emitted_faucet'] = S.counters.get('emitted_faucet', 0) + 30  # welcome bonus
     _schedule_save()
@@ -6787,16 +6819,6 @@ def stash_info():
 
 
 # ==================== REFERRAL SYSTEM ====================
-def get_referral_phase():
-    """Phase based on total wallet count"""
-    total = len(S.wallets)
-    if total < 200_000:
-        return 1  # quest system
-    elif total < 500_000:
-        return 2  # flat 30+30
-    else:
-        return 3  # only referral gets 30
-
 # Quest definitions: (id, threshold_l1, threshold_l2, threshold_l3, reward, label)
 REFERRAL_QUESTS = [
     {'id': 'q1', 'need_l1': 3,    'need_l2': 0, 'need_l3': 0, 'reward': 200,    'label': '3 refs → Level 1'},
@@ -6807,10 +6829,6 @@ REFERRAL_QUESTS = [
     {'id': 'q6', 'need_l1': 1263, 'need_l2': 0, 'need_l3': 0, 'reward': 100000, 'label': '1263 refs → Level 1'},
     {'id': 'q7', 'need_l1': 0,    'need_l2': 0, 'need_l3': 500,'reward': 500000,'label': '500 refs → Level 3'},
 ]
-
-def _ref_anon_id(addr):
-    """Anonymous ID for on-chain records"""
-    return hashlib.sha256(addr.encode()).hexdigest()[:16]
 
 def _get_ref_counts(code):
     """Count referrals by level for a given invite code"""
@@ -7091,6 +7109,78 @@ def referral_vanity():
         S.save()
 
         return jsonify({'ok': True, 'vanity': vanity, 'price_paid': 100})
+
+@app.route('/api/referral/claim', methods=['POST'])
+def referral_claim_quest():
+    """Manually claim a completed quest reward"""
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    quest_id = data.get('quest_id', '').strip()
+
+    if not quest_id:
+        return jsonify({'error': 'quest_id required'}), 400
+
+    with S.lock:
+        if addr not in S.wallets:
+            return jsonify({'error': 'Wallet not found'}), 404
+
+        phase = get_referral_phase()
+        if phase != 1:
+            return jsonify({'error': 'Quest system only active in Phase 1'}), 400
+
+        ref_data = S.referral_map.get(addr, {})
+        code = ref_data.get('invite_code')
+        if not code or code not in S.referrals:
+            return jsonify({'error': 'No referral code found'}), 404
+
+        referral = S.referrals[code]
+        claimed = set(referral.get('quests_claimed', []))
+
+        if quest_id in claimed:
+            return jsonify({'error': 'Already claimed'}), 400
+
+        # Find quest definition
+        quest = next((q for q in REFERRAL_QUESTS if q['id'] == quest_id), None)
+        if not quest:
+            return jsonify({'error': 'Unknown quest'}), 400
+
+        # Verify completion
+        l1, l2, l3 = _get_ref_counts(code)
+        meets = True
+        if quest['need_l1'] > 0 and l1 < quest['need_l1']: meets = False
+        if quest['need_l2'] > 0 and l2 < quest['need_l2']: meets = False
+        if quest['need_l3'] > 0 and l3 < quest['need_l3']: meets = False
+
+        if not meets:
+            return jsonify({'error': 'Quest not yet completed'}), 400
+
+        # Pay out
+        reward = quest['reward']
+        S.wallets[addr]['balance'] = S.wallets[addr].get('balance', 0) + reward
+        claimed.add(quest_id)
+        referral['quests_claimed'] = list(claimed)
+
+        S.mempool.append({
+            'type': 'referral_quest',
+            'from': 'referral_system',
+            'to': _ref_anon_id(addr),
+            'amount': reward,
+            'quest_id': quest_id,
+            'quest_label': quest['label'],
+            'timestamp': int(time.time()),
+        })
+        S.save()
+
+        return jsonify({
+            'ok': True,
+            'quest_id': quest_id,
+            'reward': reward,
+            'balance': S.wallets[addr]['balance'],
+        })
 
 @app.route('/api/referral/leaderboard', methods=['GET'])
 def referral_leaderboard():

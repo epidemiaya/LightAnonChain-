@@ -1945,7 +1945,7 @@ const LoginScreen = ({ onAuth }) => {
     try { return new URLSearchParams(window.location.search).get('ref') || ''; } catch { return ''; }
   }, []);
 
-  const mkSeed = () => { const c='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; const a=crypto.getRandomValues(new Uint8Array(64)); return Array.from(a).map(b=>c[b%c.length]).join(''); };
+  const mkSeed = () => { const c='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; let s=''; for(let i=0;i<64;i++) s+=c[~~(Math.random()*c.length)]; return s; };
 
   const create = async () => {
     setLoading(true);
@@ -4178,25 +4178,31 @@ const ReferralView = ({ onBack }) => {
                   const icon = QUEST_ICONS[q.id] || '🎯';
                   return (
                     <div key={q.id}
-                      className={`p-3.5 rounded-2xl border transition ${q.done ? 'border-emerald-600/50 bg-emerald-900/15' : 'border-gray-800/60 bg-[#0a1a15]'}`}>
+                      className={`p-3.5 rounded-2xl border transition ${q.done ? 'border-emerald-600/50 bg-emerald-900/15' : pct >= 100 ? 'border-amber-600/50 bg-amber-900/10' : 'border-gray-800/60 bg-[#0a1a15]'}`}>
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xl">{q.done ? '✅' : icon}</span>
+                          <span className="text-xl">{q.done ? '✅' : pct >= 100 ? '🎁' : icon}</span>
                           <div>
-                            <p className={`text-sm font-semibold ${q.done ? 'text-emerald-300' : 'text-white'}`}>{q.label}</p>
+                            <p className={`text-sm font-semibold ${q.done ? 'text-emerald-300' : pct >= 100 ? 'text-amber-300' : 'text-white'}`}>{q.label}</p>
                             <p className="text-emerald-400 text-xs font-bold">+{q.reward.toLocaleString()} LAC</p>
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className={`text-sm font-bold ${q.done ? 'text-emerald-400' : 'text-gray-300'}`}>
-                            {q.done ? 'Claimed' : `${q.progress}/${q.needed}`}
-                          </p>
+                          {q.done
+                            ? <p className="text-emerald-400 text-sm font-bold">✓ Claimed</p>
+                            : pct >= 100
+                              ? <button onClick={async () => { try { await post('/api/referral/claim', {quest_id: q.id}); toast.success(`+${q.reward.toLocaleString()} LAC claimed!`); load(); } catch(e) { toast.error(e.message); } }}
+                                  className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-bold active:bg-amber-700">
+                                  Claim {q.reward.toLocaleString()} LAC
+                                </button>
+                              : <p className="text-gray-300 text-sm font-bold">{q.progress}/{q.needed}</p>
+                          }
                         </div>
                       </div>
                       {!q.done && (
                         <div className="w-full bg-gray-800/60 rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-gradient-to-r from-emerald-600 to-emerald-400 h-1.5 rounded-full transition-all"
-                            style={{ width: `${pct}%` }} />
+                          <div className={`${pct >= 100 ? 'bg-gradient-to-r from-amber-500 to-amber-400' : 'bg-gradient-to-r from-emerald-600 to-emerald-400'} h-1.5 rounded-full transition-all`}
+                            style={{ width: `${Math.min(pct,100)}%` }} />
                         </div>
                       )}
                     </div>
