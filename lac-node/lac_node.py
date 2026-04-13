@@ -7212,6 +7212,46 @@ def referral_leaderboard():
         })
 
 
+def _schedule_save():
+    global _save_dirty
+    _save_dirty = True
+    try:
+        _save_queue.put_nowait(True)
+    except Exception:
+        pass  # Already queued
+
+def _bg_save_worker():
+    """Background thread: coalesces rapid saves into one disk write"""
+    import time as _t
+    _last_chain_len = [0]
+    while True:
+        try:
+            _save_queue.get(timeout=2)
+            # Drain all queued saves (coalesce)
+            while True:
+                try: _save_queue.get_nowait()
+                except: break
+            # Small delay to catch any more queued saves
+            _t.sleep(0.05)
+            while True:
+                try: _save_queue.get_nowait()
+                except: break
+            # Actually write
+            try:
+                S.save_sync()
+                _last_chain_len[0] = len(S.chain) if S else 0
+            except Exception as e:
+                print(f'⚠️ BG save error: {e}')
+        except Exception:
+            pass  # Timeout — no pending save
+
+def _start_bg_save():
+    import threading
+    t = threading.Thread(target=_bg_save_worker, daemon=True, name='bg-save')
+    t.start()
+
+
+
 @app.route('/api/pol/zones', methods=['GET'])
 def pol_zones():
     """List all available PoL zones"""
