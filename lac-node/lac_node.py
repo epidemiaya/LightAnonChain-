@@ -1549,7 +1549,6 @@ def ping():
         'timestamp': int(time.time())
     })
 
-@app.route('/api/register', methods=['POST'])
 def _ref_anon_id(addr):
     """Anonymous ID for on-chain records — sha256 hash of address"""
     return hashlib.sha256(addr.encode()).hexdigest()[:16]
@@ -1565,6 +1564,7 @@ def get_referral_phase():
         return 3  # only referral gets 30
 
 
+@app.route('/api/register', methods=['POST'])
 def register():
     """Register new wallet"""
     ip = get_client_ip()
