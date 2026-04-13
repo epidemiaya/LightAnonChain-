@@ -6842,24 +6842,36 @@ def _get_ref_counts(code):
         if lvl >= 3: l3 += 1
     return l1, l2, l3
 
-def check_and_claim_quests(addr):
-    """Check quest completion and pay out. Called after level-up. Returns list of newly claimed quests."""
+def check_and_claim_quests(leveled_up_addr):
+    """
+    Called when leveled_up_addr just gained a level.
+    Finds whoever REFERRED leveled_up_addr and checks their quests.
+    """
     phase = get_referral_phase()
     if phase != 1:
         return []
 
-    ref_data = S.referral_map.get(addr, {})
-    code = ref_data.get('invite_code')
-    if not code or code not in S.referrals:
+    # Find who invited leveled_up_addr
+    ref_entry = S.referral_map.get(leveled_up_addr, {})
+    invited_by_code = ref_entry.get('invited_by_code')
+    if not invited_by_code or invited_by_code not in S.referrals:
         return []
 
-    wallet = S.wallets.get(addr)
-    if not wallet:
+    referral = S.referrals[invited_by_code]
+
+    # Find referrer address (owner of invited_by_code)
+    referrer_addr = None
+    for a, rm in S.referral_map.items():
+        if rm.get('invite_code') == invited_by_code:
+            referrer_addr = a
+            break
+
+    if not referrer_addr or referrer_addr not in S.wallets:
         return []
 
-    referral = S.referrals[code]
+    referrer_wallet = S.wallets[referrer_addr]
     claimed = set(referral.get('quests_claimed', []))
-    l1, l2, l3 = _get_ref_counts(code)
+    l1, l2, l3 = _get_ref_counts(invited_by_code)
 
     newly_claimed = []
     for q in REFERRAL_QUESTS:
@@ -6867,33 +6879,37 @@ def check_and_claim_quests(addr):
         if qid in claimed:
             continue
         meets = True
-        if q['need_l1'] > 0 and l1 < q['need_l1']:
-            meets = False
-        if q['need_l2'] > 0 and l2 < q['need_l2']:
-            meets = False
-        if q['need_l3'] > 0 and l3 < q['need_l3']:
-            meets = False
+        if q['need_l1'] > 0 and l1 < q['need_l1']: meets = False
+        if q['need_l2'] > 0 and l2 < q['need_l2']: meets = False
+        if q['need_l3'] > 0 and l3 < q['need_l3']: meets = False
         if meets:
-            # Claim reward
-            wallet['balance'] = wallet.get('balance', 0) + q['reward']
+            referrer_wallet['balance'] = referrer_wallet.get('balance', 0) + q['reward']
             claimed.add(qid)
             newly_claimed.append(q)
-            # On-chain record — fully anonymous
-            anon_id = _ref_anon_id(addr)
             S.mempool.append({
                 'type': 'referral_quest',
                 'from': 'referral_system',
-                'to': anon_id,           # anonymous hash, not real addr
+                'to': _ref_anon_id(referrer_addr),
                 'amount': q['reward'],
                 'quest_id': qid,
                 'quest_label': q['label'],
                 'timestamp': int(time.time()),
             })
-            print(f"🎯 Quest {qid} claimed by {addr[:8]}… +{q['reward']} LAC")
+            print(f"🎯 Quest {qid} auto-claimed for {referrer_addr[:8]}… +{q['reward']} LAC (ref leveled up)")
 
     if newly_claimed:
         referral['quests_claimed'] = list(claimed)
-        S.save_fast() if hasattr(S, 'save_fast') else S.save()
+        # Save referrals immediately — synchronous, prevent double-claim
+        try:
+            import json as _json
+            from pathlib import Path as _Path
+            ref_file = _Path('data/referrals.json')
+            ref_file.parent.mkdir(exist_ok=True)
+            with open(ref_file, 'w') as _f:
+                _json.dump({'codes': S.referrals, 'map': S.referral_map}, _f)
+        except Exception as _e:
+            print(f"⚠️ referrals save error: {_e}")
+        S.save()
 
     return newly_claimed
 
@@ -7173,6 +7189,16 @@ def referral_claim_quest():
             'quest_label': quest['label'],
             'timestamp': int(time.time()),
         })
+        # Save referrals SYNCHRONOUSLY to prevent double-claim between requests
+        try:
+            import json as _json
+            from pathlib import Path as _Path
+            ref_file = _Path('data/referrals.json')
+            ref_file.parent.mkdir(exist_ok=True)
+            with open(ref_file, 'w') as _f:
+                _json.dump({'codes': S.referrals, 'map': S.referral_map}, _f)
+        except Exception as _e:
+            print(f"⚠️ referrals save error: {_e}")
         S.save()
 
         return jsonify({

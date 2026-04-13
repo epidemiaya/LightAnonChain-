@@ -2017,7 +2017,7 @@ const LoginScreen = ({ onAuth }) => {
       <h1 className="text-3xl font-bold text-white mb-1">LAC</h1>
       <p className="text-emerald-600 text-sm mb-1">{t('privacyFirst')}</p>
       <p className="text-gray-600 text-xs mb-6">Zero-History · VEIL · STASH · PoET</p>
-      {refCode && <div className="bg-purple-900/20 border border-purple-700/30 rounded-xl px-4 py-2 mb-6"><p className="text-purple-400 text-xs text-center">🎁 Referral: <span className="font-mono font-bold">{refCode}</span> · +50 LAC bonus!</p></div>}
+      {refCode && <div className="bg-purple-900/20 border border-purple-700/30 rounded-xl px-4 py-2 mb-6"><p className="text-purple-400 text-xs text-center">🎁 Referral: <span className="font-mono font-bold">{refCode}</span> · +30 LAC bonus!</p></div>}
       <div className="w-full max-w-sm space-y-3">
         <Btn onClick={create} color="emerald" full loading={loading}>{t('createWallet')}</Btn>
         <Btn onClick={() => setMode('import')} color="gray" full>{t('importSeed')}</Btn>
@@ -4076,6 +4076,31 @@ const NewGroup = ({ onBack, onDone, initKind }) => {
 
 // ━━━ REFERRAL SYSTEM ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const tierInfo = { genesis:['🏆','Genesis','amber'], early:['⚡','Early','purple'], growth:['🌱','Growth','emerald'], vip:['💎','VIP','blue'], none:['—','—','gray'] };
+const ClaimQuestBtn = ({ questId, reward, onDone }) => {
+  const [claiming, setClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(false);
+  const claim = async () => {
+    if (claiming || claimed) return;
+    setClaiming(true);
+    try {
+      await post('/api/referral/claim', { quest_id: questId });
+      setClaimed(true);
+      toast.success(`+${reward.toLocaleString()} LAC claimed!`);
+      setTimeout(() => onDone && onDone(), 500);
+    } catch(e) {
+      toast.error(e.message);
+      setClaiming(false);
+    }
+  };
+  if (claimed) return <p className="text-emerald-400 text-sm font-bold">✓ Claimed</p>;
+  return (
+    <button onClick={claim} disabled={claiming}
+      className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-bold active:bg-amber-700 disabled:opacity-60">
+      {claiming ? '…' : `Claim ${reward.toLocaleString()} LAC`}
+    </button>
+  );
+};
+
 const ReferralView = ({ onBack }) => {
   const [data, setData]     = useState(null);
   const [board, setBoard]   = useState(null);
@@ -4191,10 +4216,7 @@ const ReferralView = ({ onBack }) => {
                           {q.done
                             ? <p className="text-emerald-400 text-sm font-bold">✓ Claimed</p>
                             : pct >= 100
-                              ? <button onClick={async () => { try { await post('/api/referral/claim', {quest_id: q.id}); toast.success(`+${q.reward.toLocaleString()} LAC claimed!`); load(); } catch(e) { toast.error(e.message); } }}
-                                  className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-bold active:bg-amber-700">
-                                  Claim {q.reward.toLocaleString()} LAC
-                                </button>
+                              ? <ClaimQuestBtn questId={q.id} reward={q.reward} onDone={load} />
                               : <p className="text-gray-300 text-sm font-bold">{q.progress}/{q.needed}</p>
                           }
                         </div>
