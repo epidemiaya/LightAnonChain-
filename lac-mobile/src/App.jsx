@@ -4105,234 +4105,218 @@ const ClaimQuestBtn = ({ questId, reward, onDone }) => {
 
 
 // ━━━ WRAITH SYSTEM v2 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const RARITY_COLOR  = {Common:'#6ee7b7',Uncommon:'#a78bfa',Rare:'#f59e0b',Legendary:'#f87171'};
-const RARITY_BG     = {Common:'#051a10',Uncommon:'#1e1b4b',Rare:'#2d1a00',Legendary:'#2d0a0a'};
-const RARITY_BORDER = {Common:'#166534',Uncommon:'#4c1d95',Rare:'#92400e',Legendary:'#7f1d1d'};
-const WRAITH_COLOR  = {wolf:'#22c55e',raven:'#a78bfa',cat:'#f59e0b',fox:'#ef4444',moth:'#67e8f9'};
+const RARITY_COLOR  = {Common:'text-emerald-400',Uncommon:'text-violet-400',Rare:'text-amber-400',Legendary:'text-red-400'};
+const RARITY_BADGE  = {Common:'bg-emerald-900/60 text-emerald-300 border border-emerald-700',Uncommon:'bg-violet-900/60 text-violet-300 border border-violet-700',Rare:'bg-amber-900/60 text-amber-300 border border-amber-700',Legendary:'bg-red-900/60 text-red-300 border border-red-700'};
+const WRAITH_RING   = {wolf:'ring-emerald-500',raven:'ring-violet-500',cat:'ring-amber-500',fox:'ring-red-500',moth:'ring-cyan-400'};
+const WRAITH_ACCENT = {wolf:'text-emerald-400',raven:'text-violet-400',cat:'text-amber-400',fox:'text-red-400',moth:'text-cyan-400'};
 const WRAITH_EMOJI  = {wolf:'🐺',raven:'🦅',cat:'🐱',fox:'🦊',moth:'🦋'};
+const WRAITH_BAR    = {wolf:'bg-emerald-500',raven:'bg-violet-500',cat:'bg-amber-500',fox:'bg-red-500',moth:'bg-cyan-400'};
 const SLOT_META = {
-  head: {label:'Head',  emoji:'👁',  desc:'Rare finds & hidden access'},
-  core: {label:'Core',  emoji:'❤️', desc:'Block chance & mining power'},
-  arms: {label:'Arms',  emoji:'⚡',  desc:'Shard drops & craft speed'},
-  legs: {label:'Legs',  emoji:'🦿',  desc:'Hunt speed & mobility'},
-  armor:{label:'Armor', emoji:'🛡',  desc:'Fee discount & protection'},
+  head: {label:'Head',  emoji:'👁',  desc:'Rare finds'},
+  core: {label:'Core',  emoji:'❤️', desc:'Block chance'},
+  arms: {label:'Arms',  emoji:'⚡',  desc:'Shard drops'},
+  legs: {label:'Legs',  emoji:'🦿',  desc:'Hunt speed'},
+  armor:{label:'Armor', emoji:'🛡',  desc:'Fee discount'},
 };
 const BONUS_LABELS = {
-  block_chance:'Block chance',rare_find:'Rare find',
-  fee_discount:'Fee discount',shard_drop_bonus:'Shard drop',
-  mutation_chance:'Mutation',hunt_speed:'Hunt speed',
+  block_chance:'Block',rare_find:'Rare find',
+  fee_discount:'Fee disc.',shard_drop_bonus:'Shards',
+  mutation_chance:'Mutation',hunt_speed:'Speed',
 };
 const SLOTS_ORDER = ['head','core','arms','legs','armor'];
+const ITEM_INFO = {
+  void_lens:{n:'Void Lens',e:'🔮',r:'Rare',s:'head'},
+  shadow_eye:{n:'Shadow Eye',e:'👁',r:'Uncommon',s:'head'},
+  dark_sight:{n:'Dark Sight',e:'🌑',r:'Common',s:'head'},
+  iron_heart:{n:'Iron Heart',e:'❤️',r:'Rare',s:'core'},
+  dark_core:{n:'Dark Core',e:'⬛',r:'Uncommon',s:'core'},
+  pulse_stone:{n:'Pulse Stone',e:'💎',r:'Common',s:'core'},
+  chaos_shard:{n:'Chaos Shard',e:'💠',r:'Legendary',s:'arms'},
+  speed_claw:{n:'Speed Claw',e:'⚡',r:'Uncommon',s:'arms'},
+  iron_fist:{n:'Iron Fist',e:'✊',r:'Common',s:'arms'},
+  feral_boots:{n:'Feral Boots',e:'👢',r:'Rare',s:'legs'},
+  void_step:{n:'Void Step',e:'🌀',r:'Uncommon',s:'legs'},
+  swift_paws:{n:'Swift Paws',e:'🐾',r:'Common',s:'legs'},
+  ghost_aura:{n:'Ghost Aura',e:'👻',r:'Rare',s:'armor'},
+  void_veil:{n:'Void Veil',e:'🌫',r:'Uncommon',s:'armor'},
+  shadow_cloak:{n:'Shadow Cloak',e:'🌑',r:'Common',s:'armor'},
+};
 
-// ── Wraith NFT card ────────────────────────────────────
+// ── NFT Card ────────────────────────────────────────
 const WraithNFTCard = ({wraith, onSlotClick}) => {
-  const color    = WRAITH_COLOR[wraith.type] || '#22c55e';
-  const emoji    = WRAITH_EMOJI[wraith.type] || '🐺';
-  const rc       = RARITY_COLOR[wraith.rarity]  || '#6ee7b7';
-  const equipped = wraith.equipped || {};
-  const bonuses  = wraith.bonuses  || {};
-  const itemLevels = wraith.item_levels || {};
-
-  const cardStyle = {
-    background:'#0d1f17',
-    border:`1px solid ${color}66`,
-    borderRadius:18,
-    overflow:'hidden',
-  };
+  const accent   = WRAITH_ACCENT[wraith.type] || 'text-emerald-400';
+  const bar      = WRAITH_BAR[wraith.type]    || 'bg-emerald-500';
+  const ring     = WRAITH_RING[wraith.type]   || 'ring-emerald-500';
+  const emoji    = WRAITH_EMOJI[wraith.type]  || '🐺';
+  const equipped   = wraith.equipped   || {};
+  const bonuses    = wraith.bonuses    || {};
+  const itemLevels = wraith.item_levels|| {};
 
   return (
-    <div style={cardStyle}>
-      {/* Color top bar */}
-      <div style={{height:4, background:color}}/>
+    <div className="rounded-2xl overflow-hidden bg-[#0a1a14] border border-white/10">
+      {/* Top bar */}
+      <div className={`h-1 w-full ${bar}`}/>
 
       {/* Header */}
-      <div style={{padding:'14px 16px 12px', display:'flex', alignItems:'center', gap:12, borderBottom:`1px solid ${color}33`}}>
-        <div style={{width:54, height:54, borderRadius:14, background:'#060f0c',
-          border:`2px solid ${color}55`, display:'flex', alignItems:'center',
-          justifyContent:'center', fontSize:30, flexShrink:0}}>{emoji}</div>
-        <div style={{flex:1, minWidth:0}}>
-          <p style={{color:'#ffffff', fontWeight:700, fontSize:16, marginBottom:3}}>{wraith.name}</p>
-          <p style={{color:rc, fontSize:12, fontWeight:600, marginBottom:3}}>{wraith.rarity} · {wraith.type}</p>
-          <p style={{color:'#7aab8a', fontSize:9, fontFamily:'monospace'}}>{wraith.token_id}</p>
+      <div className="flex items-center gap-3 p-4 border-b border-white/5">
+        <div className={`w-14 h-14 rounded-2xl bg-black/40 flex items-center justify-center text-3xl flex-shrink-0 ring-2 ${ring} ring-opacity-40`}>
+          {emoji}
         </div>
-        <div style={{textAlign:'right', flexShrink:0}}>
-          <p style={{fontSize:10, color:'#7aab8a', marginBottom:2}}>Minted</p>
-          <p style={{fontSize:12, color:'#c0e8d0'}}>{new Date((wraith.minted_at||0)*1000).toLocaleDateString('uk')}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-bold text-base leading-tight">{wraith.name}</p>
+          <p className={`text-sm font-semibold mt-0.5 ${accent}`}>{wraith.rarity}</p>
+          <p className="text-white/30 text-[9px] font-mono mt-0.5 truncate">{wraith.token_id}</p>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className="text-white/40 text-[10px]">Soul-bound</p>
+          <p className="text-white/60 text-xs mt-0.5">to your address</p>
         </div>
       </div>
 
-      {/* Equipment */}
-      <div style={{padding:'12px 16px 8px'}}>
-        <p style={{fontSize:11, color:'#7aab8a', letterSpacing:'.1em',
-          textTransform:'uppercase', marginBottom:10, fontWeight:600}}>Equipment</p>
+      {/* Slots */}
+      <div className="p-3 space-y-1.5">
+        <p className="text-white/40 text-[10px] font-semibold uppercase tracking-widest px-1 mb-2">Equipment slots</p>
         {SLOTS_ORDER.map(slotId => {
           const sm     = SLOT_META[slotId];
           const itemId = equipped[slotId];
-          const lv     = itemId ? (itemLevels[itemId] || 1) : 0;
+          const item   = itemId ? ITEM_INFO[itemId] : null;
+          const lv     = itemId ? (itemLevels[itemId]||1) : 0;
           return (
-            <div key={slotId}
-              onClick={() => onSlotClick && onSlotClick(slotId, itemId)}
-              style={{display:'flex', alignItems:'center', gap:10,
-                padding:'9px 10px', borderRadius:10, marginBottom:4,
-                background: itemId ? '#0a2218' : '#080f0c',
-                border: itemId ? `1px solid ${color}44` : '1px solid #1a2f22',
-                cursor:'pointer'}}
-              onMouseEnter={e => e.currentTarget.style.background='#112a1c'}
-              onMouseLeave={e => e.currentTarget.style.background = itemId ? '#0a2218' : '#080f0c'}>
-              <span style={{fontSize:16, width:22, textAlign:'center', flexShrink:0}}>{sm.emoji}</span>
-              <span style={{fontSize:12, color:'#a0c8b0', width:44, flexShrink:0, fontWeight:500}}>{sm.label}</span>
-              {itemId ? (
+            <button key={slotId} onClick={() => onSlotClick && onSlotClick(slotId, itemId)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${itemId ? 'bg-white/5 border border-white/10' : 'bg-black/20 border border-white/5'}`}>
+              <span className="text-base w-5 text-center flex-shrink-0">{sm.emoji}</span>
+              <span className="text-white/50 text-xs w-10 flex-shrink-0 font-medium">{sm.label}</span>
+              {item ? (
                 <>
-                  <span style={{flex:1, fontSize:13, color:'#e0f5ea', fontWeight:500}}>
-                    {itemId.replace(/_/g,' ').replace(/\w/g,c=>c.toUpperCase())}
-                  </span>
-                  <div style={{display:'flex', gap:3, flexShrink:0}}>
+                  <span className="flex-1 text-white text-sm font-medium">{item.n}</span>
+                  <div className="flex gap-1 flex-shrink-0">
                     {[1,2,3,4,5].map(i =>
-                      <div key={i} style={{width:7, height:7, borderRadius:'50%',
-                        background: i<=lv ? color : '#1a3d2a'}}/>
+                      <div key={i} className={`w-1.5 h-1.5 rounded-full ${i<=lv ? bar : 'bg-white/10'}`}/>
                     )}
                   </div>
-                  {lv > 1 && <span style={{fontSize:11, color:color, marginLeft:2, flexShrink:0}}>Lv{lv}</span>}
+                  {lv>1 && <span className={`text-xs flex-shrink-0 font-bold ${accent}`}>L{lv}</span>}
                 </>
               ) : (
-                <span style={{flex:1, fontSize:12, color:'#7aab8a', fontStyle:'italic'}}>empty · tap to equip</span>
+                <span className="flex-1 text-white/25 text-sm italic">empty · tap to equip</span>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
 
       {/* Bonuses */}
-      {Object.values(bonuses).some(v => v > 0.001) && (
-        <div style={{padding:'8px 16px 14px', display:'flex', gap:6, flexWrap:'wrap'}}>
-          {Object.entries(bonuses).map(([k,v]) => v > 0.001 ? (
-            <span key={k} style={{fontSize:11, padding:'4px 10px', borderRadius:20, fontWeight:600,
-              background:`${color}22`, color:color, border:`1px solid ${color}55`}}>
-              {k==='fee_discount'?'-':'+'}{ Math.round(v*100)}% {BONUS_LABELS[k]?.split(' ')[0]||k}
-            </span>
-          ) : null)}
-          {(wraith.mutations||[]).map(m => (
-            <span key={m} style={{fontSize:11, padding:'4px 10px', borderRadius:20, fontWeight:600,
-              background:'#2a1a4a', color:'#d4aaff', border:'1px solid #6d28d9'}}>
-              ✦ {m.replace(/_m$/,'').replace(/_/g,' ')}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="px-3 pb-3 flex flex-wrap gap-1.5">
+        {Object.entries(bonuses).map(([k,v]) => v>0.001 ? (
+          <span key={k} className={`text-xs px-2 py-1 rounded-full font-semibold ${accent} bg-white/5 border border-white/10`}>
+            {k==='fee_discount'?'-':'+'}{ Math.round(v*100)}% {BONUS_LABELS[k]||k}
+          </span>
+        ):null)}
+        {(wraith.mutations||[]).map(m=>(
+          <span key={m} className="text-xs px-2 py-1 rounded-full font-semibold text-violet-300 bg-violet-900/30 border border-violet-700/50">
+            ✦ {m.replace(/_m$/,'').replace(/_/g,' ')}
+          </span>
+        ))}
+      </div>
     </div>
   );
 };
 
-// ── Slot detail modal ──────────────────────────────────
-const SlotModal = ({slotId, currentItemId, ownedItems, wraith, onEquip, onUnequip, onUpgrade, onClose, shards}) => {
-  const sm = SLOT_META[slotId];
-  const color = WRAITH_COLOR[wraith?.type] || '#22c55e';
-  const itemLevels = wraith?.item_levels || {};
-  const slotItems = ownedItems.filter(iid => {
-    const ITEM_SLOTS = {
-      void_lens:'head',shadow_eye:'head',dark_sight:'head',
-      iron_heart:'core',dark_core:'core',pulse_stone:'core',
-      chaos_shard:'arms',speed_claw:'arms',iron_fist:'arms',
-      feral_boots:'legs',void_step:'legs',swift_paws:'legs',
-      ghost_aura:'armor',void_veil:'armor',shadow_cloak:'armor',
-    };
-    return ITEM_SLOTS[iid] === slotId;
-  });
-  const lv = currentItemId ? (itemLevels[currentItemId] || 1) : 0;
-  const upgradeCost = currentItemId ? (lv + 1) * 30 : 0;
+// ── Slot Modal ───────────────────────────────────────
+const SlotModal = ({slotId,currentItemId,ownedItems,wraith,onEquip,onUnequip,onUpgrade,onClose,shards}) => {
+  const sm  = SLOT_META[slotId];
+  const accent = WRAITH_ACCENT[wraith?.type]||'text-emerald-400';
+  const bar    = WRAITH_BAR[wraith?.type]   ||'bg-emerald-500';
+  const itemLevels = wraith?.item_levels||{};
+  const lv  = currentItemId ? (itemLevels[currentItemId]||1) : 0;
+  const upgCost = currentItemId ? (lv+1)*30 : 0;
+  const slotOwned = ownedItems.filter(iid => ITEM_INFO[iid]?.s === slotId);
 
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',display:'flex',
-      alignItems:'flex-end',justifyContent:'center',zIndex:100}}
+    <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50"
       onClick={e => e.target===e.currentTarget && onClose()}>
-      <div style={{background:'#0d1f17',border:'1px solid #2a5a3a',borderRadius:'20px 20px 0 0',
-        width:'100%',maxWidth:480,padding:'1.25rem',paddingBottom:'2rem',maxHeight:'70vh',overflowY:'auto'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
-          <span style={{fontSize:22}}>{sm.emoji}</span>
+      <div className="bg-[#0d1f17] border border-white/10 rounded-t-3xl w-full max-w-lg p-5 pb-8 max-h-[70vh] overflow-y-auto">
+        {/* Handle */}
+        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4"/>
+        <div className="flex items-center gap-3 mb-5">
+          <span className="text-2xl">{sm.emoji}</span>
           <div>
-            <p style={{color:'#ffffff',fontWeight:700,fontSize:16}}>{sm.label} slot</p>
-            <p style={{color:'#8ab5a0',fontSize:12}}>{sm.desc}</p>
+            <p className="text-white font-bold text-base">{sm.label} slot</p>
+            <p className="text-white/50 text-sm">{sm.desc}</p>
           </div>
-          <button onClick={onClose} style={{marginLeft:'auto',background:'none',border:'none',color:'var(--color-text-tertiary)',fontSize:20,cursor:'pointer'}}>×</button>
+          <button onClick={onClose} className="ml-auto text-white/30 text-2xl leading-none">×</button>
         </div>
 
-        {currentItemId && (
-          <div style={{background:'#051a10',border:`1px solid ${color}44`,borderRadius:12,padding:'12px',marginBottom:12}}>
-            <p style={{fontSize:11,color:'#7aab8a',fontWeight:600,marginBottom:6}}>Currently equipped</p>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <p style={{flex:1,color:'#ffffff',fontSize:14,fontWeight:600}}>{currentItemId.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</p>
-              <div style={{display:'flex',gap:2}}>
-                {[1,2,3,4,5].map(i=><div key={i} style={{width:8,height:8,borderRadius:'50%',background:i<=lv?color:'#6ee7b7'}}/>)}
+        {currentItemId && (() => {
+          const item = ITEM_INFO[currentItemId]||{n:currentItemId,e:'?',r:'Common'};
+          return (
+            <div className={`bg-white/5 border border-white/10 rounded-2xl p-4 mb-4`}>
+              <p className="text-white/50 text-xs font-semibold uppercase tracking-wide mb-3">Equipped</p>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-2xl">{item.e}</span>
+                <div className="flex-1">
+                  <p className="text-white font-bold text-sm">{item.n}</p>
+                  <p className={`text-xs font-semibold ${RARITY_COLOR[item.r]||'text-emerald-400'}`}>{item.r}</p>
+                </div>
+                <div className="flex gap-1">
+                  {[1,2,3,4,5].map(i=><div key={i} className={`w-2 h-2 rounded-full ${i<=lv?bar:'bg-white/10'}`}/>)}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {lv<5 && (
+                  <button onClick={()=>onUpgrade(currentItemId)} disabled={shards<upgCost}
+                    className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${shards>=upgCost?'bg-emerald-700 text-white':'bg-white/5 text-white/30'}`}>
+                    Upgrade L{lv}→{lv+1} · 💠{upgCost}
+                  </button>
+                )}
+                <button onClick={()=>onUnequip(currentItemId)}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-900/40 text-red-400 border border-red-800/50">
+                  Remove
+                </button>
               </div>
             </div>
-            <div style={{display:'flex',gap:8,marginTop:10}}>
-              {lv < 5 && <button onClick={() => onUpgrade(currentItemId)}
-                disabled={shards < upgradeCost}
-                style={{flex:1,padding:'8px',borderRadius:10,fontSize:12,fontWeight:500,cursor:'pointer',
-                  background:shards>=upgradeCost?'#052e16':'#111',
-                  border:`1px solid ${shards>=upgradeCost?'#166534':'#1a3d2a'}`,
-                  color:shards>=upgradeCost?'#4ade80':'var(--color-text-tertiary)'}}>
-                Upgrade Lv{lv}→{lv+1} · 💠{upgradeCost}
-              </button>}
-              <button onClick={() => onUnequip(currentItemId)}
-                style={{padding:'8px 14px',borderRadius:10,fontSize:12,cursor:'pointer',
-                  background:'#2d0a0a',border:'1px solid #7f1d1d',color:'#f87171'}}>
-                Remove
-              </button>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
-        {slotItems.length > 0 && !currentItemId && (
+        {slotOwned.length>0 && !currentItemId && (
           <>
-            <p style={{fontSize:11,color:'var(--color-text-tertiary)',marginBottom:8}}>Items in bag for this slot:</p>
-            {slotItems.map(iid => {
-              const ITEM_DATA = {
-                void_lens:{n:'Void Lens',e:'🔮',r:'Rare',b:'+5% rare'},shadow_eye:{n:'Shadow Eye',e:'👁',r:'Uncommon',b:'+3% rare'},dark_sight:{n:'Dark Sight',e:'🌑',r:'Common',b:'+1% rare'},
-                iron_heart:{n:'Iron Heart',e:'❤️',r:'Rare',b:'+5% block'},dark_core:{n:'Dark Core',e:'⬛',r:'Uncommon',b:'+3% block'},pulse_stone:{n:'Pulse Stone',e:'💎',r:'Common',b:'+1% block'},
-                chaos_shard:{n:'Chaos Shard',e:'💠',r:'Legendary',b:'+30% shards'},speed_claw:{n:'Speed Claw',e:'⚡',r:'Uncommon',b:'+15% shards'},iron_fist:{n:'Iron Fist',e:'✊',r:'Common',b:'+5% shards'},
-                feral_boots:{n:'Feral Boots',e:'👢',r:'Rare',b:'+20% speed'},void_step:{n:'Void Step',e:'🌀',r:'Uncommon',b:'+10% speed'},swift_paws:{n:'Swift Paws',e:'🐾',r:'Common',b:'+5% speed'},
-                ghost_aura:{n:'Ghost Aura',e:'👻',r:'Rare',b:'-10% fee'},void_veil:{n:'Void Veil',e:'🌫',r:'Uncommon',b:'-5% fee'},shadow_cloak:{n:'Shadow Cloak',e:'🌑',r:'Common',b:'-2% fee'},
-              }[iid] || {n:iid,e:'?',r:'Common',b:''};
-              return (
-                <div key={iid} onClick={() => onEquip(iid)}
-                  style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
-                    borderRadius:10,background:'#0a2218',border:'1px solid #2a5a3a',
-                    marginBottom:6,cursor:'pointer'}}
-                  onMouseEnter={e=>e.currentTarget.style.borderColor='#166534'}
-                  onMouseLeave={e=>e.currentTarget.style.borderColor='#0f2a1e'}>
-                  <span style={{fontSize:20}}>{ITEM_DATA.e}</span>
-                  <div style={{flex:1}}>
-                    <p style={{fontSize:14,color:'#ffffff',fontWeight:600}}>{ITEM_DATA.n}</p>
-                    <p style={{fontSize:10,color:RARITY_COLOR[ITEM_DATA.r]||'#6ee7b7'}}>{ITEM_DATA.r} · {ITEM_DATA.b}</p>
-                  </div>
-                  <span style={{fontSize:13,color:'#4ade80',fontWeight:600}}>Equip →</span>
-                </div>
-              );
-            })}
+            <p className="text-white/50 text-xs font-semibold uppercase tracking-wide mb-3">Items in bag:</p>
+            <div className="space-y-2">
+              {slotOwned.map(iid => {
+                const item = ITEM_INFO[iid]||{n:iid,e:'?',r:'Common'};
+                return (
+                  <button key={iid} onClick={()=>onEquip(iid)}
+                    className="w-full flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 active:bg-white/10 text-left">
+                    <span className="text-2xl">{item.e}</span>
+                    <div className="flex-1">
+                      <p className="text-white font-semibold text-sm">{item.n}</p>
+                      <p className={`text-xs font-medium ${RARITY_COLOR[item.r]||'text-emerald-400'}`}>{item.r}</p>
+                    </div>
+                    <span className="text-emerald-400 text-sm font-bold">Equip</span>
+                  </button>
+                );
+              })}
+            </div>
           </>
         )}
-        {slotItems.length === 0 && !currentItemId && (
-          <p style={{fontSize:13,color:'#7aab8a',textAlign:'center',padding:'20px 0',fontSize:14}}>
-            No items for this slot. Craft some in the Bag tab.
-          </p>
+        {slotOwned.length===0 && !currentItemId && (
+          <p className="text-white/40 text-sm text-center py-6">No items for this slot yet. Craft some in the Bag tab.</p>
         )}
       </div>
     </div>
   );
 };
 
-// ── Main WraithView ────────────────────────────────────
+// ── Main WraithView ──────────────────────────────────
 const WraithView = ({onBack, profile}) => {
-  const [data,       setData]       = useState(null);
-  const [loading,    setLoading]    = useState(true);
-  const [tab,        setTab]        = useState('wraith');
-  const [minting,    setMinting]    = useState(false);
-  const [pickType,   setPickType]   = useState(false);
-  const [crafting,   setCrafting]   = useState(null);
-  const [slotModal,  setSlotModal]  = useState(null); // {slotId, itemId}
-  const [actionLd,   setActionLd]   = useState(false);
-  const [releasing,  setReleasing]  = useState(false);
+  const [data,      setData]      = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [tab,       setTab]       = useState('wraith');
+  const [minting,   setMinting]   = useState(false);
+  const [pickType,  setPickType]  = useState(false);
+  const [crafting,  setCrafting]  = useState(null);
+  const [slotModal, setSlotModal] = useState(null);
+  const [actionLd,  setActionLd]  = useState(false);
+  const [releasing, setReleasing] = useState(false);
 
   const load = async () => {
     try { const r = await get('/api/wraith/info'); setData(r); }
@@ -4340,7 +4324,7 @@ const WraithView = ({onBack, profile}) => {
   };
   useEffect(() => { load(); }, []);
 
-  const mint = async (type) => {
+  const mint = async type => {
     setMinting(true); setPickType(false);
     try {
       const r = await post('/api/wraith/mint', {type});
@@ -4350,219 +4334,187 @@ const WraithView = ({onBack, profile}) => {
     finally { setMinting(false); }
   };
 
-  const craftItem = async (item_id) => {
+  const craftItem = async item_id => {
     setCrafting(item_id);
-    try {
-      const r = await post('/api/wraith/item/craft', {item_id});
-      toast.success(`${r.name} crafted!`);
-      load();
-    } catch(e) { toast.error(e.message); }
+    try { const r = await post('/api/wraith/item/craft',{item_id}); toast.success(`${r.name} crafted!`); load(); }
+    catch(e) { toast.error(e.message); }
     finally { setCrafting(null); }
   };
 
-  const equipItem = async (item_id) => {
+  const equipItem = async item_id => {
     setActionLd(true);
     try {
-      const r = await post('/api/wraith/item/equip', {item_id, action:'equip'});
-      setData(d => ({...d, wraith: {...d.wraith, equipped: r.equipped, bonuses: r.bonuses}}));
-      toast.success('Equipped!');
-      setSlotModal(null);
+      const r = await post('/api/wraith/item/equip',{item_id,action:'equip'});
+      setData(d => ({...d,wraith:{...d.wraith,equipped:r.equipped,bonuses:r.bonuses}}));
+      toast.success('Equipped!'); setSlotModal(null);
     } catch(e) { toast.error(e.message); }
     finally { setActionLd(false); }
   };
 
-  const unequipItem = async (item_id) => {
+  const unequipItem = async item_id => {
     setActionLd(true);
     try {
-      const r = await post('/api/wraith/item/equip', {item_id, action:'unequip'});
-      setData(d => ({...d, wraith: {...d.wraith, equipped: r.equipped, bonuses: r.bonuses}}));
-      toast.success('Removed');
-      setSlotModal(null);
+      const r = await post('/api/wraith/item/equip',{item_id,action:'unequip'});
+      setData(d => ({...d,wraith:{...d.wraith,equipped:r.equipped,bonuses:r.bonuses}}));
+      toast.success('Removed'); setSlotModal(null);
     } catch(e) { toast.error(e.message); }
     finally { setActionLd(false); }
   };
 
-  const upgradeItem = async (item_id) => {
+  const upgradeItem = async item_id => {
     setActionLd(true);
     try {
-      const r = await post('/api/wraith/item/upgrade', {item_id});
+      const r = await post('/api/wraith/item/upgrade',{item_id});
       setData(d => ({...d,
-        wraith: {...d.wraith,
-          item_levels: {...d.wraith.item_levels, [item_id]: r.new_level},
-          mutations: r.mutation ? [...(d.wraith.mutations||[]), r.mutation.id] : d.wraith.mutations,
-          bonuses: r.bonuses,
+        wraith:{...d.wraith,
+          item_levels:{...d.wraith.item_levels,[item_id]:r.new_level},
+          mutations:r.mutation?[...(d.wraith.mutations||[]),r.mutation.id]:d.wraith.mutations,
+          bonuses:r.bonuses,
         },
-        bag: {...d.bag, shards: (d.bag?.shards||0) - r.cost_shards},
+        bag:{...d.bag,shards:(d.bag?.shards||0)-r.cost_shards},
       }));
-      let msg = `Item upgraded to Lv${r.new_level}!`;
-      if (r.mutation) msg += ` ✦ Mutation: ${r.mutation.name}`;
-      toast.success(msg);
-      setSlotModal(null);
+      let msg = `Upgraded to L${r.new_level}!`;
+      if(r.mutation) msg += ` ✦ ${r.mutation.name}!`;
+      toast.success(msg); setSlotModal(null);
     } catch(e) { toast.error(e.message); }
     finally { setActionLd(false); }
   };
 
   const release = async () => {
-    if (!window.confirm(`Release ${data.wraith.name}?\nYou'll receive shards. Items return to your bag.`)) return;
+    if(!window.confirm(`Release ${data.wraith.name}?\nYou'll get shards back. Items return to bag.`)) return;
     setReleasing(true);
     try {
       const r = await post('/api/wraith/release');
-      setData(d => ({...d, wraith: null, bag: {...d.bag, shards: r.total_shards}}));
+      setData(d => ({...d,wraith:null,bag:{...d.bag,shards:r.total_shards}}));
       toast.success(`Released! +${r.shards_earned} shards`);
     } catch(e) { toast.error(e.message); }
     finally { setReleasing(false); }
   };
 
-  if (loading) return (
-    <div style={{height:'100%',background:'#060f0c',display:'flex',flexDirection:'column'}}>
+  if(loading) return (
+    <div className="h-full bg-[#060f0c] flex flex-col">
       <Header title="⬡ Wraith" onBack={onBack}/>
       <SkeletonList n={4}/>
     </div>
   );
 
   const wraith  = data?.wraith;
-  const bag     = data?.bag || {shards:0,items_owned:[],craftable:[]};
-  const shards  = bag.shards || 0;
+  const bag     = data?.bag||{shards:0,items_owned:[],craftable:[]};
+  const shards  = bag.shards||0;
+  const accent  = wraith ? (WRAITH_ACCENT[wraith.type]||'text-emerald-400') : 'text-emerald-400';
   const equippedCount = wraith ? Object.values(wraith.equipped||{}).filter(Boolean).length : 0;
-  const maxSlots = wraith ? (data?.types?.[wraith.type]?.slots || 3) : 0;
+  const maxSlots = wraith ? (data?.types?.[wraith.type]?.slots||3) : 0;
 
   return (
-    <div style={{height:'100%',background:'#060f0c',display:'flex',flexDirection:'column'}}>
+    <div className="h-full bg-[#060f0c] flex flex-col">
       <Header title="⬡ Wraith" onBack={onBack} right={
-        <div style={{display:'flex',alignItems:'center',gap:6}}>
-          <span style={{fontSize:12,color:'#6ee7b7',padding:'4px 10px',borderRadius:20,
-            background:'#051a10',border:'1px solid #166534'}}>
-            💠 {shards}
-          </span>
-        </div>
+        <span className="text-xs font-semibold text-emerald-300 px-3 py-1 rounded-full bg-emerald-900/40 border border-emerald-700/50">
+          💠 {shards}
+        </span>
       }/>
-
       <TabBar tabs={[['wraith','⬡ Wraith'],['bag','💠 Bag'],['info','Info']]} active={tab} onChange={setTab}/>
 
-      <div style={{flex:1,overflowY:'auto',padding:'1rem',display:'flex',flexDirection:'column',gap:'1rem'}}
-        onClick={() => slotModal && setSlotModal(null)}>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
         {/* ── WRAITH TAB ── */}
-        {tab === 'wraith' && <>
+        {tab==='wraith' && <>
           {!wraith ? (
-            <div style={{textAlign:'center',padding:'2rem 1rem'}}>
-              <p style={{fontSize:56,marginBottom:12}}>⬡</p>
-              <p style={{color:'#ffffff',fontWeight:700,fontSize:18,marginBottom:8}}>No Wraith bound</p>
-              <p style={{color:'#a0c8b0',fontSize:14,lineHeight:1.7,marginBottom:8}}>
-                A Wraith is a soul-bound companion token. It's unique to your address, recorded on-chain, and gives you real bonuses.
+            <div className="text-center py-10 px-4">
+              <p className="text-5xl mb-4">⬡</p>
+              <p className="text-white font-bold text-lg mb-2">No Wraith bound</p>
+              <p className="text-white/50 text-sm leading-relaxed mb-2">
+                A Wraith is a <span className="text-emerald-400 font-semibold">soul-bound token</span> — unique, non-transferable, permanently linked to your wallet address.
               </p>
-              <p style={{color:'#7aab8a',fontSize:13,marginBottom:24}}>
-                Equip items to unlock powers. Upgrade items for stronger bonuses. Rare mutations drop randomly.
-              </p>
-              {!pickType
-                ? <button onClick={() => setPickType(true)} disabled={minting}
-                    style={{padding:'12px 32px',borderRadius:14,background:'#15803d',
-                      color:'#e5fff5',border:'none',fontSize:14,fontWeight:600,cursor:'pointer'}}>
-                    Mint Wraith · 500 LAC
-                  </button>
-                : <div style={{display:'flex',flexDirection:'column',gap:10,maxWidth:340,margin:'0 auto',textAlign:'left'}}>
-                    <p style={{color:'#c0e8d0',fontSize:14,fontWeight:500,textAlign:'center',marginBottom:8}}>Choose your Wraith type:</p>
-                    {Object.entries(data?.types||{}).map(([type,t]) => (
-                      <button key={type} onClick={() => mint(type)} disabled={minting}
-                        style={{padding:'14px 16px',borderRadius:14,
-                          background:RARITY_BG[t.rarity]||'#051a10',
-                          border:`1px solid ${RARITY_BORDER[t.rarity]||'#166534'}`,
-                          cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:12}}>
-                        <span style={{fontSize:28,flexShrink:0}}>{WRAITH_EMOJI[type]||'?'}</span>
-                        <div style={{flex:1}}>
-                          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
-                            <p style={{color:RARITY_COLOR[t.rarity]||'#6ee7b7',fontWeight:700,fontSize:15}}>{t.name}</p>
-                            <span style={{fontSize:10,padding:'1px 7px',borderRadius:20,
-                              background:'#060f0c',color:RARITY_COLOR[t.rarity]||'#6ee7b7'}}>{t.rarity}</span>
-                            <span style={{fontSize:10,color:'var(--color-text-tertiary)',marginLeft:'auto'}}>{t.slots} slots</span>
-                          </div>
-                          <p style={{color:'#a0c8b0',fontSize:12}}>
-                            {type==='wolf'?'+mining chance':type==='raven'?'+rare finds':
-                             type==='cat'?'-tx fees':type==='fox'?'+shard drops':'max slots + mutations'}
-                          </p>
+              <p className="text-white/40 text-sm mb-8">Equip items to boost your stats. Every action is recorded on-chain.</p>
+              {!pickType ? (
+                <button onClick={()=>setPickType(true)} disabled={minting}
+                  className="px-8 py-3 rounded-2xl bg-emerald-600 text-white font-bold text-sm active:bg-emerald-700">
+                  {minting?'Minting…':'Mint Wraith · 500 LAC'}
+                </button>
+              ) : (
+                <div className="space-y-3 text-left">
+                  <p className="text-white/60 text-sm text-center mb-4">Choose your type:</p>
+                  {Object.entries(data?.types||{}).map(([type,t]) => (
+                    <button key={type} onClick={()=>mint(type)} disabled={minting}
+                      className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 active:bg-white/10 text-left">
+                      <span className="text-3xl flex-shrink-0">{WRAITH_EMOJI[type]||'?'}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className={`font-bold text-sm ${WRAITH_ACCENT[type]||'text-emerald-400'}`}>{t.name}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${RARITY_BADGE[t.rarity]||''}`}>{t.rarity}</span>
+                          <span className="text-white/30 text-xs ml-auto">{t.slots} slots</span>
                         </div>
-                      </button>
-                    ))}
-                    <button onClick={() => setPickType(false)}
-                      style={{fontSize:12,color:'var(--color-text-tertiary)',background:'none',border:'none',cursor:'pointer',padding:8}}>
-                      Cancel
+                        <p className="text-white/50 text-xs">
+                          {type==='wolf'?'+mining chance · miner archetype':
+                           type==='raven'?'+rare finds · scout archetype':
+                           type==='cat'?'-tx fees · trader archetype':
+                           type==='fox'?'+shard drops · chaos archetype':
+                           'max slots · mutations · elite'}
+                        </p>
+                      </div>
                     </button>
-                  </div>
-              }
+                  ))}
+                  <button onClick={()=>setPickType(false)} className="w-full text-white/30 text-sm py-2">Cancel</button>
+                </div>
+              )}
             </div>
           ) : <>
-            <WraithNFTCard wraith={wraith} onSlotClick={(slotId, itemId) => setSlotModal({slotId, itemId})}/>
-
-            <div style={{background:'#051a10',border:'1px solid #0f2a1e',borderRadius:12,padding:'10px 14px',
-              display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <p style={{fontSize:12,color:'#8ab5a0'}}>
-                Slots: <span style={{color:'#4ade80',fontWeight:700}}>{equippedCount}/{maxSlots} slots equipped</span> · Tap a slot to manage
+            <WraithNFTCard wraith={wraith} onSlotClick={(slotId,itemId)=>setSlotModal({slotId,itemId})}/>
+            <div className="flex items-center justify-between px-1">
+              <p className="text-white/40 text-sm">
+                <span className="text-emerald-400 font-bold">{equippedCount}/{maxSlots}</span> slots equipped
               </p>
               <button onClick={release} disabled={releasing}
-                style={{fontSize:11,padding:'4px 12px',borderRadius:20,cursor:'pointer',
-                  background:'#2d0a0a',border:'1px solid #7f1d1d',color:'#f87171'}}>
-                {releasing?'…':'Release'}
+                className="text-sm px-4 py-1.5 rounded-full bg-red-900/40 text-red-400 border border-red-800/50 font-medium">
+                {releasing?'Releasing…':'Release Wraith'}
               </button>
             </div>
           </>}
         </>}
 
         {/* ── BAG TAB ── */}
-        {tab === 'bag' && <>
-          {/* Stats */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-            {[['💠',shards,'Shards'],
-              ['🔧',bag.items_owned?.length||0,'Items'],
-              ['✦',wraith?.mutations?.length||0,'Mutations'],
-            ].map(([e,v,l]) => (
-              <div key={l} style={{background:'#051a10',border:'1px solid #0f2a1e',borderRadius:12,
-                padding:'12px',textAlign:'center'}}>
-                <p style={{fontSize:24,marginBottom:4}}>{e}</p>
-                <p style={{fontSize:18,fontWeight:600,color:'#6ee7b7'}}>{v}</p>
-                <p style={{fontSize:11,color:'var(--color-text-tertiary)'}}>{l}</p>
+        {tab==='bag' && <>
+          <div className="grid grid-cols-3 gap-3">
+            {[['💠',shards,'Shards'],['🔧',bag.items_owned?.length||0,'Items'],['✦',wraith?.mutations?.length||0,'Mutations']].map(([e,v,l])=>(
+              <div key={l} className="bg-[#0a1a14] border border-white/10 rounded-2xl p-4 text-center">
+                <p className="text-2xl mb-1">{e}</p>
+                <p className="text-emerald-400 font-bold text-xl">{v}</p>
+                <p className="text-white/40 text-xs mt-0.5">{l}</p>
               </div>
             ))}
           </div>
 
-          {/* Craft section */}
-          <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:14,overflow:'hidden'}}>
-            <div style={{padding:'12px 14px',borderBottom:'1px solid #0f2a1e',background:'#051a10'}}>
-              <p style={{fontSize:15,color:'#ffffff',fontWeight:700}}>Craft items</p>
-              <p style={{fontSize:13,color:'#7aab8a'}}>Use shards to craft. Equip via slot tap.</p>
+          <div className="bg-[#0a1a14] border border-white/10 rounded-2xl overflow-hidden">
+            <div className="p-4 border-b border-white/5">
+              <p className="text-white font-bold text-base">Craft items</p>
+              <p className="text-white/50 text-sm mt-0.5">Spend shards to craft. Equip by tapping a slot.</p>
             </div>
-            {['head','core','arms','legs','armor'].map(slotId => {
+            {SLOTS_ORDER.map(slotId => {
               const sm = SLOT_META[slotId];
-              const slotCraftable = (bag.craftable||[]).filter(it => it.slot===slotId);
-              if (slotCraftable.length === 0) return null;
+              const slotCraftable = (bag.craftable||[]).filter(it=>it.slot===slotId);
+              if(!slotCraftable.length) return null;
               return (
                 <div key={slotId}>
-                  <div style={{padding:'8px 14px',background:'#080f0a',display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontSize:14}}>{sm.emoji}</span>
-                    <span style={{fontSize:11,color:'var(--color-text-tertiary)',textTransform:'uppercase',letterSpacing:'.05em'}}>{sm.label}</span>
+                  <div className="flex items-center gap-2 px-4 py-2 bg-black/20">
+                    <span className="text-sm">{sm.emoji}</span>
+                    <p className="text-white/40 text-xs font-semibold uppercase tracking-wider">{sm.label}</p>
                   </div>
-                  {slotCraftable.map(item => (
-                    <div key={item.id} style={{display:'flex',alignItems:'center',gap:10,
-                      padding:'10px 14px',borderBottom:'1px solid #080f0a'}}>
-                      <span style={{fontSize:20,flexShrink:0}}>{item.emoji}</span>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-                          <p style={{fontSize:13,color:'#e5fff5',fontWeight:500}}>{item.name}</p>
-                          <span style={{fontSize:10,padding:'1px 6px',borderRadius:20,
-                            background:RARITY_BG[item.rarity]||'#051a10',
-                            color:RARITY_COLOR[item.rarity]||'#6ee7b7'}}>{item.rarity}</span>
+                  {slotCraftable.map(item=>(
+                    <div key={item.id} className="flex items-center gap-3 px-4 py-3 border-t border-white/5">
+                      <span className="text-xl flex-shrink-0">{item.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="text-white font-semibold text-sm">{item.name}</p>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${RARITY_BADGE[item.rarity]||''}`}>{item.rarity}</span>
                         </div>
-                        <p style={{fontSize:11,color:'var(--color-text-tertiary)'}}>
+                        <p className="text-white/40 text-xs">
                           {Object.entries(item.bonus||{}).map(([k,v])=>`${k==='fee_discount'?'-':'+'}${Math.round(v*100)}% ${BONUS_LABELS[k]?.split(' ')[0]||k}`).join(' · ')}
                         </p>
                       </div>
-                      <div style={{flexShrink:0,textAlign:'right'}}>
-                        <p style={{fontSize:11,color:'#6ee7b7',marginBottom:4}}>💠 {item.cost_shards}</p>
-                        <button onClick={() => craftItem(item.id)}
-                          disabled={!item.can_craft || crafting===item.id}
-                          style={{fontSize:11,padding:'4px 12px',borderRadius:20,cursor:'pointer',
-                            background:item.can_craft?'#052e16':'#111',
-                            border:`1px solid ${item.can_craft?'#166534':'#1a3d2a'}`,
-                            color:item.can_craft?'#4ade80':'var(--color-text-tertiary)'}}>
+                      <div className="flex-shrink-0 text-right">
+                        <p className="text-cyan-400 text-xs font-semibold mb-1">💠 {item.cost_shards}</p>
+                        <button onClick={()=>craftItem(item.id)} disabled={!item.can_craft||crafting===item.id}
+                          className={`text-xs px-3 py-1.5 rounded-full font-semibold ${item.can_craft?'bg-emerald-700 text-white active:bg-emerald-800':'bg-white/5 text-white/20'}`}>
                           {crafting===item.id?'…':'Craft'}
                         </button>
                       </div>
@@ -4571,21 +4523,23 @@ const WraithView = ({onBack, profile}) => {
                 </div>
               );
             })}
+            {!(bag.craftable||[]).length && (
+              <p className="text-white/30 text-sm text-center py-8">All items crafted!</p>
+            )}
           </div>
 
-          {/* How to earn shards */}
-          <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:14,padding:'12px 14px'}}>
-            <p style={{fontSize:11,color:'#7aab8a',textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:10}}>How to earn 💠 shards</p>
-            {[['⛏','Mine blocks','Guaranteed 2–5 per block + Wraith bonus'],
+          <div className="bg-[#0a1a14] border border-white/10 rounded-2xl p-4">
+            <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-4">How to earn 💠 shards</p>
+            {[['⛏','Mine blocks','2–5 guaranteed per block + Wraith bonus'],
               ['👥','Post in groups','3% chance per post'],
-              ['⬆️','Upgrade items','Costs shards but may trigger mutation'],
-              ['🌀','Release Wraith','50–600 based on equipment'],
-            ].map(([e,t,d]) => (
-              <div key={t} style={{display:'flex',gap:10,padding:'7px 0',borderBottom:'1px solid #0a1505'}}>
-                <span style={{fontSize:15,flexShrink:0,width:20,textAlign:'center'}}>{e}</span>
+              ['⬆️','Upgrade items','Bonus shards + chance of mutation'],
+              ['🌀','Release Wraith','50–600 based on equipment level'],
+            ].map(([e,t,d])=>(
+              <div key={t} className="flex gap-3 py-3 border-b border-white/5 last:border-0">
+                <span className="text-base w-5 text-center flex-shrink-0">{e}</span>
                 <div>
-                  <p style={{fontSize:13,color:'#ffffff',fontWeight:500,marginBottom:2}}>{t}</p>
-                  <p style={{fontSize:12,color:'#7aab8a'}}>{d}</p>
+                  <p className="text-white font-medium text-sm">{t}</p>
+                  <p className="text-white/40 text-xs mt-0.5">{d}</p>
                 </div>
               </div>
             ))}
@@ -4593,50 +4547,59 @@ const WraithView = ({onBack, profile}) => {
         </>}
 
         {/* ── INFO TAB ── */}
-        {tab === 'info' && <>
-          {!wraith ? <Empty emoji="⬡" text="No Wraith bound" sub="Mint one first"/> : <>
-            <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:14,padding:'14px'}}>
-              <p style={{fontSize:11,color:'#7aab8a',textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:10}}>What is a Wraith?</p>
-              <p style={{fontSize:14,color:'#c0e8d0',lineHeight:1.8,marginBottom:8}}>
-                A Wraith is a <span style={{color:'#6ee7b7'}}>soul-bound token</span> — unique, non-transferable, permanently linked to your wallet address.
+        {tab==='info' && <>
+          {!wraith ? (
+            <div className="text-center py-12">
+              <p className="text-4xl mb-3">⬡</p>
+              <p className="text-white/40">No Wraith bound yet</p>
+            </div>
+          ) : <>
+            <div className="bg-[#0a1a14] border border-white/10 rounded-2xl p-4">
+              <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-3">What is a Wraith?</p>
+              <p className="text-white/70 text-sm leading-relaxed mb-2">
+                A Wraith is a <span className="text-emerald-400 font-semibold">soul-bound token</span> — unique, non-transferable, permanently linked to your wallet address.
               </p>
-              <p style={{fontSize:14,color:'#c0e8d0',lineHeight:1.8}}>
-                Every mint, upgrade, and release is recorded <span style={{color:'#6ee7b7'}}>on-chain anonymously</span>. Your token ID is cryptographic proof of ownership.
+              <p className="text-white/70 text-sm leading-relaxed">
+                Every action is recorded <span className="text-emerald-400 font-semibold">on-chain anonymously</span>. Your token ID is cryptographic proof of ownership — no one else can use it.
               </p>
             </div>
 
-            <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:14,padding:'14px'}}>
-              <p style={{fontSize:11,color:'#7aab8a',textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:10}}>Active bonuses</p>
-              {Object.entries(wraith.bonuses||{}).map(([k,v]) => v > 0.001 ? (
-                <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #0a1505'}}>
-                  <span style={{fontSize:14,color:'#a0c8b0'}}>{BONUS_LABELS[k]||k}</span>
-                  <span style={{fontSize:14,color:'#4ade80',fontWeight:700}}>{k==='fee_discount'?'-':'+'}{ Math.round(v*100)}%</span>
+            <div className="bg-[#0a1a14] border border-white/10 rounded-2xl p-4">
+              <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-3">Active bonuses</p>
+              {Object.entries(wraith.bonuses||{}).filter(([,v])=>v>0.001).map(([k,v])=>(
+                <div key={k} className="flex justify-between py-2.5 border-b border-white/5 last:border-0">
+                  <span className="text-white/60 text-sm">{BONUS_LABELS[k]||k}</span>
+                  <span className="text-emerald-400 font-bold text-sm">{k==='fee_discount'?'-':'+'}{ Math.round(v*100)}%</span>
                 </div>
-              ) : null)}
+              ))}
+              {!Object.values(wraith.bonuses||{}).some(v=>v>0.001) && (
+                <p className="text-white/30 text-sm">No bonuses yet. Equip items to get bonuses.</p>
+              )}
             </div>
 
-            {wraith.mutations?.length > 0 && (
-              <div style={{background:'#060f0c',border:'1px solid #4c1d95',borderRadius:14,padding:'14px'}}>
-                <p style={{fontSize:11,color:'#a78bfa',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:10}}>Mutations ✦</p>
-                {wraith.mutations.map(m => (
-                  <p key={m} style={{fontSize:13,color:'#c4b5fd',padding:'4px 0'}}>✦ {m.replace(/_m$/,'').replace(/_/g,' ')}</p>
+            {(wraith.mutations||[]).length>0 && (
+              <div className="bg-violet-950/30 border border-violet-700/40 rounded-2xl p-4">
+                <p className="text-violet-300 text-xs font-semibold uppercase tracking-widest mb-3">Mutations ✦</p>
+                {wraith.mutations.map(m=>(
+                  <p key={m} className="text-violet-200 text-sm py-1">✦ {m.replace(/_m$/,'').replace(/_/g,' ')}</p>
                 ))}
               </div>
             )}
 
-            <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:14,padding:'14px'}}>
-              <p style={{fontSize:11,color:'#7aab8a',textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:10}}>Token details</p>
+            <div className="bg-[#0a1a14] border border-white/10 rounded-2xl p-4">
+              <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-3">Token details</p>
               {[
                 ['Token ID', wraith.token_id, true],
                 ['Type',     wraith.type,     false],
                 ['Rarity',   wraith.rarity,   false],
-                ['Slots',    `${equippedCount}/${maxSlots} used`, false],
+                ['Slots',    `${equippedCount}/${maxSlots} equipped`, false],
                 ['Minted',   new Date((wraith.minted_at||0)*1000).toLocaleDateString('uk'), false],
-              ].map(([l,v,mono]) => (
-                <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid #0a1505'}}>
-                  <span style={{fontSize:13,color:'#7aab8a'}}>{l}</span>
-                  <span style={{fontSize:11,fontFamily:mono?'monospace':undefined,
-                    color:l==='Rarity'?(RARITY_COLOR[v]||'#6ee7b7'):'#e5fff5'}}>{v}</span>
+                ['Stored',   'In your wallet · off-chain', false],
+                ['On-chain', 'Mint & upgrades recorded', false],
+              ].map(([l,v,mono])=>(
+                <div key={l} className="flex justify-between py-2.5 border-b border-white/5 last:border-0">
+                  <span className="text-white/40 text-sm">{l}</span>
+                  <span className={`text-sm font-medium ${mono?'font-mono text-emerald-400 text-xs':l==='Rarity'?(RARITY_COLOR[v]||'text-emerald-400'):'text-white'}`}>{v}</span>
                 </div>
               ))}
             </div>
@@ -4644,7 +4607,6 @@ const WraithView = ({onBack, profile}) => {
         </>}
       </div>
 
-      {/* Slot modal */}
       {slotModal && wraith && (
         <SlotModal
           slotId={slotModal.slotId}
@@ -4654,7 +4616,7 @@ const WraithView = ({onBack, profile}) => {
           onEquip={equipItem}
           onUnequip={unequipItem}
           onUpgrade={upgradeItem}
-          onClose={() => setSlotModal(null)}
+          onClose={()=>setSlotModal(null)}
           shards={shards}
         />
       )}
