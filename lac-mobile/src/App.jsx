@@ -4126,83 +4126,99 @@ const SLOTS_ORDER = ['head','core','arms','legs','armor'];
 
 // ── Wraith NFT card ────────────────────────────────────
 const WraithNFTCard = ({wraith, onSlotClick}) => {
-  const color  = WRAITH_COLOR[wraith.type] || '#22c55e';
-  const emoji  = WRAITH_EMOJI[wraith.type] || '🐺';
-  const rc     = RARITY_COLOR[wraith.rarity]  || '#6ee7b7';
-  const rb     = RARITY_BG[wraith.rarity]     || '#051a10';
-  const rbord  = RARITY_BORDER[wraith.rarity] || '#166534';
+  const color    = WRAITH_COLOR[wraith.type] || '#22c55e';
+  const emoji    = WRAITH_EMOJI[wraith.type] || '🐺';
+  const rc       = RARITY_COLOR[wraith.rarity]  || '#6ee7b7';
   const equipped = wraith.equipped || {};
   const bonuses  = wraith.bonuses  || {};
   const itemLevels = wraith.item_levels || {};
 
+  const cardStyle = {
+    background:'#0d1f17',
+    border:`1px solid ${color}66`,
+    borderRadius:18,
+    overflow:'hidden',
+  };
+
   return (
-    <div style={{background:'#060f0c',border:`2px solid ${color}22`,borderRadius:20,overflow:'hidden',position:'relative'}}>
-      {/* Top color band */}
-      <div style={{height:4,background:`linear-gradient(90deg,${color},${color}44)`}}/>
+    <div style={cardStyle}>
+      {/* Color top bar */}
+      <div style={{height:4, background:color}}/>
 
       {/* Header */}
-      <div style={{padding:'14px 16px 10px',display:'flex',alignItems:'center',gap:12,borderBottom:'1px solid #0f2a1e'}}>
-        <div style={{width:52,height:52,borderRadius:14,background:rb,border:`1px solid ${rbord}`,
-          display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0}}>{emoji}</div>
-        <div style={{flex:1,minWidth:0}}>
-          <p style={{color:'#e5fff5',fontWeight:600,fontSize:15,marginBottom:2}}>{wraith.name}</p>
-          <p style={{color:rc,fontSize:12,fontWeight:500,marginBottom:2}}>{wraith.rarity} · {wraith.type}</p>
-          <p style={{color:'#4a7a60',fontSize:9,fontFamily:'monospace',letterSpacing:'.05em'}}>{wraith.token_id}</p>
+      <div style={{padding:'14px 16px 12px', display:'flex', alignItems:'center', gap:12, borderBottom:`1px solid ${color}33`}}>
+        <div style={{width:54, height:54, borderRadius:14, background:'#060f0c',
+          border:`2px solid ${color}55`, display:'flex', alignItems:'center',
+          justifyContent:'center', fontSize:30, flexShrink:0}}>{emoji}</div>
+        <div style={{flex:1, minWidth:0}}>
+          <p style={{color:'#ffffff', fontWeight:700, fontSize:16, marginBottom:3}}>{wraith.name}</p>
+          <p style={{color:rc, fontSize:12, fontWeight:600, marginBottom:3}}>{wraith.rarity} · {wraith.type}</p>
+          <p style={{color:'#7aab8a', fontSize:9, fontFamily:'monospace'}}>{wraith.token_id}</p>
         </div>
-        <div style={{textAlign:'right',flexShrink:0}}>
-          <p style={{fontSize:10,color:'var(--color-text-tertiary)'}}>minted</p>
-          <p style={{fontSize:12,color:'var(--color-text-secondary)'}}>{new Date((wraith.minted_at||0)*1000).toLocaleDateString('uk')}</p>
+        <div style={{textAlign:'right', flexShrink:0}}>
+          <p style={{fontSize:10, color:'#7aab8a', marginBottom:2}}>Minted</p>
+          <p style={{fontSize:12, color:'#c0e8d0'}}>{new Date((wraith.minted_at||0)*1000).toLocaleDateString('uk')}</p>
         </div>
       </div>
 
-      {/* Equipment slots */}
-      <div style={{padding:'12px 16px',borderBottom:'1px solid #0f2a1e'}}>
-        <p style={{fontSize:10,color:'#8ab5a0',letterSpacing:'.08em',textTransform:'uppercase',marginBottom:8}}>Equipment</p>
+      {/* Equipment */}
+      <div style={{padding:'12px 16px 8px'}}>
+        <p style={{fontSize:11, color:'#7aab8a', letterSpacing:'.1em',
+          textTransform:'uppercase', marginBottom:10, fontWeight:600}}>Equipment</p>
         {SLOTS_ORDER.map(slotId => {
-          const sm      = SLOT_META[slotId];
-          const itemId  = equipped[slotId];
-          const hasItem = Boolean(itemId);
-          const lv      = hasItem ? (itemLevels[itemId] || 1) : 0;
+          const sm     = SLOT_META[slotId];
+          const itemId = equipped[slotId];
+          const lv     = itemId ? (itemLevels[itemId] || 1) : 0;
           return (
-            <div key={slotId} onClick={() => onSlotClick && onSlotClick(slotId, itemId)}
-              style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',
-                borderBottom:'1px solid #0f2a1e',cursor:'pointer',
-                transition:'background .15s'}}
-              onMouseEnter={e => e.currentTarget.style.background='#0d2a1a'}
-              onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-              <span style={{fontSize:15,width:22,textAlign:'center',flexShrink:0}}>{sm.emoji}</span>
-              <span style={{fontSize:11,color:'#8ab5a0',width:40,flexShrink:0}}>{sm.label}</span>
-              {hasItem ? (
+            <div key={slotId}
+              onClick={() => onSlotClick && onSlotClick(slotId, itemId)}
+              style={{display:'flex', alignItems:'center', gap:10,
+                padding:'9px 10px', borderRadius:10, marginBottom:4,
+                background: itemId ? '#0a2218' : '#080f0c',
+                border: itemId ? `1px solid ${color}44` : '1px solid #1a2f22',
+                cursor:'pointer'}}
+              onMouseEnter={e => e.currentTarget.style.background='#112a1c'}
+              onMouseLeave={e => e.currentTarget.style.background = itemId ? '#0a2218' : '#080f0c'}>
+              <span style={{fontSize:16, width:22, textAlign:'center', flexShrink:0}}>{sm.emoji}</span>
+              <span style={{fontSize:12, color:'#a0c8b0', width:44, flexShrink:0, fontWeight:500}}>{sm.label}</span>
+              {itemId ? (
                 <>
-                  <div style={{flex:1,minWidth:0}}>
-                    <span style={{fontSize:12,color:'#c8f0de'}}>{itemId.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</span>
-                    {lv > 1 && <span style={{fontSize:10,color:'#4ade80',marginLeft:6}}>Lv{lv}</span>}
+                  <span style={{flex:1, fontSize:13, color:'#e0f5ea', fontWeight:500}}>
+                    {itemId.replace(/_/g,' ').replace(/\w/g,c=>c.toUpperCase())}
+                  </span>
+                  <div style={{display:'flex', gap:3, flexShrink:0}}>
+                    {[1,2,3,4,5].map(i =>
+                      <div key={i} style={{width:7, height:7, borderRadius:'50%',
+                        background: i<=lv ? color : '#1a3d2a'}}/>
+                    )}
                   </div>
-                  <div style={{display:'flex',gap:2,flexShrink:0}}>
-                    {[1,2,3,4,5].map(i=><div key={i} style={{width:6,height:6,borderRadius:'50%',background:i<=lv?color:'#1a3d2a'}}/>)}
-                  </div>
+                  {lv > 1 && <span style={{fontSize:11, color:color, marginLeft:2, flexShrink:0}}>Lv{lv}</span>}
                 </>
               ) : (
-                <span style={{flex:1,fontSize:11,color:'#3a6650',fontStyle:'italic'}}>— empty —</span>
+                <span style={{flex:1, fontSize:12, color:'#7aab8a', fontStyle:'italic'}}>empty · tap to equip</span>
               )}
             </div>
           );
         })}
       </div>
 
-      {/* Active bonuses strip */}
-      <div style={{padding:'10px 16px',display:'flex',gap:6,flexWrap:'wrap'}}>
-        {Object.entries(bonuses).map(([k,v]) => v > 0.001 ? (
-          <span key={k} style={{fontSize:10,padding:'3px 8px',borderRadius:20,
-            background:'#0a2218',color:color,border:`1px solid ${color}55`}}>
-            {k==='fee_discount'?'-':'+'}{ Math.round(v*100)}% {BONUS_LABELS[k]?.split(' ')[0]||k}
-          </span>
-        ) : null)}
-        {wraith.mutations?.length > 0 && wraith.mutations.map(m => (
-          <span key={m} style={{fontSize:10,padding:'3px 8px',borderRadius:20,
-            background:'#1e1b4b',color:'#c4b5fd',border:'1px solid #4c1d95'}}>✦ {m.replace(/_m$/,'').replace(/_/g,' ')}</span>
-        ))}
-      </div>
+      {/* Bonuses */}
+      {Object.values(bonuses).some(v => v > 0.001) && (
+        <div style={{padding:'8px 16px 14px', display:'flex', gap:6, flexWrap:'wrap'}}>
+          {Object.entries(bonuses).map(([k,v]) => v > 0.001 ? (
+            <span key={k} style={{fontSize:11, padding:'4px 10px', borderRadius:20, fontWeight:600,
+              background:`${color}22`, color:color, border:`1px solid ${color}55`}}>
+              {k==='fee_discount'?'-':'+'}{ Math.round(v*100)}% {BONUS_LABELS[k]?.split(' ')[0]||k}
+            </span>
+          ) : null)}
+          {(wraith.mutations||[]).map(m => (
+            <span key={m} style={{fontSize:11, padding:'4px 10px', borderRadius:20, fontWeight:600,
+              background:'#2a1a4a', color:'#d4aaff', border:'1px solid #6d28d9'}}>
+              ✦ {m.replace(/_m$/,'').replace(/_/g,' ')}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -4229,24 +4245,24 @@ const SlotModal = ({slotId, currentItemId, ownedItems, wraith, onEquip, onUnequi
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',display:'flex',
       alignItems:'flex-end',justifyContent:'center',zIndex:100}}
       onClick={e => e.target===e.currentTarget && onClose()}>
-      <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:'20px 20px 0 0',
+      <div style={{background:'#0d1f17',border:'1px solid #2a5a3a',borderRadius:'20px 20px 0 0',
         width:'100%',maxWidth:480,padding:'1.25rem',paddingBottom:'2rem',maxHeight:'70vh',overflowY:'auto'}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
           <span style={{fontSize:22}}>{sm.emoji}</span>
           <div>
-            <p style={{color:'#e5fff5',fontWeight:600,fontSize:15}}>{sm.label} slot</p>
-            <p style={{color:'var(--color-text-tertiary)',fontSize:11}}>{sm.desc}</p>
+            <p style={{color:'#ffffff',fontWeight:700,fontSize:16}}>{sm.label} slot</p>
+            <p style={{color:'#8ab5a0',fontSize:12}}>{sm.desc}</p>
           </div>
           <button onClick={onClose} style={{marginLeft:'auto',background:'none',border:'none',color:'var(--color-text-tertiary)',fontSize:20,cursor:'pointer'}}>×</button>
         </div>
 
         {currentItemId && (
           <div style={{background:'#051a10',border:`1px solid ${color}44`,borderRadius:12,padding:'12px',marginBottom:12}}>
-            <p style={{fontSize:11,color:'var(--color-text-tertiary)',marginBottom:6}}>Currently equipped</p>
+            <p style={{fontSize:11,color:'#7aab8a',fontWeight:600,marginBottom:6}}>Currently equipped</p>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <p style={{flex:1,color:'#e5fff5',fontSize:13,fontWeight:500}}>{currentItemId.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</p>
+              <p style={{flex:1,color:'#ffffff',fontSize:14,fontWeight:600}}>{currentItemId.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</p>
               <div style={{display:'flex',gap:2}}>
-                {[1,2,3,4,5].map(i=><div key={i} style={{width:8,height:8,borderRadius:'50%',background:i<=lv?color:'#0f2a1e'}}/>)}
+                {[1,2,3,4,5].map(i=><div key={i} style={{width:8,height:8,borderRadius:'50%',background:i<=lv?color:'#6ee7b7'}}/>)}
               </div>
             </div>
             <div style={{display:'flex',gap:8,marginTop:10}}>
@@ -4281,23 +4297,23 @@ const SlotModal = ({slotId, currentItemId, ownedItems, wraith, onEquip, onUnequi
               return (
                 <div key={iid} onClick={() => onEquip(iid)}
                   style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
-                    borderRadius:10,background:'#051a10',border:'1px solid #0f2a1e',
+                    borderRadius:10,background:'#0a2218',border:'1px solid #2a5a3a',
                     marginBottom:6,cursor:'pointer'}}
                   onMouseEnter={e=>e.currentTarget.style.borderColor='#166534'}
                   onMouseLeave={e=>e.currentTarget.style.borderColor='#0f2a1e'}>
                   <span style={{fontSize:20}}>{ITEM_DATA.e}</span>
                   <div style={{flex:1}}>
-                    <p style={{fontSize:13,color:'#e5fff5'}}>{ITEM_DATA.n}</p>
+                    <p style={{fontSize:14,color:'#ffffff',fontWeight:600}}>{ITEM_DATA.n}</p>
                     <p style={{fontSize:10,color:RARITY_COLOR[ITEM_DATA.r]||'#6ee7b7'}}>{ITEM_DATA.r} · {ITEM_DATA.b}</p>
                   </div>
-                  <span style={{fontSize:12,color:'#4ade80'}}>Equip →</span>
+                  <span style={{fontSize:13,color:'#4ade80',fontWeight:600}}>Equip →</span>
                 </div>
               );
             })}
           </>
         )}
         {slotItems.length === 0 && !currentItemId && (
-          <p style={{fontSize:13,color:'var(--color-text-tertiary)',textAlign:'center',padding:'20px 0'}}>
+          <p style={{fontSize:13,color:'#7aab8a',textAlign:'center',padding:'20px 0',fontSize:14}}>
             No items for this slot. Craft some in the Bag tab.
           </p>
         )}
@@ -4431,11 +4447,11 @@ const WraithView = ({onBack, profile}) => {
           {!wraith ? (
             <div style={{textAlign:'center',padding:'2rem 1rem'}}>
               <p style={{fontSize:56,marginBottom:12}}>⬡</p>
-              <p style={{color:'#e5fff5',fontWeight:600,fontSize:17,marginBottom:6}}>No Wraith bound</p>
-              <p style={{color:'var(--color-text-tertiary)',fontSize:13,lineHeight:1.6,marginBottom:4}}>
+              <p style={{color:'#ffffff',fontWeight:700,fontSize:18,marginBottom:8}}>No Wraith bound</p>
+              <p style={{color:'#a0c8b0',fontSize:14,lineHeight:1.7,marginBottom:8}}>
                 A Wraith is a soul-bound companion token. It's unique to your address, recorded on-chain, and gives you real bonuses.
               </p>
-              <p style={{color:'var(--color-text-tertiary)',fontSize:12,marginBottom:24}}>
+              <p style={{color:'#7aab8a',fontSize:13,marginBottom:24}}>
                 Equip items to unlock powers. Upgrade items for stronger bonuses. Rare mutations drop randomly.
               </p>
               {!pickType
@@ -4445,7 +4461,7 @@ const WraithView = ({onBack, profile}) => {
                     Mint Wraith · 500 LAC
                   </button>
                 : <div style={{display:'flex',flexDirection:'column',gap:10,maxWidth:340,margin:'0 auto',textAlign:'left'}}>
-                    <p style={{color:'var(--color-text-tertiary)',fontSize:12,textAlign:'center',marginBottom:4}}>Choose type:</p>
+                    <p style={{color:'#c0e8d0',fontSize:14,fontWeight:500,textAlign:'center',marginBottom:8}}>Choose your Wraith type:</p>
                     {Object.entries(data?.types||{}).map(([type,t]) => (
                       <button key={type} onClick={() => mint(type)} disabled={minting}
                         style={{padding:'14px 16px',borderRadius:14,
@@ -4455,12 +4471,12 @@ const WraithView = ({onBack, profile}) => {
                         <span style={{fontSize:28,flexShrink:0}}>{WRAITH_EMOJI[type]||'?'}</span>
                         <div style={{flex:1}}>
                           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
-                            <p style={{color:RARITY_COLOR[t.rarity]||'#6ee7b7',fontWeight:600,fontSize:14}}>{t.name}</p>
+                            <p style={{color:RARITY_COLOR[t.rarity]||'#6ee7b7',fontWeight:700,fontSize:15}}>{t.name}</p>
                             <span style={{fontSize:10,padding:'1px 7px',borderRadius:20,
                               background:'#060f0c',color:RARITY_COLOR[t.rarity]||'#6ee7b7'}}>{t.rarity}</span>
                             <span style={{fontSize:10,color:'var(--color-text-tertiary)',marginLeft:'auto'}}>{t.slots} slots</span>
                           </div>
-                          <p style={{color:'var(--color-text-tertiary)',fontSize:11}}>
+                          <p style={{color:'#a0c8b0',fontSize:12}}>
                             {type==='wolf'?'+mining chance':type==='raven'?'+rare finds':
                              type==='cat'?'-tx fees':type==='fox'?'+shard drops':'max slots + mutations'}
                           </p>
@@ -4479,8 +4495,8 @@ const WraithView = ({onBack, profile}) => {
 
             <div style={{background:'#051a10',border:'1px solid #0f2a1e',borderRadius:12,padding:'10px 14px',
               display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <p style={{fontSize:12,color:'var(--color-text-tertiary)'}}>
-                Slots: <span style={{color:'#4ade80',fontWeight:600}}>{equippedCount}/{maxSlots}</span> · Tap a slot to equip items
+              <p style={{fontSize:12,color:'#8ab5a0'}}>
+                Slots: <span style={{color:'#4ade80',fontWeight:700}}>{equippedCount}/{maxSlots} slots equipped</span> · Tap a slot to manage
               </p>
               <button onClick={release} disabled={releasing}
                 style={{fontSize:11,padding:'4px 12px',borderRadius:20,cursor:'pointer',
@@ -4511,8 +4527,8 @@ const WraithView = ({onBack, profile}) => {
           {/* Craft section */}
           <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:14,overflow:'hidden'}}>
             <div style={{padding:'12px 14px',borderBottom:'1px solid #0f2a1e',background:'#051a10'}}>
-              <p style={{fontSize:13,color:'#e5fff5',fontWeight:500}}>Craft items</p>
-              <p style={{fontSize:11,color:'var(--color-text-tertiary)'}}>Use shards to craft. Equip via slot tap.</p>
+              <p style={{fontSize:15,color:'#ffffff',fontWeight:700}}>Craft items</p>
+              <p style={{fontSize:13,color:'#7aab8a'}}>Use shards to craft. Equip via slot tap.</p>
             </div>
             {['head','core','arms','legs','armor'].map(slotId => {
               const sm = SLOT_META[slotId];
@@ -4559,7 +4575,7 @@ const WraithView = ({onBack, profile}) => {
 
           {/* How to earn shards */}
           <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:14,padding:'12px 14px'}}>
-            <p style={{fontSize:11,color:'var(--color-text-tertiary)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:10}}>How to earn 💠 shards</p>
+            <p style={{fontSize:11,color:'#7aab8a',textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:10}}>How to earn 💠 shards</p>
             {[['⛏','Mine blocks','Guaranteed 2–5 per block + Wraith bonus'],
               ['👥','Post in groups','3% chance per post'],
               ['⬆️','Upgrade items','Costs shards but may trigger mutation'],
@@ -4568,8 +4584,8 @@ const WraithView = ({onBack, profile}) => {
               <div key={t} style={{display:'flex',gap:10,padding:'7px 0',borderBottom:'1px solid #0a1505'}}>
                 <span style={{fontSize:15,flexShrink:0,width:20,textAlign:'center'}}>{e}</span>
                 <div>
-                  <p style={{fontSize:12,color:'#e5fff5',marginBottom:1}}>{t}</p>
-                  <p style={{fontSize:11,color:'var(--color-text-tertiary)'}}>{d}</p>
+                  <p style={{fontSize:13,color:'#ffffff',fontWeight:500,marginBottom:2}}>{t}</p>
+                  <p style={{fontSize:12,color:'#7aab8a'}}>{d}</p>
                 </div>
               </div>
             ))}
@@ -4580,21 +4596,21 @@ const WraithView = ({onBack, profile}) => {
         {tab === 'info' && <>
           {!wraith ? <Empty emoji="⬡" text="No Wraith bound" sub="Mint one first"/> : <>
             <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:14,padding:'14px'}}>
-              <p style={{fontSize:11,color:'var(--color-text-tertiary)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:10}}>What is a Wraith?</p>
-              <p style={{fontSize:13,color:'var(--color-text-secondary)',lineHeight:1.7,marginBottom:8}}>
+              <p style={{fontSize:11,color:'#7aab8a',textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:10}}>What is a Wraith?</p>
+              <p style={{fontSize:14,color:'#c0e8d0',lineHeight:1.8,marginBottom:8}}>
                 A Wraith is a <span style={{color:'#6ee7b7'}}>soul-bound token</span> — unique, non-transferable, permanently linked to your wallet address.
               </p>
-              <p style={{fontSize:13,color:'var(--color-text-secondary)',lineHeight:1.7}}>
+              <p style={{fontSize:14,color:'#c0e8d0',lineHeight:1.8}}>
                 Every mint, upgrade, and release is recorded <span style={{color:'#6ee7b7'}}>on-chain anonymously</span>. Your token ID is cryptographic proof of ownership.
               </p>
             </div>
 
             <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:14,padding:'14px'}}>
-              <p style={{fontSize:11,color:'var(--color-text-tertiary)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:10}}>Active bonuses</p>
+              <p style={{fontSize:11,color:'#7aab8a',textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:10}}>Active bonuses</p>
               {Object.entries(wraith.bonuses||{}).map(([k,v]) => v > 0.001 ? (
                 <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #0a1505'}}>
-                  <span style={{fontSize:13,color:'var(--color-text-secondary)'}}>{BONUS_LABELS[k]||k}</span>
-                  <span style={{fontSize:13,color:'#4ade80',fontWeight:600}}>{k==='fee_discount'?'-':'+'}{ Math.round(v*100)}%</span>
+                  <span style={{fontSize:14,color:'#a0c8b0'}}>{BONUS_LABELS[k]||k}</span>
+                  <span style={{fontSize:14,color:'#4ade80',fontWeight:700}}>{k==='fee_discount'?'-':'+'}{ Math.round(v*100)}%</span>
                 </div>
               ) : null)}
             </div>
@@ -4609,7 +4625,7 @@ const WraithView = ({onBack, profile}) => {
             )}
 
             <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:14,padding:'14px'}}>
-              <p style={{fontSize:11,color:'var(--color-text-tertiary)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:10}}>Token details</p>
+              <p style={{fontSize:11,color:'#7aab8a',textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:10}}>Token details</p>
               {[
                 ['Token ID', wraith.token_id, true],
                 ['Type',     wraith.type,     false],
@@ -4618,7 +4634,7 @@ const WraithView = ({onBack, profile}) => {
                 ['Minted',   new Date((wraith.minted_at||0)*1000).toLocaleDateString('uk'), false],
               ].map(([l,v,mono]) => (
                 <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid #0a1505'}}>
-                  <span style={{fontSize:12,color:'var(--color-text-tertiary)'}}>{l}</span>
+                  <span style={{fontSize:13,color:'#7aab8a'}}>{l}</span>
                   <span style={{fontSize:11,fontFamily:mono?'monospace':undefined,
                     color:l==='Rarity'?(RARITY_COLOR[v]||'#6ee7b7'):'#e5fff5'}}>{v}</span>
                 </div>
