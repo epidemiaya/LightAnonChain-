@@ -7295,422 +7295,380 @@ def _start_bg_save():
 
 
 # ═══════════════════════════════════════════════════════
-# WRAITH SYSTEM — Soul-bound companion tokens
-# Each WRAITH is unique, linked to address, affects real mechanics
+# WRAITH SYSTEM v2 — Soul-bound RPG companion token
+# Each WRAITH is unique, linked to address, real bonuses
 # ═══════════════════════════════════════════════════════
 
 import random as _random
 
+# ── Wraith types ──────────────────────────────────────
 WRAITH_TYPES = {
-    'wolf':  {
-        'emoji': '🐺', 'archetype': 'Iron Wolf', 'rarity': 'common',
-        'slots': 2,
-        'organ_bonus': {
-            'core':     lambda lv: {'block_chance': round(lv * 0.02, 4)},
-            'mobility': lambda lv: {'shard_drop_bonus': round(lv * 0.10, 4)},
-            'eyes':     lambda lv: {'rare_find': round(lv * 0.01, 4)},
-            'memory':   lambda lv: {'mutation_chance': round(lv * 0.01, 4)},
-            'aura':     lambda lv: {'fee_discount': round(lv * 0.005, 4)},
-        },
-    },
-    'raven': {
-        'emoji': '🦅', 'archetype': 'Ghost Raven', 'rarity': 'uncommon',
-        'slots': 3,
-        'organ_bonus': {
-            'eyes':     lambda lv: {'rare_find': round(lv * 0.04, 4)},
-            'memory':   lambda lv: {'mutation_chance': round(lv * 0.03, 4)},
-            'core':     lambda lv: {'block_chance': round(lv * 0.005, 4)},
-            'mobility': lambda lv: {'shard_drop_bonus': round(lv * 0.05, 4)},
-            'aura':     lambda lv: {'fee_discount': round(lv * 0.01, 4)},
-        },
-    },
-    'cat':   {
-        'emoji': '🐱', 'archetype': 'Silk Cat', 'rarity': 'uncommon',
-        'slots': 2,
-        'organ_bonus': {
-            'aura':     lambda lv: {'fee_discount': round(lv * 0.06, 4)},
-            'core':     lambda lv: {'fee_discount': round(lv * 0.02, 4)},
-            'eyes':     lambda lv: {'rare_find': round(lv * 0.02, 4)},
-            'memory':   lambda lv: {'mutation_chance': round(lv * 0.01, 4)},
-            'mobility': lambda lv: {'shard_drop_bonus': round(lv * 0.03, 4)},
-        },
-    },
-    'fox':   {
-        'emoji': '🦊', 'archetype': 'Chaos Fox', 'rarity': 'rare',
-        'slots': 3,
-        'organ_bonus': {
-            'eyes':     lambda lv: {'rare_find': round(lv * 0.05, 4)},
-            'core':     lambda lv: {'block_chance': round(lv * 0.015, 4)},
-            'mobility': lambda lv: {'shard_drop_bonus': round(lv * 0.15, 4)},
-            'memory':   lambda lv: {'mutation_chance': round(lv * 0.05, 4)},
-            'aura':     lambda lv: {'fee_discount': round(lv * 0.01, 4)},
-        },
-    },
-    'moth':  {
-        'emoji': '🦋', 'archetype': 'Void Moth', 'rarity': 'rare',
-        'slots': 4,
-        'organ_bonus': {
-            'aura':     lambda lv: {'fee_discount': round(lv * 0.04, 4)},
-            'memory':   lambda lv: {'mutation_chance': round(lv * 0.04, 4)},
-            'eyes':     lambda lv: {'rare_find': round(lv * 0.03, 4)},
-            'core':     lambda lv: {'block_chance': round(lv * 0.01, 4)},
-            'mobility': lambda lv: {'shard_drop_bonus': round(lv * 0.08, 4)},
-        },
-    },
+    'wolf': {'emoji':'🐺','name':'Iron Wolf','rarity':'Common','slots':3,
+             'base_bonus':{'block_chance':0.02},'color':'#22c55e'},
+    'raven':{'emoji':'🦅','name':'Ghost Raven','rarity':'Uncommon','slots':4,
+             'base_bonus':{'rare_find':0.03},'color':'#a78bfa'},
+    'cat':  {'emoji':'🐱','name':'Silk Cat','rarity':'Uncommon','slots':3,
+             'base_bonus':{'fee_discount':0.05},'color':'#f59e0b'},
+    'fox':  {'emoji':'🦊','name':'Chaos Fox','rarity':'Rare','slots':4,
+             'base_bonus':{'shard_drop_bonus':0.15},'color':'#ef4444'},
+    'moth': {'emoji':'🦋','name':'Void Moth','rarity':'Rare','slots':5,
+             'base_bonus':{'mutation_chance':0.05},'color':'#67e8f9'},
 }
+
+# ── Equipment slots (body parts) ──────────────────────
+SLOTS = {
+    'head':  {'label':'Head',  'emoji':'👁',  'bonus_type':'rare_find',       'desc':'Vision · rare finds & hidden access'},
+    'core':  {'label':'Core',  'emoji':'❤️',  'bonus_type':'block_chance',    'desc':'Heart · mining power & block chance'},
+    'arms':  {'label':'Arms',  'emoji':'⚡',  'bonus_type':'shard_drop_bonus','desc':'Power · shard drops & craft speed'},
+    'legs':  {'label':'Legs',  'emoji':'🦿',  'bonus_type':'hunt_speed',      'desc':'Speed · hunt speed & mobility'},
+    'armor': {'label':'Armor', 'emoji':'🛡',  'bonus_type':'fee_discount',    'desc':'Shield · fee discount & protection'},
+}
+
+# ── Items (equippable to slots) ───────────────────────
+ITEMS = {
+    # Head items
+    'void_lens':     {'name':'Void Lens',    'slot':'head', 'rarity':'Rare',
+                      'bonus':{'rare_find':0.05},'cost_shards':60,'emoji':'🔮'},
+    'shadow_eye':    {'name':'Shadow Eye',   'slot':'head', 'rarity':'Uncommon',
+                      'bonus':{'rare_find':0.03},'cost_shards':40,'emoji':'👁'},
+    'dark_sight':    {'name':'Dark Sight',   'slot':'head', 'rarity':'Common',
+                      'bonus':{'rare_find':0.01},'cost_shards':20,'emoji':'🌑'},
+    # Core items
+    'iron_heart':    {'name':'Iron Heart',   'slot':'core', 'rarity':'Rare',
+                      'bonus':{'block_chance':0.05},'cost_shards':80,'emoji':'❤️'},
+    'dark_core':     {'name':'Dark Core',    'slot':'core', 'rarity':'Uncommon',
+                      'bonus':{'block_chance':0.03},'cost_shards':50,'emoji':'⬛'},
+    'pulse_stone':   {'name':'Pulse Stone',  'slot':'core', 'rarity':'Common',
+                      'bonus':{'block_chance':0.01},'cost_shards':25,'emoji':'💎'},
+    # Arms items
+    'chaos_shard':   {'name':'Chaos Shard',  'slot':'arms', 'rarity':'Legendary',
+                      'bonus':{'shard_drop_bonus':0.30,'rare_find':0.05},'cost_shards':150,'emoji':'💠'},
+    'speed_claw':    {'name':'Speed Claw',   'slot':'arms', 'rarity':'Uncommon',
+                      'bonus':{'shard_drop_bonus':0.15},'cost_shards':45,'emoji':'⚡'},
+    'iron_fist':     {'name':'Iron Fist',    'slot':'arms', 'rarity':'Common',
+                      'bonus':{'shard_drop_bonus':0.05},'cost_shards':20,'emoji':'✊'},
+    # Legs items
+    'feral_boots':   {'name':'Feral Boots',  'slot':'legs', 'rarity':'Rare',
+                      'bonus':{'hunt_speed':0.20},'cost_shards':60,'emoji':'👢'},
+    'void_step':     {'name':'Void Step',    'slot':'legs', 'rarity':'Uncommon',
+                      'bonus':{'hunt_speed':0.10},'cost_shards':35,'emoji':'🌀'},
+    'swift_paws':    {'name':'Swift Paws',   'slot':'legs', 'rarity':'Common',
+                      'bonus':{'hunt_speed':0.05},'cost_shards':15,'emoji':'🐾'},
+    # Armor items
+    'ghost_aura':    {'name':'Ghost Aura',   'slot':'armor','rarity':'Rare',
+                      'bonus':{'fee_discount':0.10},'cost_shards':70,'emoji':'👻'},
+    'void_veil':     {'name':'Void Veil',    'slot':'armor','rarity':'Uncommon',
+                      'bonus':{'fee_discount':0.05},'cost_shards':40,'emoji':'🌫'},
+    'shadow_cloak':  {'name':'Shadow Cloak', 'slot':'armor','rarity':'Common',
+                      'bonus':{'fee_discount':0.02},'cost_shards':20,'emoji':'🌑'},
+}
+
+# ── Mutations (random drops) ──────────────────────────
+MUTATIONS = {
+    'echo_memory': {'name':'Echo Memory', 'emoji':'🌀',
+                    'bonus':{'mutation_chance':0.05},'rarity':0.03},
+    'iron_will':   {'name':'Iron Will',   'emoji':'⚔️',
+                    'bonus':{'block_chance':0.03},  'rarity':0.03},
+    'dark_sight_m':{'name':'Dark Sight',  'emoji':'🌑',
+                    'bonus':{'rare_find':0.04},     'rarity':0.02},
+    'void_touch':  {'name':'Void Touch',  'emoji':'💜',
+                    'bonus':{'fee_discount':0.03},  'rarity':0.02},
+    'feral_speed': {'name':'Feral Speed', 'emoji':'💨',
+                    'bonus':{'shard_drop_bonus':0.20},'rarity':0.02},
+    'blood_surge': {'name':'Blood Surge', 'emoji':'🩸',
+                    'bonus':{'block_chance':0.05,'shard_drop_bonus':0.10},'rarity':0.01},
+}
+
+MINT_COST = 500
+RARITY_ORDER = ['Common','Uncommon','Rare','Legendary']
+RARITY_COLOR = {'Common':'#6ee7b7','Uncommon':'#a78bfa','Rare':'#f59e0b','Legendary':'#f87171'}
 
 WRAITH_PREFIXES = {
-    'wolf':  ['Iron','Shadow','Steel','Dark','Storm','Frost','Void','Crimson','Silent','Bone'],
-    'raven': ['Ghost','Night','Ashen','Black','Hollow','Echo','Pale','Dusk','Veil','Obsidian'],
-    'cat':   ['Silk','Silver','Velvet','Golden','Crystal','Neon','Smoke','Jade','Phantom','Ember'],
-    'fox':   ['Chaos','Wild','Burning','Broken','Lucky','Hex','Cursed','Blazing','Twisted','Mad'],
-    'moth':  ['Void','Lunar','Silent','Ancient','Sealed','Arcane','Lost','Faded','Cursed','Rare'],
+    'wolf':  ['Iron','Shadow','Steel','Dark','Storm','Frost','Crimson','Bone'],
+    'raven': ['Ghost','Night','Ashen','Hollow','Echo','Pale','Veil','Obsidian'],
+    'cat':   ['Silk','Silver','Velvet','Crystal','Neon','Smoke','Phantom','Ember'],
+    'fox':   ['Chaos','Wild','Burning','Lucky','Hex','Cursed','Blazing','Mad'],
+    'moth':  ['Void','Lunar','Silent','Sealed','Arcane','Lost','Faded','Ancient'],
 }
-
-# Modules — craftable from shards, slotted into Wraith
-MODULES = {
-    'dark_core':    {'name':'Dark Core',    'cost_shards':50,  'bonus':{'block_chance':0.03}, 'emoji':'⬛'},
-    'shadow_eye':   {'name':'Shadow Eye',   'cost_shards':40,  'bonus':{'rare_find':0.05},    'emoji':'👁'},
-    'speed_claw':   {'name':'Speed Claw',   'cost_shards':30,  'bonus':{'shard_drop_bonus':0.15},'emoji':'⚡'},
-    'void_memory':  {'name':'Void Memory',  'cost_shards':60,  'bonus':{'mutation_chance':0.05},'emoji':'🌀'},
-    'ghost_aura':   {'name':'Ghost Aura',   'cost_shards':45,  'bonus':{'fee_discount':0.05},  'emoji':'👻'},
-    'iron_heart':   {'name':'Iron Heart',   'cost_shards':80,  'bonus':{'block_chance':0.05,'shard_drop_bonus':0.1},'emoji':'❤️'},
-    'chaos_shard':  {'name':'Chaos Shard',  'cost_shards':100, 'bonus':{'rare_find':0.10,'mutation_chance':0.10},'emoji':'💠'},
-}
-
-# Mutations — rare drops, auto-applied
-MUTATIONS = {
-    'dark_sight':   {'name':'Dark Sight',    'bonus':{'rare_find':0.05},       'rarity':0.03},
-    'iron_will':    {'name':'Iron Will',     'bonus':{'block_chance':0.03},    'rarity':0.03},
-    'void_touch':   {'name':'Void Touch',    'bonus':{'fee_discount':0.03},    'rarity':0.02},
-    'echo_memory':  {'name':'Echo Memory',  'bonus':{'mutation_chance':0.05},'rarity':0.01},
-    'feral_speed':  {'name':'Feral Speed',  'bonus':{'shard_drop_bonus':0.2}, 'rarity':0.02},
-}
-
-UPGRADE_COST = {1: 200, 2: 400, 3: 600, 4: 800, 5: 1000}
-MINT_COST    = 500
 
 def _gen_wraith_name(wtype):
     prefix = _random.choice(WRAITH_PREFIXES.get(wtype, ['Wild']))
-    archetype = WRAITH_TYPES[wtype]['archetype'].split()[-1]
-    num = _random.randint(1, 9999)
-    return f"{prefix} {archetype} #{num}"
+    base   = WRAITH_TYPES[wtype]['name'].split()[-1]
+    num    = _random.randint(1, 9999)
+    return f"{prefix} {base} #{num}"
 
 def _calc_wraith_bonuses(wraith):
-    """Sum all bonuses: organs + modules + mutations"""
-    wtype = wraith.get('type', 'wolf')
-    cfg = WRAITH_TYPES.get(wtype, WRAITH_TYPES['wolf'])
+    """Sum all bonuses: base type + equipped items + mutations"""
+    wtype = wraith.get('type','wolf')
+    cfg   = WRAITH_TYPES.get(wtype, WRAITH_TYPES['wolf'])
     bonuses = {'block_chance':0,'rare_find':0,'fee_discount':0,
-               'shard_drop_bonus':0,'mutation_chance':0}
-    # Organs
-    for organ, lv in wraith.get('organs', {}).items():
-        fn = cfg['organ_bonus'].get(organ)
-        if fn and lv > 0:
-            for k, v in fn(lv).items():
-                bonuses[k] = round(bonuses.get(k, 0) + v, 4)
-    # Modules
-    for mod_id in wraith.get('modules', []):
-        mod = MODULES.get(mod_id, {})
-        for k, v in mod.get('bonus', {}).items():
-            bonuses[k] = round(bonuses.get(k, 0) + v, 4)
+               'shard_drop_bonus':0,'mutation_chance':0,'hunt_speed':0}
+    # Base type bonus
+    for k,v in cfg.get('base_bonus',{}).items():
+        bonuses[k] = round(bonuses.get(k,0) + v, 4)
+    # Equipped items
+    for slot_id, item_id in wraith.get('equipped',{}).items():
+        if item_id and item_id in ITEMS:
+            item = ITEMS[item_id]
+            # Item level multiplier (each upgrade = +25% bonus)
+            item_lv = wraith.get('item_levels',{}).get(item_id, 1)
+            mult = 1 + (item_lv - 1) * 0.25
+            for k,v in item.get('bonus',{}).items():
+                bonuses[k] = round(bonuses.get(k,0) + v*mult, 4)
     # Mutations
-    for mut_id in wraith.get('mutations', []):
-        mut = MUTATIONS.get(mut_id, {})
-        for k, v in mut.get('bonus', {}).items():
-            bonuses[k] = round(bonuses.get(k, 0) + v, 4)
-    # Cap bonuses
-    bonuses['block_chance']    = min(bonuses['block_chance'],    0.25)
-    bonuses['fee_discount']    = min(bonuses['fee_discount'],    0.50)
-    bonuses['rare_find']       = min(bonuses['rare_find'],       0.50)
-    bonuses['shard_drop_bonus']= min(bonuses['shard_drop_bonus'],1.0)
-    bonuses['mutation_chance'] = min(bonuses['mutation_chance'], 0.30)
+    for mut_id in wraith.get('mutations',[]):
+        mut = MUTATIONS.get(mut_id,{})
+        for k,v in mut.get('bonus',{}).items():
+            bonuses[k] = round(bonuses.get(k,0) + v, 4)
+    # Caps
+    bonuses['block_chance']     = min(bonuses['block_chance'],    0.30)
+    bonuses['fee_discount']     = min(bonuses['fee_discount'],    0.50)
+    bonuses['rare_find']        = min(bonuses['rare_find'],       0.50)
+    bonuses['shard_drop_bonus'] = min(bonuses['shard_drop_bonus'],1.50)
+    bonuses['mutation_chance']  = min(bonuses['mutation_chance'], 0.40)
+    bonuses['hunt_speed']       = min(bonuses['hunt_speed'],      1.00)
     return bonuses
 
-def _try_shard_drop(addr, source='message', count=1):
-    """Award shards to addr. Returns shards given."""
+def _try_shard_drop(addr, source='message'):
     wallet = S.wallets.get(addr)
-    if not wallet:
-        return 0
+    if not wallet: return 0
     wraith = wallet.get('wraith') or wallet.get('pet')
-    drop_chance = {'message': 0.05, 'group_post': 0.03, 'mining': 1.0}.get(source, 0.05)
-    bonus = _calc_wraith_bonuses(wraith).get('shard_drop_bonus', 0) if wraith else 0
-    drop_chance = min(1.0, drop_chance + bonus * drop_chance)
+    bonus  = _calc_wraith_bonuses(wraith).get('shard_drop_bonus',0) if wraith else 0
+    chances = {'message':0.05,'group_post':0.03,'mining':1.0}
+    chance  = min(1.0, chances.get(source,0.05) * (1 + bonus))
     if source == 'mining':
-        base = _random.randint(2, 5)
-        extra = int(base * bonus)
-        shards = base + extra
+        base  = _random.randint(2,5)
+        shards = base + int(base * bonus)
     else:
-        if _random.random() > drop_chance:
-            return 0
-        shards = _random.randint(1, max(1, count))
-    wallet['shards'] = wallet.get('shards', 0) + shards
+        if _random.random() > chance: return 0
+        shards = _random.randint(1,3)
+    wallet['shards'] = wallet.get('shards',0) + shards
     return shards
 
 def _try_mutation_drop(addr):
-    """Rare chance to get a mutation after upgrade"""
     wallet = S.wallets.get(addr)
-    if not wallet:
-        return None
+    if not wallet: return None
     wraith = wallet.get('wraith') or wallet.get('pet')
-    if not wraith:
-        return None
-    base_chance = _calc_wraith_bonuses(wraith).get('mutation_chance', 0)
-    existing = set(wraith.get('mutations', []))
-    candidates = [(mid, m) for mid, m in MUTATIONS.items()
-                  if mid not in existing and _random.random() < m['rarity'] + base_chance]
-    if not candidates:
-        return None
+    if not wraith: return None
+    base_chance = _calc_wraith_bonuses(wraith).get('mutation_chance',0)
+    existing    = set(wraith.get('mutations',[]))
+    candidates  = [(mid,m) for mid,m in MUTATIONS.items()
+                   if mid not in existing and _random.random() < m['rarity'] + base_chance]
+    if not candidates: return None
     mut_id, mut = _random.choice(candidates)
-    wraith.setdefault('mutations', []).append(mut_id)
-    return {'id': mut_id, 'name': mut['name']}
+    wraith.setdefault('mutations',[]).append(mut_id)
+    return {'id':mut_id,'name':mut['name'],'emoji':mut['emoji']}
+
+def _wraith_response(wraith):
+    """Full wraith dict with bonuses for API response"""
+    return {**wraith, 'bonuses': _calc_wraith_bonuses(wraith)}
 
 @app.route('/api/wraith/info', methods=['GET'])
 def wraith_info():
-    seed = request.headers.get('X-Seed', '').strip()
-    if not validate_seed(seed):
-        return jsonify({'error': 'Unauthorized'}), 401
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
     addr = get_address_from_seed(seed)
     with S.lock:
         wallet = S.wallets.get(addr)
-        if not wallet:
-            return jsonify({'error': 'Wallet not found'}), 404
+        if not wallet: return jsonify({'error':'Wallet not found'}),404
         wraith = wallet.get('wraith') or wallet.get('pet')
-        shards = wallet.get('shards', 0)
+        shards = wallet.get('shards',0)
+        items_owned = wallet.get('items_owned',[])
+        # What can be crafted
+        craftable = []
+        for iid, item in ITEMS.items():
+            if iid not in items_owned:
+                craftable.append({
+                    'id':iid, 'name':item['name'], 'emoji':item['emoji'],
+                    'slot':item['slot'], 'rarity':item['rarity'],
+                    'bonus':item['bonus'], 'cost_shards':item['cost_shards'],
+                    'can_craft': shards >= item['cost_shards'],
+                })
         bag = {
             'shards': shards,
-            'modules_owned': wallet.get('modules_owned', []),
-            'craftable': [
-                {'id': mid, **{k:v for k,v in m.items() if k!='bonus'}, 'bonus': m['bonus'],
-                 'can_craft': shards >= m['cost_shards']}
-                for mid, m in MODULES.items()
-                if mid not in wallet.get('modules_owned', [])
-            ],
+            'items_owned': items_owned,
+            'craftable': craftable,
         }
         if not wraith:
-            return jsonify({'ok': True, 'wraith': None, 'bag': bag,
-                            'mint_cost': MINT_COST,
-                            'available_types': {k: {'emoji':v['emoji'],'archetype':v['archetype'],'rarity':v['rarity'],'slots':v['slots']} for k,v in WRAITH_TYPES.items()}})
-        bonuses = _calc_wraith_bonuses(wraith)
-        return jsonify({'ok': True, 'wraith': {**wraith, 'bonuses': bonuses}, 'bag': bag})
+            return jsonify({'ok':True,'wraith':None,'bag':bag,'mint_cost':MINT_COST,
+                            'types':{k:{'emoji':v['emoji'],'name':v['name'],
+                                        'rarity':v['rarity'],'slots':v['slots']}
+                                     for k,v in WRAITH_TYPES.items()}})
+        return jsonify({'ok':True,'wraith':_wraith_response(wraith),'bag':bag})
 
 @app.route('/api/wraith/mint', methods=['POST'])
 def wraith_mint():
-    seed = request.headers.get('X-Seed', '').strip()
-    if not validate_seed(seed):
-        return jsonify({'error': 'Unauthorized'}), 401
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
     addr = get_address_from_seed(seed)
     data = request.get_json() or {}
-    wtype = data.get('type', 'wolf').lower()
-    if wtype not in WRAITH_TYPES:
-        return jsonify({'error': f'Unknown type'}), 400
+    wtype = data.get('type','wolf').lower()
+    if wtype not in WRAITH_TYPES: return jsonify({'error':'Unknown type'}),400
     with S.lock:
         wallet = S.wallets.get(addr)
-        if not wallet:
-            return jsonify({'error': 'Wallet not found'}), 404
+        if not wallet: return jsonify({'error':'Wallet not found'}),404
         if wallet.get('wraith') or wallet.get('pet'):
-            return jsonify({'error': 'You already have a Wraith. Release it first.'}), 400
-        if wallet.get('balance', 0) < MINT_COST:
-            return jsonify({'error': f'Need {MINT_COST} LAC'}), 400
+            return jsonify({'error':'Release current Wraith first'}),400
+        if wallet.get('balance',0) < MINT_COST:
+            return jsonify({'error':f'Need {MINT_COST} LAC'}),400
         wallet['balance'] -= MINT_COST
-        wcfg = WRAITH_TYPES[wtype]
         wraith = {
-            'type': wtype,
-            'name': _gen_wraith_name(wtype),
-            'rarity': wcfg['rarity'],
-            'organs': {'eyes':1,'core':1,'mobility':1,'memory':1,'aura':1},
-            'skills': {'hunt':0,'trade':0,'mine':0,'shadow':0},
-            'skill_points': 10,
-            'modules': [],
-            'mutations': [],
-            'shards': 0,
+            'type':     wtype,
+            'name':     _gen_wraith_name(wtype),
+            'rarity':   WRAITH_TYPES[wtype]['rarity'],
+            'equipped': {s:None for s in SLOTS},  # slot_id → item_id or None
+            'item_levels': {},  # item_id → level
+            'mutations':[],
             'minted_at': int(time.time()),
-            'token_id': f"WRAITH-{hashlib.sha256(f'{addr}{time.time()}'.encode()).hexdigest()[:12].upper()}",
+            'token_id':  f"WRAITH-{hashlib.sha256(f'{addr}{time.time()}'.encode()).hexdigest()[:12].upper()}",
         }
         wallet['wraith'] = wraith
         wallet.pop('pet', None)
-        S.mempool.append({
-            'type': 'wraith_mint', 'from': hashlib.sha256(addr.encode()).hexdigest()[:16],
-            'to': 'wraith_registry', 'amount': MINT_COST,
-            'wraith_type': wtype, 'token_id': wraith['token_id'],
-            'timestamp': int(time.time()),
-        })
+        S.mempool.append({'type':'wraith_mint',
+            'from':hashlib.sha256(addr.encode()).hexdigest()[:16],
+            'to':'wraith_registry','amount':MINT_COST,
+            'wraith_type':wtype,'token_id':wraith['token_id'],
+            'timestamp':int(time.time())})
         S.save()
-        return jsonify({'ok': True, 'wraith': {**wraith, 'bonuses': _calc_wraith_bonuses(wraith)}})
+        return jsonify({'ok':True,'wraith':_wraith_response(wraith)})
 
-@app.route('/api/wraith/upgrade', methods=['POST'])
-def wraith_upgrade():
-    seed = request.headers.get('X-Seed', '').strip()
-    if not validate_seed(seed):
-        return jsonify({'error': 'Unauthorized'}), 401
+@app.route('/api/wraith/item/craft', methods=['POST'])
+def wraith_item_craft():
+    """Craft an item from shards"""
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
     addr = get_address_from_seed(seed)
     data = request.get_json() or {}
-    organ = data.get('organ', '').lower()
-    if organ not in ('eyes','core','mobility','memory','aura'):
-        return jsonify({'error': 'Invalid organ'}), 400
+    item_id = data.get('item_id','').strip()
+    if item_id not in ITEMS: return jsonify({'error':'Unknown item'}),400
     with S.lock:
         wallet = S.wallets.get(addr)
-        if not wallet:
-            return jsonify({'error': 'Wallet not found'}), 404
+        if not wallet: return jsonify({'error':'Wallet not found'}),404
+        item = ITEMS[item_id]
+        cost = item['cost_shards']
+        if wallet.get('shards',0) < cost:
+            return jsonify({'error':f'Need {cost} shards'}),400
+        items_owned = wallet.get('items_owned',[])
+        if item_id in items_owned:
+            return jsonify({'error':'Already crafted'}),400
+        wallet['shards']      -= cost
+        wallet['items_owned']  = items_owned + [item_id]
+        S.save()
+        return jsonify({'ok':True,'item_id':item_id,'name':item['name'],
+                        'shards_left':wallet['shards']})
+
+@app.route('/api/wraith/item/equip', methods=['POST'])
+def wraith_item_equip():
+    """Equip or unequip an item"""
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    item_id = data.get('item_id','').strip()
+    action  = data.get('action','equip')  # equip | unequip
+    with S.lock:
+        wallet = S.wallets.get(addr)
+        if not wallet: return jsonify({'error':'Wallet not found'}),404
         wraith = wallet.get('wraith') or wallet.get('pet')
-        if not wraith:
-            return jsonify({'error': 'No Wraith'}), 404
-        current_lv = wraith['organs'].get(organ, 0)
-        if current_lv >= 5:
-            return jsonify({'error': f'{organ} already maxed'}), 400
-        next_lv = current_lv + 1
-        cost = UPGRADE_COST[next_lv]
-        if wallet.get('balance', 0) < cost:
-            return jsonify({'error': f'Need {cost} LAC'}), 400
-        wallet['balance'] -= cost
-        wraith['organs'][organ] = next_lv
-        # Shard drop on upgrade
-        shards = _try_shard_drop(addr, 'mining', 3)
-        # Mutation chance
-        mutation = _try_mutation_drop(addr)
-        bonuses = _calc_wraith_bonuses(wraith)
-        S.mempool.append({
-            'type': 'wraith_upgrade', 'from': hashlib.sha256(addr.encode()).hexdigest()[:16],
-            'to': 'wraith_registry', 'amount': cost,
-            'organ': organ, 'new_level': next_lv, 'timestamp': int(time.time()),
-        })
-        S.save()
-        return jsonify({'ok': True, 'organ': organ, 'level': next_lv,
-                        'cost': cost, 'bonuses': bonuses,
-                        'shards_dropped': shards, 'mutation': mutation, 'wraith': wraith})
-
-@app.route('/api/wraith/skill', methods=['POST'])
-def wraith_skill():
-    seed = request.headers.get('X-Seed', '').strip()
-    if not validate_seed(seed):
-        return jsonify({'error': 'Unauthorized'}), 401
-    addr = get_address_from_seed(seed)
-    data = request.get_json() or {}
-    skill = data.get('skill', '').lower()
-    if skill not in ('hunt','trade','mine','shadow'):
-        return jsonify({'error': 'Invalid skill'}), 400
-    with S.lock:
-        wallet = S.wallets.get(addr)
-        if not wallet:
-            return jsonify({'error': 'Wallet not found'}), 404
-        wraith = wallet.get('wraith') or wallet.get('pet')
-        if not wraith:
-            return jsonify({'error': 'No Wraith'}), 404
-        if wraith.get('skill_points', 0) <= 0:
-            return jsonify({'error': 'No skill points left'}), 400
-        if wraith['skills'].get(skill, 0) >= 4:
-            return jsonify({'error': f'{skill} maxed'}), 400
-        wraith['skills'][skill] = wraith['skills'].get(skill, 0) + 1
-        wraith['skill_points'] = wraith.get('skill_points', 0) - 1
-        S.save()
-        return jsonify({'ok': True, 'skill': skill, 'level': wraith['skills'][skill],
-                        'points_left': wraith['skill_points']})
-
-@app.route('/api/wraith/module/craft', methods=['POST'])
-def wraith_module_craft():
-    """Craft a module from shards"""
-    seed = request.headers.get('X-Seed', '').strip()
-    if not validate_seed(seed):
-        return jsonify({'error': 'Unauthorized'}), 401
-    addr = get_address_from_seed(seed)
-    data = request.get_json() or {}
-    mod_id = data.get('module_id', '').strip()
-    if mod_id not in MODULES:
-        return jsonify({'error': 'Unknown module'}), 400
-    with S.lock:
-        wallet = S.wallets.get(addr)
-        if not wallet:
-            return jsonify({'error': 'Wallet not found'}), 404
-        mod = MODULES[mod_id]
-        cost = mod['cost_shards']
-        if wallet.get('shards', 0) < cost:
-            return jsonify({'error': f'Need {cost} shards'}), 400
-        if mod_id in wallet.get('modules_owned', []):
-            return jsonify({'error': 'Already have this module'}), 400
-        wallet['shards'] -= cost
-        wallet.setdefault('modules_owned', []).append(mod_id)
-        S.save()
-        return jsonify({'ok': True, 'module_id': mod_id, 'name': mod['name'],
-                        'shards_left': wallet['shards']})
-
-@app.route('/api/wraith/module/equip', methods=['POST'])
-def wraith_module_equip():
-    """Equip/unequip module to Wraith slot"""
-    seed = request.headers.get('X-Seed', '').strip()
-    if not validate_seed(seed):
-        return jsonify({'error': 'Unauthorized'}), 401
-    addr = get_address_from_seed(seed)
-    data = request.get_json() or {}
-    mod_id = data.get('module_id', '').strip()
-    action = data.get('action', 'equip')  # equip | unequip
-    with S.lock:
-        wallet = S.wallets.get(addr)
-        if not wallet:
-            return jsonify({'error': 'Wallet not found'}), 404
-        wraith = wallet.get('wraith') or wallet.get('pet')
-        if not wraith:
-            return jsonify({'error': 'No Wraith'}), 404
-        if mod_id not in MODULES:
-            return jsonify({'error': 'Unknown module'}), 400
-        if mod_id not in wallet.get('modules_owned', []):
-            return jsonify({"error": "You don't own this module"}), 400
-        max_slots = WRAITH_TYPES.get(wraith.get('type','wolf'), {}).get('slots', 2)
-        equipped = wraith.get('modules', [])
+        if not wraith: return jsonify({'error':'No Wraith'}),404
+        if item_id not in ITEMS: return jsonify({'error':'Unknown item'}),400
+        if item_id not in wallet.get('items_owned',[]):
+            return jsonify({'error':"You don't own this item"}),400
+        item = ITEMS[item_id]
+        slot = item['slot']
+        # Check slot limit
+        max_slots = WRAITH_TYPES.get(wraith.get('type','wolf'),{}).get('slots',3)
+        equipped  = wraith.get('equipped',{})
+        filled    = sum(1 for v in equipped.values() if v)
         if action == 'equip':
-            if mod_id in equipped:
-                return jsonify({'error': 'Already equipped'}), 400
-            if len(equipped) >= max_slots:
-                return jsonify({'error': f'Max {max_slots} modules for this Wraith type'}), 400
-            equipped.append(mod_id)
+            if equipped.get(slot):
+                return jsonify({'error':f'Slot {slot} already filled. Unequip first.'}),400
+            if filled >= max_slots:
+                return jsonify({'error':f'Max {max_slots} slots for this Wraith'}),400
+            equipped[slot] = item_id
         else:
-            if mod_id not in equipped:
-                return jsonify({'error': 'Not equipped'}), 400
-            equipped.remove(mod_id)
-        wraith['modules'] = equipped
+            if equipped.get(slot) != item_id:
+                return jsonify({'error':'Item not equipped in that slot'}),400
+            equipped[slot] = None
+        wraith['equipped'] = equipped
         bonuses = _calc_wraith_bonuses(wraith)
         S.save()
-        return jsonify({'ok': True, 'action': action, 'modules': equipped, 'bonuses': bonuses})
+        return jsonify({'ok':True,'slot':slot,'action':action,
+                        'equipped':equipped,'bonuses':bonuses})
+
+@app.route('/api/wraith/item/upgrade', methods=['POST'])
+def wraith_item_upgrade():
+    """Upgrade an equipped item level (costs shards)"""
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    item_id = data.get('item_id','').strip()
+    with S.lock:
+        wallet = S.wallets.get(addr)
+        if not wallet: return jsonify({'error':'Wallet not found'}),404
+        wraith = wallet.get('wraith') or wallet.get('pet')
+        if not wraith: return jsonify({'error':'No Wraith'}),404
+        if item_id not in ITEMS: return jsonify({'error':'Unknown item'}),400
+        if item_id not in wallet.get('items_owned',[]):
+            return jsonify({'error':"Don't own this item"}),400
+        lv = wraith.get('item_levels',{}).get(item_id,1)
+        if lv >= 5: return jsonify({'error':'Item already max level (5)'}),400
+        cost = (lv + 1) * 30  # 60, 90, 120, 150 shards
+        if wallet.get('shards',0) < cost:
+            return jsonify({'error':f'Need {cost} shards'}),400
+        wallet['shards'] -= cost
+        wraith.setdefault('item_levels',{})[item_id] = lv + 1
+        # Chance of mutation on upgrade
+        mutation = _try_mutation_drop(addr)
+        bonuses  = _calc_wraith_bonuses(wraith)
+        S.mempool.append({'type':'wraith_upgrade',
+            'from':hashlib.sha256(addr.encode()).hexdigest()[:16],
+            'to':'wraith_registry','amount':0,
+            'item_id':item_id,'new_level':lv+1,'cost_shards':cost,
+            'timestamp':int(time.time())})
+        S.save()
+        return jsonify({'ok':True,'item_id':item_id,'new_level':lv+1,
+                        'cost_shards':cost,'bonuses':bonuses,'mutation':mutation})
 
 @app.route('/api/wraith/release', methods=['POST'])
 def wraith_release():
-    seed = request.headers.get('X-Seed', '').strip()
-    if not validate_seed(seed):
-        return jsonify({'error': 'Unauthorized'}), 401
+    seed = request.headers.get('X-Seed','').strip()
+    if not validate_seed(seed): return jsonify({'error':'Unauthorized'}),401
     addr = get_address_from_seed(seed)
     with S.lock:
         wallet = S.wallets.get(addr)
-        if not wallet:
-            return jsonify({'error': 'Wallet not found'}), 404
+        if not wallet: return jsonify({'error':'Wallet not found'}),404
         wraith = wallet.get('wraith') or wallet.get('pet')
-        if not wraith:
-            return jsonify({'error': 'No Wraith'}), 404
-        total_lv = sum(wraith.get('organs', {}).values())
-        mod_bonus = len(wraith.get('modules', [])) * 10
-        mut_bonus = len(wraith.get('mutations', [])) * 20
+        if not wraith: return jsonify({'error':'No Wraith'}),404
+        equipped_count = sum(1 for v in wraith.get('equipped',{}).values() if v)
+        item_lv_sum    = sum(wraith.get('item_levels',{}).values())
+        mut_count      = len(wraith.get('mutations',[]))
         shards = _random.randint(
-            max(50, total_lv * 5 + mod_bonus + mut_bonus),
-            min(500, total_lv * 20 + mod_bonus * 2 + mut_bonus * 2)
+            max(50, equipped_count*15 + item_lv_sum*10 + mut_count*20),
+            min(600, equipped_count*40 + item_lv_sum*25 + mut_count*50 + 50)
         )
-        wallet['shards'] = wallet.get('shards', 0) + shards
+        wallet['shards'] = wallet.get('shards',0) + shards
+        # Return items to bag
+        equipped = wraith.get('equipped',{})
+        for slot, iid in equipped.items():
+            if iid and iid not in wallet.get('items_owned',[]):
+                wallet.setdefault('items_owned',[]).append(iid)
         wallet['wraith'] = None
-        wallet.pop('pet', None)
-        S.mempool.append({
-            'type': 'wraith_release', 'from': hashlib.sha256(addr.encode()).hexdigest()[:16],
-            'to': 'void', 'amount': 0,
-            'shards_earned': shards, 'timestamp': int(time.time()),
-        })
+        wallet.pop('pet',None)
+        S.mempool.append({'type':'wraith_release',
+            'from':hashlib.sha256(addr.encode()).hexdigest()[:16],
+            'to':'void','amount':0,'shards_earned':shards,
+            'timestamp':int(time.time())})
         S.save()
-        return jsonify({'ok': True, 'shards_earned': shards, 'total_shards': wallet['shards']})
+        return jsonify({'ok':True,'shards_earned':shards,'total_shards':wallet['shards']})
 
-# Keep old /api/pet/* as aliases for backward compat
-@app.route('/api/pet/info', methods=['GET'])
-def pet_info(): return wraith_info()
-@app.route('/api/pet/mint', methods=['POST'])
-def pet_mint(): return wraith_mint()
-@app.route('/api/pet/upgrade', methods=['POST'])
-def pet_upgrade(): return wraith_upgrade()
-@app.route('/api/pet/skill', methods=['POST'])
-def pet_skill(): return wraith_skill()
-@app.route('/api/pet/release', methods=['POST'])
+# ── Backward compat aliases ────────────────────────────
+@app.route('/api/pet/info',    methods=['GET'])  
+def pet_info():    return wraith_info()
+@app.route('/api/pet/mint',    methods=['POST']) 
+def pet_mint():    return wraith_mint()
+@app.route('/api/pet/release', methods=['POST']) 
 def pet_release(): return wraith_release()
 
 
