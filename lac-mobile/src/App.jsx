@@ -4146,8 +4146,8 @@ const WraithNFTCard = ({wraith, onSlotClick}) => {
           display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0}}>{emoji}</div>
         <div style={{flex:1,minWidth:0}}>
           <p style={{color:'#e5fff5',fontWeight:600,fontSize:15,marginBottom:2}}>{wraith.name}</p>
-          <p style={{color:rc,fontSize:11,marginBottom:2}}>{wraith.rarity} · {wraith.type}</p>
-          <p style={{color:'#1a3d2a',fontSize:9,fontFamily:'monospace',letterSpacing:'.05em'}}>{wraith.token_id}</p>
+          <p style={{color:rc,fontSize:12,fontWeight:500,marginBottom:2}}>{wraith.rarity} · {wraith.type}</p>
+          <p style={{color:'#4a7a60',fontSize:9,fontFamily:'monospace',letterSpacing:'.05em'}}>{wraith.token_id}</p>
         </div>
         <div style={{textAlign:'right',flexShrink:0}}>
           <p style={{fontSize:10,color:'var(--color-text-tertiary)'}}>minted</p>
@@ -4157,7 +4157,7 @@ const WraithNFTCard = ({wraith, onSlotClick}) => {
 
       {/* Equipment slots */}
       <div style={{padding:'12px 16px',borderBottom:'1px solid #0f2a1e'}}>
-        <p style={{fontSize:10,color:'var(--color-text-tertiary)',letterSpacing:'.08em',textTransform:'uppercase',marginBottom:8}}>Equipment</p>
+        <p style={{fontSize:10,color:'#8ab5a0',letterSpacing:'.08em',textTransform:'uppercase',marginBottom:8}}>Equipment</p>
         {SLOTS_ORDER.map(slotId => {
           const sm      = SLOT_META[slotId];
           const itemId  = equipped[slotId];
@@ -4166,24 +4166,24 @@ const WraithNFTCard = ({wraith, onSlotClick}) => {
           return (
             <div key={slotId} onClick={() => onSlotClick && onSlotClick(slotId, itemId)}
               style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',
-                borderBottom:'1px solid #080f0a',cursor:'pointer',
+                borderBottom:'1px solid #0f2a1e',cursor:'pointer',
                 transition:'background .15s'}}
-              onMouseEnter={e => e.currentTarget.style.background='#0a1f15'}
+              onMouseEnter={e => e.currentTarget.style.background='#0d2a1a'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
               <span style={{fontSize:15,width:22,textAlign:'center',flexShrink:0}}>{sm.emoji}</span>
-              <span style={{fontSize:11,color:'var(--color-text-tertiary)',width:40,flexShrink:0}}>{sm.label}</span>
+              <span style={{fontSize:11,color:'#8ab5a0',width:40,flexShrink:0}}>{sm.label}</span>
               {hasItem ? (
                 <>
                   <div style={{flex:1,minWidth:0}}>
-                    <span style={{fontSize:12,color:'#e5fff5'}}>{itemId.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</span>
-                    {lv > 1 && <span style={{fontSize:10,color:color,marginLeft:6}}>Lv{lv}</span>}
+                    <span style={{fontSize:12,color:'#c8f0de'}}>{itemId.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</span>
+                    {lv > 1 && <span style={{fontSize:10,color:'#4ade80',marginLeft:6}}>Lv{lv}</span>}
                   </div>
                   <div style={{display:'flex',gap:2,flexShrink:0}}>
-                    {[1,2,3,4,5].map(i=><div key={i} style={{width:6,height:6,borderRadius:'50%',background:i<=lv?color:'#0f2a1e'}}/>)}
+                    {[1,2,3,4,5].map(i=><div key={i} style={{width:6,height:6,borderRadius:'50%',background:i<=lv?color:'#1a3d2a'}}/>)}
                   </div>
                 </>
               ) : (
-                <span style={{flex:1,fontSize:11,color:'#1a3d2a',fontStyle:'italic'}}>— empty —</span>
+                <span style={{flex:1,fontSize:11,color:'#3a6650',fontStyle:'italic'}}>— empty —</span>
               )}
             </div>
           );
@@ -4194,7 +4194,7 @@ const WraithNFTCard = ({wraith, onSlotClick}) => {
       <div style={{padding:'10px 16px',display:'flex',gap:6,flexWrap:'wrap'}}>
         {Object.entries(bonuses).map(([k,v]) => v > 0.001 ? (
           <span key={k} style={{fontSize:10,padding:'3px 8px',borderRadius:20,
-            background:'#051a10',color:color,border:`1px solid ${color}33`}}>
+            background:'#0a2218',color:color,border:`1px solid ${color}55`}}>
             {k==='fee_discount'?'-':'+'}{ Math.round(v*100)}% {BONUS_LABELS[k]?.split(' ')[0]||k}
           </span>
         ) : null)}
@@ -4480,7 +4480,7 @@ const WraithView = ({onBack, profile}) => {
             <div style={{background:'#051a10',border:'1px solid #0f2a1e',borderRadius:12,padding:'10px 14px',
               display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <p style={{fontSize:12,color:'var(--color-text-tertiary)'}}>
-                Slots: <span style={{color:'#6ee7b7',fontWeight:500}}>{equippedCount}/{maxSlots}</span> · Tap slot to manage
+                Slots: <span style={{color:'#4ade80',fontWeight:600}}>{equippedCount}/{maxSlots}</span> · Tap a slot to equip items
               </p>
               <button onClick={release} disabled={releasing}
                 style={{fontSize:11,padding:'4px 12px',borderRadius:20,cursor:'pointer',
