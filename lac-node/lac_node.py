@@ -7284,6 +7284,234 @@ def _start_bg_save():
 
 
 
+
+# ═══════════════════════════════════════════════════════
+# PET SYSTEM — Wolf MVP
+# ═══════════════════════════════════════════════════════
+
+import random as _random
+
+PET_TYPES = {
+    'wolf': {
+        'emoji': '🐺',
+        'archetype': 'Miner',
+        'strong': ['core', 'mobility'],
+        'weak': ['eyes', 'aura'],
+        'organ_bonus': {
+            'core':     lambda lv: {'block_chance': round(lv * 0.02, 3)},
+            'mobility': lambda lv: {'hunt_speed': round(lv * 0.05, 3)},
+            'eyes':     lambda lv: {'rare_find': round(lv * 0.01, 3)},
+            'memory':   lambda lv: {'mutation_chance': round(lv * 0.01, 3)},
+            'aura':     lambda lv: {'fee_discount': 0},
+        },
+    },
+    'raven': {
+        'emoji': '🦅',
+        'archetype': 'Scout',
+        'strong': ['eyes', 'memory'],
+        'weak': ['core', 'aura'],
+        'organ_bonus': {
+            'eyes':     lambda lv: {'rare_find': round(lv * 0.04, 3)},
+            'memory':   lambda lv: {'mutation_chance': round(lv * 0.03, 3)},
+            'core':     lambda lv: {'block_chance': round(lv * 0.005, 3)},
+            'mobility': lambda lv: {'hunt_speed': round(lv * 0.02, 3)},
+            'aura':     lambda lv: {'fee_discount': 0},
+        },
+    },
+    'cat': {
+        'emoji': '🐱',
+        'archetype': 'Trader',
+        'strong': ['core', 'aura'],
+        'weak': ['mobility'],
+        'organ_bonus': {
+            'aura':     lambda lv: {'fee_discount': round(lv * 0.06, 3)},
+            'core':     lambda lv: {'fee_discount': round(lv * 0.02, 3)},
+            'eyes':     lambda lv: {'rare_find': round(lv * 0.02, 3)},
+            'memory':   lambda lv: {'mutation_chance': round(lv * 0.01, 3)},
+            'mobility': lambda lv: {'hunt_speed': round(lv * 0.01, 3)},
+        },
+    },
+}
+
+PET_NAMES = {
+    'wolf':  ['Iron', 'Shadow', 'Steel', 'Dark', 'Storm', 'Blood', 'Frost', 'Void'],
+    'raven': ['Ghost', 'Silent', 'Night', 'Ashen', 'Black', 'Hollow', 'Echo', 'Void'],
+    'cat':   ['Silk', 'Silver', 'Velvet', 'Golden', 'Crystal', 'Neon', 'Smoke', 'Jade'],
+}
+
+def _gen_pet_name(pet_type):
+    prefix = _random.choice(PET_NAMES.get(pet_type, ['Wild']))
+    number = _random.randint(1, 9999)
+    return f"{prefix} {pet_type.capitalize()} #{number}"
+
+def _calc_pet_bonuses(pet):
+    """Compute all active bonuses from organs"""
+    pet_type = pet.get('type', 'wolf')
+    cfg = PET_TYPES.get(pet_type, PET_TYPES['wolf'])
+    bonuses = {'block_chance': 0, 'rare_find': 0, 'fee_discount': 0,
+               'hunt_speed': 0, 'mutation_chance': 0}
+    for organ, lv in pet.get('organs', {}).items():
+        fn = cfg['organ_bonus'].get(organ)
+        if fn and lv > 0:
+            for k, v in fn(lv).items():
+                bonuses[k] = round(bonuses.get(k, 0) + v, 4)
+    return bonuses
+
+UPGRADE_COST = {1: 200, 2: 400, 3: 600, 4: 800, 5: 1000}
+MINT_COST = 500
+RELEASE_SHARDS_MIN = 50
+RELEASE_SHARDS_MAX = 200
+
+@app.route('/api/pet/info', methods=['GET'])
+def pet_info():
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    addr = get_address_from_seed(seed)
+    with S.lock:
+        wallet = S.wallets.get(addr)
+        if not wallet:
+            return jsonify({'error': 'Wallet not found'}), 404
+        pet = wallet.get('pet')
+        if not pet:
+            return jsonify({'ok': True, 'pet': None,
+                            'mint_cost': MINT_COST,
+                            'available_types': list(PET_TYPES.keys())})
+        bonuses = _calc_pet_bonuses(pet)
+        return jsonify({'ok': True, 'pet': {**pet, 'bonuses': bonuses}})
+
+@app.route('/api/pet/mint', methods=['POST'])
+def pet_mint():
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    pet_type = data.get('type', 'wolf').lower()
+    if pet_type not in PET_TYPES:
+        return jsonify({'error': f'Unknown type. Choose: {list(PET_TYPES.keys())}'}), 400
+    with S.lock:
+        wallet = S.wallets.get(addr)
+        if not wallet:
+            return jsonify({'error': 'Wallet not found'}), 404
+        if wallet.get('pet'):
+            return jsonify({'error': 'You already have a pet. Release it first.'}), 400
+        if wallet.get('balance', 0) < MINT_COST:
+            return jsonify({'error': f'Need {MINT_COST} LAC'}), 400
+        wallet['balance'] -= MINT_COST
+        pet = {
+            'type': pet_type,
+            'name': _gen_pet_name(pet_type),
+            'organs': {'eyes': 1, 'core': 1, 'mobility': 1, 'memory': 1, 'aura': 1},
+            'skills': {'hunt': 0, 'trade': 0, 'mine': 0, 'shadow': 0},
+            'skill_points': 10,
+            'mutations': [],
+            'shards': 0,
+            'minted_at': int(time.time()),
+        }
+        wallet['pet'] = pet
+        S.mempool.append({
+            'type': 'pet_mint', 'from': hashlib.sha256(addr.encode()).hexdigest()[:16],
+            'to': 'pet_registry', 'amount': MINT_COST,
+            'pet_type': pet_type, 'timestamp': int(time.time()),
+        })
+        S.save()
+        return jsonify({'ok': True, 'pet': {**pet, 'bonuses': _calc_pet_bonuses(pet)}})
+
+@app.route('/api/pet/upgrade', methods=['POST'])
+def pet_upgrade():
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    organ = data.get('organ', '').lower()
+    if organ not in ('eyes', 'core', 'mobility', 'memory', 'aura'):
+        return jsonify({'error': 'Invalid organ'}), 400
+    with S.lock:
+        wallet = S.wallets.get(addr)
+        if not wallet:
+            return jsonify({'error': 'Wallet not found'}), 404
+        pet = wallet.get('pet')
+        if not pet:
+            return jsonify({'error': 'No pet'}), 404
+        current_lv = pet['organs'].get(organ, 0)
+        if current_lv >= 5:
+            return jsonify({'error': f'{organ} already maxed (5/5)'}), 400
+        next_lv = current_lv + 1
+        cost = UPGRADE_COST[next_lv]
+        if wallet.get('balance', 0) < cost:
+            return jsonify({'error': f'Need {cost} LAC'}), 400
+        wallet['balance'] -= cost
+        pet['organs'][organ] = next_lv
+        bonuses = _calc_pet_bonuses(pet)
+        S.mempool.append({
+            'type': 'pet_upgrade', 'from': hashlib.sha256(addr.encode()).hexdigest()[:16],
+            'to': 'pet_registry', 'amount': cost,
+            'organ': organ, 'new_level': next_lv, 'timestamp': int(time.time()),
+        })
+        S.save()
+        return jsonify({'ok': True, 'organ': organ, 'level': next_lv,
+                        'cost': cost, 'bonuses': bonuses, 'pet': pet})
+
+@app.route('/api/pet/skill', methods=['POST'])
+def pet_skill():
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    addr = get_address_from_seed(seed)
+    data = request.get_json() or {}
+    skill = data.get('skill', '').lower()
+    if skill not in ('hunt', 'trade', 'mine', 'shadow'):
+        return jsonify({'error': 'Invalid skill'}), 400
+    with S.lock:
+        wallet = S.wallets.get(addr)
+        if not wallet:
+            return jsonify({'error': 'Wallet not found'}), 404
+        pet = wallet.get('pet')
+        if not pet:
+            return jsonify({'error': 'No pet'}), 404
+        if pet.get('skill_points', 0) <= 0:
+            return jsonify({'error': 'No skill points left'}), 400
+        if pet['skills'].get(skill, 0) >= 4:
+            return jsonify({'error': f'{skill} already maxed (4/4)'}), 400
+        pet['skills'][skill] = pet['skills'].get(skill, 0) + 1
+        pet['skill_points'] = pet.get('skill_points', 0) - 1
+        S.save()
+        return jsonify({'ok': True, 'skill': skill,
+                        'level': pet['skills'][skill],
+                        'points_left': pet['skill_points'], 'pet': pet})
+
+@app.route('/api/pet/release', methods=['POST'])
+def pet_release():
+    seed = request.headers.get('X-Seed', '').strip()
+    if not validate_seed(seed):
+        return jsonify({'error': 'Unauthorized'}), 401
+    addr = get_address_from_seed(seed)
+    with S.lock:
+        wallet = S.wallets.get(addr)
+        if not wallet:
+            return jsonify({'error': 'Wallet not found'}), 404
+        pet = wallet.get('pet')
+        if not pet:
+            return jsonify({'error': 'No pet'}), 404
+        # Shards = sum of organ levels * random factor
+        total_levels = sum(pet['organs'].values())
+        shards = _random.randint(
+            max(RELEASE_SHARDS_MIN, total_levels * 5),
+            min(RELEASE_SHARDS_MAX, total_levels * 15)
+        )
+        wallet['shards'] = wallet.get('shards', 0) + shards
+        wallet['pet'] = None
+        S.mempool.append({
+            'type': 'pet_release', 'from': hashlib.sha256(addr.encode()).hexdigest()[:16],
+            'to': 'void', 'amount': 0,
+            'shards_earned': shards, 'timestamp': int(time.time()),
+        })
+        S.save()
+        return jsonify({'ok': True, 'shards_earned': shards,
+                        'total_shards': wallet['shards']})
+
 @app.route('/api/pol/zones', methods=['GET'])
 def pol_zones():
     """List all available PoL zones"""

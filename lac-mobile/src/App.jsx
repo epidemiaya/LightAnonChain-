@@ -2193,6 +2193,7 @@ const MainApp = ({ onLogout }) => {
       pol: <PolView onBack={back} profile={profile} />,
       nagini: <NaginiView onBack={back} profile={profile} />,
       level: <LevelUpView onBack={back} profile={profile} onRefresh={reload} />,
+      pet: <PetView onBack={back} profile={profile} />,
     };
     return (
       <div className="w-full h-[100dvh] bg-[#060f0c] flex items-center justify-center sm:bg-gradient-to-br sm:from-gray-900 sm:to-gray-950 sm:p-4">
@@ -2211,6 +2212,7 @@ const MainApp = ({ onLogout }) => {
     { icon: Skull, label: t('deadManSwitch'), act: () => { setSub({type:'dms'}); setMenuOpen(false); } },
     { icon: Lock, label: t('stashTitle'), act: () => { setSub({type:'stash'}); setMenuOpen(false); } },
     { icon: Hash, label: t('usernameMenu'), act: () => { setSub({type:'username'}); setMenuOpen(false); } },
+    { icon: Activity, label: '🐾 Pet', act: () => { setSub({type:'pet'}); setMenuOpen(false); } },
     { icon: TrendingUp, label: t('dashboard'), act: () => { setSub({type:'dashboard'}); setMenuOpen(false); } },
     { icon: Shield, label: t('validatorMenu'), act: () => { setSub({type:'validator'}); setMenuOpen(false); } },
   ];
@@ -4098,6 +4100,241 @@ const ClaimQuestBtn = ({ questId, reward, onDone }) => {
       className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-bold active:bg-amber-700 disabled:opacity-60">
       {claiming ? '…' : `Claim ${reward.toLocaleString()} LAC`}
     </button>
+  );
+};
+
+
+// ━━━ PET SYSTEM ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const PET_META = {
+  wolf:  { emoji:'🐺', color:'#22c55e', bg:'#052e16', border:'#166534', label:'Wolf · Miner' },
+  raven: { emoji:'🦅', color:'#a78bfa', bg:'#1e1b4b', border:'#4c1d95', label:'Raven · Scout' },
+  cat:   { emoji:'🐱', color:'#f59e0b', bg:'#2d1a00', border:'#92400e', label:'Cat · Trader' },
+};
+const ORGANS = ['eyes','core','mobility','memory','aura'];
+const SKILLS = ['hunt','trade','mine','shadow'];
+const UPGRADE_COST = {1:200,2:400,3:600,4:800,5:1000};
+const MINT_COST = 500;
+
+const PetOrganBar = ({ name, level, color, onUpgrade, canUpgrade, cost }) => (
+  <div style={{marginBottom:8}}>
+    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
+      <span style={{fontSize:11,color:'var(--color-text-tertiary)',width:60,flexShrink:0}}>{name}</span>
+      <div style={{flex:1,height:5,background:'#0f2a1e',borderRadius:3,overflow:'hidden'}}>
+        <div style={{width:`${level/5*100}%`,height:'100%',background:color,borderRadius:3,transition:'width .3s'}} />
+      </div>
+      <span style={{fontSize:11,color:'var(--color-text-tertiary)',width:28,textAlign:'right'}}>{level}/5</span>
+      {canUpgrade && level < 5 && (
+        <button onClick={onUpgrade}
+          style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#051a10',border:'1px solid #166534',color:'#4ade80',cursor:'pointer',flexShrink:0}}>
+          +{cost}
+        </button>
+      )}
+      {level === 5 && <span style={{fontSize:10,color:'#4ade80',flexShrink:0}}>MAX</span>}
+    </div>
+  </div>
+);
+
+const PetView = ({ onBack, profile }) => {
+  const [pet, setPet] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [minting, setMinting] = useState(false);
+  const [upgrading, setUpgrading] = useState(null);
+  const [releasing, setReleasing] = useState(false);
+  const [tab, setTab] = useState('organs'); // organs | skills | bonuses
+  const [pickType, setPickType] = useState(false);
+
+  const load = async () => {
+    try { const r = await get('/api/pet/info'); setPet(r.pet); }
+    catch {} finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const mint = async (type) => {
+    setMinting(true); setPickType(false);
+    try {
+      const r = await post('/api/pet/mint', { type });
+      setPet(r.pet);
+      toast.success(`${PET_META[type]?.emoji} ${r.pet.name} minted!`);
+    } catch(e) { toast.error(e.message); }
+    finally { setMinting(false); }
+  };
+
+  const upgrade = async (organ) => {
+    const lv = pet.organs[organ];
+    const cost = UPGRADE_COST[lv + 1];
+    if (!window.confirm(`Upgrade ${organ} to ${lv+1}/5 for ${cost} LAC?`)) return;
+    setUpgrading(organ);
+    try {
+      const r = await post('/api/pet/upgrade', { organ });
+      setPet(r.pet); toast.success(`${organ} upgraded to ${r.level}/5!`);
+    } catch(e) { toast.error(e.message); }
+    finally { setUpgrading(null); }
+  };
+
+  const skillUp = async (skill) => {
+    if (pet.skill_points <= 0) { toast.error('No skill points'); return; }
+    try {
+      const r = await post('/api/pet/skill', { skill });
+      setPet(r.pet); toast.success(`${skill} +1 (${r.points_left} pts left)`);
+    } catch(e) { toast.error(e.message); }
+  };
+
+  const release = async () => {
+    if (!window.confirm(`Release ${pet.name}? You'll get shards but lose the pet.`)) return;
+    setReleasing(true);
+    try {
+      const r = await post('/api/pet/release');
+      setPet(null); toast.success(`Released! +${r.shards_earned} shards`);
+    } catch(e) { toast.error(e.message); }
+    finally { setReleasing(false); }
+  };
+
+  if (loading) return (
+    <div style={{height:'100%',background:'#060f0c',display:'flex',flexDirection:'column'}}>
+      <Header title="🐾 Pet" onBack={onBack} />
+      <SkeletonList n={4} />
+    </div>
+  );
+
+  const meta = pet ? (PET_META[pet.type] || PET_META.wolf) : null;
+
+  return (
+    <div style={{height:'100%',background:'#060f0c',display:'flex',flexDirection:'column'}}>
+      <Header title="🐾 Pet" onBack={onBack} />
+      <div style={{flex:1,overflowY:'auto',padding:'1rem',display:'flex',flexDirection:'column',gap:'1rem'}}>
+
+        {!pet ? (
+          <>
+            <div style={{textAlign:'center',padding:'2rem 0'}}>
+              <p style={{fontSize:48,marginBottom:12}}>🐾</p>
+              <p style={{color:'#e5fff5',fontWeight:500,fontSize:16,marginBottom:6}}>No pet yet</p>
+              <p style={{color:'var(--color-text-tertiary)',fontSize:13,marginBottom:20}}>Mint a pet for {MINT_COST} LAC. It will give you real bonuses.</p>
+              {!pickType
+                ? <button onClick={() => setPickType(true)} disabled={minting}
+                    style={{padding:'10px 28px',borderRadius:12,background:'#15803d',color:'#e5fff5',border:'none',fontSize:14,fontWeight:500,cursor:'pointer'}}>
+                    {minting ? 'Minting…' : `Mint Pet · ${MINT_COST} LAC`}
+                  </button>
+                : <div style={{display:'flex',flexDirection:'column',gap:10,maxWidth:320,margin:'0 auto'}}>
+                    <p style={{color:'var(--color-text-tertiary)',fontSize:12,textAlign:'center'}}>Choose type:</p>
+                    {Object.entries(PET_META).map(([type, m]) => (
+                      <button key={type} onClick={() => mint(type)} disabled={minting}
+                        style={{padding:'14px 16px',borderRadius:14,background:m.bg,border:`1px solid ${m.border}`,cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:12}}>
+                        <span style={{fontSize:28}}>{m.emoji}</span>
+                        <div>
+                          <p style={{color:m.color,fontWeight:500,fontSize:14}}>{m.label}</p>
+                          <p style={{color:'var(--color-text-tertiary)',fontSize:11,marginTop:2}}>
+                            {type==='wolf'?'+mining chance, +hunt speed':type==='raven'?'+rare finds, +shadow access':'-tx fees, +market bonus'}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                    <button onClick={() => setPickType(false)} style={{fontSize:12,color:'var(--color-text-tertiary)',background:'none',border:'none',cursor:'pointer',marginTop:4}}>Cancel</button>
+                  </div>
+              }
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Pet header card */}
+            <div style={{background:'#060f0c',border:`1px solid ${meta.border}`,borderRadius:16,padding:'1rem',position:'relative',overflow:'hidden'}}>
+              <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:meta.color}} />
+              <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+                <div style={{width:52,height:52,borderRadius:12,background:meta.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0}}>{meta.emoji}</div>
+                <div style={{flex:1}}>
+                  <p style={{color:'#e5fff5',fontWeight:500,fontSize:15}}>{pet.name}</p>
+                  <p style={{color:'var(--color-text-tertiary)',fontSize:12}}>{meta.label}</p>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <p style={{fontSize:11,color:'var(--color-text-tertiary)'}}>Shards</p>
+                  <p style={{fontSize:16,fontWeight:500,color:meta.color}}>{profile?.shards || 0}</p>
+                </div>
+              </div>
+
+              {/* Active bonuses summary */}
+              {pet.bonuses && (
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                  {pet.bonuses.block_chance > 0 && <span style={{fontSize:11,padding:'3px 8px',borderRadius:20,background:meta.bg,color:meta.color,border:`1px solid ${meta.border}`}}>+{Math.round(pet.bonuses.block_chance*100)}% block</span>}
+                  {pet.bonuses.rare_find > 0 && <span style={{fontSize:11,padding:'3px 8px',borderRadius:20,background:meta.bg,color:meta.color,border:`1px solid ${meta.border}`}}>+{Math.round(pet.bonuses.rare_find*100)}% rare</span>}
+                  {pet.bonuses.fee_discount > 0 && <span style={{fontSize:11,padding:'3px 8px',borderRadius:20,background:meta.bg,color:meta.color,border:`1px solid ${meta.border}`}}>-{Math.round(pet.bonuses.fee_discount*100)}% fee</span>}
+                  {pet.bonuses.hunt_speed > 0 && <span style={{fontSize:11,padding:'3px 8px',borderRadius:20,background:meta.bg,color:meta.color,border:`1px solid ${meta.border}`}}>+{Math.round(pet.bonuses.hunt_speed*100)}% speed</span>}
+                </div>
+              )}
+            </div>
+
+            {/* Tabs */}
+            <TabBar tabs={[['organs','Organs'],['skills','Skills'],['info','Info']]} active={tab} onChange={setTab} />
+
+            {tab === 'organs' && (
+              <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:16,padding:'1rem'}}>
+                <p style={{fontSize:11,color:'var(--color-text-tertiary)',marginBottom:12,textTransform:'uppercase',letterSpacing:'.06em'}}>Upgrade organs</p>
+                {ORGANS.map(organ => {
+                  const lv = pet.organs[organ] || 0;
+                  const cost = lv < 5 ? UPGRADE_COST[lv+1] : null;
+                  return (
+                    <PetOrganBar key={organ} name={organ} level={lv} color={meta.color}
+                      onUpgrade={() => upgrade(organ)}
+                      canUpgrade={upgrading === null && (profile?.balance || 0) >= (cost||0)}
+                      cost={cost} />
+                  );
+                })}
+                <p style={{fontSize:11,color:'var(--color-text-tertiary)',marginTop:8}}>Upgrade cost: 200 → 400 → 600 → 800 → 1000 LAC per organ</p>
+              </div>
+            )}
+
+            {tab === 'skills' && (
+              <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:16,padding:'1rem'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                  <p style={{fontSize:11,color:'var(--color-text-tertiary)',textTransform:'uppercase',letterSpacing:'.06em'}}>Skill points</p>
+                  <span style={{fontSize:12,color:meta.color,fontWeight:500}}>{pet.skill_points}/10 remaining</span>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  {SKILLS.map(skill => {
+                    const lv = pet.skills[skill] || 0;
+                    const descs = {hunt:'Rare finds, mutations',trade:'Fees, market',mine:'Block chance, speed',shadow:'Hidden forums, anon'};
+                    return (
+                      <div key={skill} style={{background:'#051a10',border:'1px solid #0f2a1e',borderRadius:10,padding:'10px 12px'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                          <span style={{fontSize:12,fontWeight:500,color:'#6ee7b7',textTransform:'capitalize'}}>{skill}</span>
+                          {lv < 4 && pet.skill_points > 0
+                            ? <button onClick={() => skillUp(skill)} style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#052e16',border:'1px solid #166534',color:'#4ade80',cursor:'pointer'}}>+1</button>
+                            : lv >= 4 ? <span style={{fontSize:10,color:'#4ade80'}}>MAX</span>
+                            : <span style={{fontSize:10,color:'var(--color-text-tertiary)'}}>no pts</span>
+                          }
+                        </div>
+                        <div style={{display:'flex',gap:4,marginBottom:6}}>
+                          {[0,1,2,3].map(i => <div key={i} style={{width:8,height:8,borderRadius:'50%',background:i<lv?meta.color:'#0f2a1e',border:i>=lv?`1px solid #1a3d2a`:undefined}} />)}
+                        </div>
+                        <p style={{fontSize:10,color:'var(--color-text-tertiary)'}}>{descs[skill]}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {tab === 'info' && (
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:12,padding:'12px'}}>
+                  <p style={{fontSize:11,color:'var(--color-text-tertiary)',marginBottom:8,textTransform:'uppercase',letterSpacing:'.06em'}}>All bonuses</p>
+                  {Object.entries(pet.bonuses||{}).map(([k,v]) => v > 0 && (
+                    <p key={k} style={{fontSize:13,color:'#4ade80',marginBottom:4}}>+ {k.replace(/_/g,' ')}: {Math.round(v*100)}%</p>
+                  ))}
+                </div>
+                <div style={{background:'#060f0c',border:'1px solid #1a3d2a',borderRadius:12,padding:'12px'}}>
+                  <p style={{fontSize:11,color:'var(--color-text-tertiary)',marginBottom:8,textTransform:'uppercase',letterSpacing:'.06em'}}>Minted</p>
+                  <p style={{fontSize:13,color:'var(--color-text-secondary)'}}>{new Date((pet.minted_at||0)*1000).toLocaleDateString()}</p>
+                </div>
+                <button onClick={release} disabled={releasing}
+                  style={{padding:'12px',borderRadius:12,background:'#2d0a0a',border:'1px solid #7f1d1d',color:'#f87171',fontSize:13,fontWeight:500,cursor:'pointer'}}>
+                  {releasing ? 'Releasing…' : `Release ${pet.name} → get shards`}
+                </button>
+                <p style={{fontSize:11,color:'var(--color-text-tertiary)',textAlign:'center'}}>Shards depend on organ levels. Min {50}, max {200}.</p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 };
 
