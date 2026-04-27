@@ -1,10 +1,6 @@
 # ⛓️ LAC — LightAnonChain
 **Privacy-first blockchain that physically deletes your data.**
 
-<img width="588" height="1280" alt="photo_2026-04-27_21-38-57 (3)" src="https://github.com/user-attachments/assets/e0490cd4-b0df-4eab-8847-96739c742152" />
-<img width="588" height="1280" alt="photo_2026-04-27_21-38-57 (2)" src="https://github.com/user-attachments/assets/b089c486-40f1-4aea-be71-dcfd773fd152" />
-<img width="588" height="1280" alt="photo_2026-04-27_21-38-57" src="https://github.com/user-attachments/assets/7bacd090-426e-4ab6-89fa-dfab995695e3" />
-
 > *"Privacy that expires"* — the only blockchain where data doesn't exist forever.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
