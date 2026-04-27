@@ -15,7 +15,7 @@
 ## 🚀 Live Beta Testnet
 
 **Try it now:** [https://lac-beta.uk](https://lac-beta.uk)
-
+<img width="1280" height="503" alt="photo_2026-04-27_21-48-19" src="https://github.com/user-attachments/assets/eea2c008-9508-4351-9546-1767c3083caa" />
 No installation. Works in any browser on any device.
 
 400,000+ blocks mined. Real users. Real data deletion.
